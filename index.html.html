@@ -33,10 +33,68 @@ button { font-family: inherit; cursor: pointer; }
 input, select, textarea { font-family: inherit; font-size: 14px; }
 .hidden { display: none !important; }
 
-.login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--primary-dark), var(--primary)); }
-.login-box { background: var(--surface); padding: 40px 36px; border-radius: var(--radius); box-shadow: 0 10px 30px rgba(0,0,0,0.2); width: 100%; max-width: 380px; }
+.login-page {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden; padding: 20px; box-sizing: border-box;
+  background: radial-gradient(circle at 20% 15%, #1d6b34 0%, transparent 45%),
+              radial-gradient(circle at 85% 85%, #0d3320 0%, transparent 50%),
+              linear-gradient(135deg, var(--primary-dark), var(--primary));
+}
+.login-page::before, .login-page::after {
+  content: ''; position: absolute; border-radius: 50%;
+  background: radial-gradient(circle, rgba(249,168,37,0.18), transparent 70%);
+  pointer-events: none;
+}
+.login-page::before { width: 420px; height: 420px; top: -140px; left: -120px; }
+.login-page::after { width: 520px; height: 520px; bottom: -180px; right: -160px; background: radial-gradient(circle, rgba(255,255,255,0.08), transparent 70%); }
+.login-box {
+  position: relative; z-index: 1; background: var(--surface);
+  padding: 44px 38px 38px; border-radius: 28px; width: 100%; max-width: 388px;
+  box-shadow: 0 30px 70px rgba(0,0,0,0.35), 0 8px 22px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.6);
+  animation: loginBoxIn .5s cubic-bezier(.2,.9,.3,1);
+}
+@keyframes loginBoxIn { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.login-logo-wrap { display: flex; justify-content: center; margin-bottom: 18px; }
+.login-logo-wrap img { max-width: 210px; display: block; filter: drop-shadow(0 6px 16px rgba(15,61,46,0.18)); }
 .login-box h1 { font-size: 20px; color: var(--primary-dark); text-align: center; margin-bottom: 4px; }
-.login-box .subtitle { text-align: center; color: var(--text-muted); font-size: 13px; margin-bottom: 28px; }
+.login-box .subtitle { text-align: center; color: var(--text-muted); font-size: 13px; margin-bottom: 30px; line-height: 1.6; }
+.login-field { margin-bottom: 18px; }
+.login-field label { display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 7px; color: #6B756F; }
+.login-input-wrap { position: relative; }
+.login-input-wrap [data-lucide] {
+  position: absolute; top: 50%; right: 14px; transform: translateY(-50%);
+  width: 17px; height: 17px; color: #9AA39C; pointer-events: none; transition: color .15s ease;
+}
+.login-input-wrap input {
+  width: 100%; box-sizing: border-box; padding: 13px 42px 13px 14px; border: 1.5px solid #EDEAE0;
+  border-radius: 13px; outline: none; font-size: 14px; background: #F9F8F4; color: var(--text);
+  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+.login-input-wrap input:focus { border-color: var(--accent); background: #fff; box-shadow: 0 0 0 4px rgba(249,168,37,0.14); }
+.login-input-wrap input:focus + [data-lucide], .login-input-wrap:focus-within [data-lucide] { color: var(--accent); }
+.login-submit-btn {
+  width: 100%; border: none; border-radius: 13px; padding: 14px 18px; margin-top: 6px;
+  font-size: 14.5px; font-weight: 800; color: #fff; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  box-shadow: 0 10px 24px rgba(27,94,32,0.32);
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+.login-submit-btn:hover { transform: translateY(-1px); box-shadow: 0 14px 30px rgba(27,94,32,0.4); }
+.login-submit-btn:active { transform: translateY(0); filter: brightness(.95); }
+.login-submit-btn:disabled { opacity: .75; cursor: default; transform: none; }
+.login-submit-btn .login-spinner {
+  width: 15px; height: 15px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: #fff; animation: loginSpin .7s linear infinite;
+}
+@keyframes loginSpin { to { transform: rotate(360deg); } }
+.login-error {
+  display: none; align-items: center; gap: 8px; background: #FDECEA; color: var(--danger);
+  padding: 11px 14px; border-radius: 12px; font-size: 12.5px; font-weight: 600; margin-bottom: 18px;
+  border: 1px solid rgba(198,40,40,0.15);
+}
+.login-error.show { display: flex; }
+.login-error [data-lucide] { width: 15px; height: 15px; flex-shrink: 0; }
 .field { margin-bottom: 16px; }
 .field label { display: block; font-size: 13px; margin-bottom: 6px; color: var(--text-muted); }
 .field input, .field select, .field textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; }
@@ -349,7 +407,8 @@ tr:hover td { background: var(--primary-light); }
   .drawer { width: 100%; max-width: 100%; }
   .modal-box { width: 94% !important; overflow-x: auto; }
   .modal-box table { min-width: 480px; }
-  .login-box { padding: 28px 20px; }
+  .login-box { padding: 30px 22px 26px; border-radius: 22px; }
+  .login-logo-wrap img { max-width: 170px; }
   .row-actions { opacity: 1; }
   .mform-layout { grid-template-columns: 1fr; }
   .mform-grid { grid-template-columns: 1fr; }
@@ -1514,25 +1573,44 @@ function renderLogin() {
   root.innerHTML = `
     <div class="login-page">
       <div class="login-box">
-        <div style="background:#d4dfbc; border-radius:18px; padding:14px; margin:0 auto 16px; max-width:260px;">
-          <img src="${LOGO_DATA_URI}" alt="شؤون الغذاء" style="max-width:220px; display:block; margin:0 auto;">
+        <div class="login-logo-wrap">
+          <img src="${LOGO_DATA_URI}" alt="شؤون الغذاء">
         </div>
         <p class="subtitle">لتطوير وإدارة المطاعم — نظام متابعة الاجتماعات والمهام</p>
-        <div class="error-msg" id="loginError"></div>
+        <div class="login-error" id="loginError"><span data-lucide="alert-circle"></span><span id="loginErrorText"></span></div>
         <form id="loginForm">
-          <div class="field"><label>اسم المستخدم</label><input type="text" id="loginUsername" required autofocus></div>
-          <div class="field"><label>كلمة المرور</label><input type="password" id="loginPassword" required></div>
-          <button type="submit" class="btn btn-primary">تسجيل الدخول</button>
+          <div class="login-field">
+            <label>اسم المستخدم</label>
+            <div class="login-input-wrap">
+              <input type="text" id="loginUsername" required autofocus autocomplete="username">
+              <span data-lucide="user"></span>
+            </div>
+          </div>
+          <div class="login-field">
+            <label>كلمة المرور</label>
+            <div class="login-input-wrap">
+              <input type="password" id="loginPassword" required autocomplete="current-password">
+              <span data-lucide="lock"></span>
+            </div>
+          </div>
+          <button type="submit" class="login-submit-btn" id="loginSubmitBtn">
+            <span data-lucide="log-in"></span><span>تسجيل الدخول</span>
+          </button>
         </form>
       </div>
     </div>
   `;
+  if (window.lucide) lucide.createIcons();
   document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const errBox = document.getElementById('loginError');
+    const errText = document.getElementById('loginErrorText');
+    const submitBtn = document.getElementById('loginSubmitBtn');
     errBox.classList.remove('show');
     const username = document.getElementById('loginUsername').value.trim();
     const password = document.getElementById('loginPassword').value;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="login-spinner"></span><span>جارٍ الدخول...</span>';
     try {
       const { data, error } = await sb.from('users')
         .select('*, departments(name)')
@@ -1555,8 +1633,11 @@ function renderLogin() {
       location.hash = '#dashboard';
       renderApp();
     } catch (err) {
-      errBox.textContent = err.message || 'حدث خطأ أثناء تسجيل الدخول';
+      errText.textContent = err.message || 'حدث خطأ أثناء تسجيل الدخول';
       errBox.classList.add('show');
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<span data-lucide="log-in"></span><span>تسجيل الدخول</span>';
+      if (window.lucide) lucide.createIcons();
     }
   });
 }
