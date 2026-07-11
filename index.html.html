@@ -34,55 +34,76 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 .hidden { display: none !important; }
 
 .login-page {
-  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; width: 100%; display: flex; align-items: center; justify-content: center;
   position: relative; overflow: hidden; padding: 20px; box-sizing: border-box;
-  background: radial-gradient(circle at 20% 15%, #1d6b34 0%, transparent 45%),
-              radial-gradient(circle at 85% 85%, #0d3320 0%, transparent 50%),
-              linear-gradient(135deg, var(--primary-dark), var(--primary));
+  background: linear-gradient(160deg, #1c5c3a 0%, #0F3D2E 45%, #0a2b20 100%);
 }
-.login-page::before, .login-page::after {
-  content: ''; position: absolute; border-radius: 50%;
-  background: radial-gradient(circle, rgba(249,168,37,0.18), transparent 70%);
-  pointer-events: none;
+.login-glow {
+  position: absolute; top: -10%; left: -8%; width: 55%; height: 60%; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,236,179,0.35) 0%, rgba(255,236,179,0.08) 45%, transparent 72%);
+  pointer-events: none; z-index: 0; filter: blur(2px);
 }
-.login-page::before { width: 420px; height: 420px; top: -140px; left: -120px; }
-.login-page::after { width: 520px; height: 520px; bottom: -180px; right: -160px; background: radial-gradient(circle, rgba(255,255,255,0.08), transparent 70%); }
+.login-leaf {
+  position: absolute; z-index: 0; pointer-events: none; opacity: .85;
+}
+.login-leaf.leaf-tl { top: 6%; right: -3%; width: 190px; transform: rotate(8deg); }
+.login-leaf.leaf-bl { bottom: -4%; left: -5%; width: 230px; transform: rotate(-14deg) scaleX(-1); }
 .login-box {
-  position: relative; z-index: 1; background: var(--surface);
-  padding: 44px 38px 38px; border-radius: 28px; width: 100%; max-width: 388px;
-  box-shadow: 0 30px 70px rgba(0,0,0,0.35), 0 8px 22px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.6);
+  position: relative; z-index: 1; background: #FFFFFF;
+  padding: 42px 44px 30px; border-radius: 26px; width: 100%; max-width: 440px;
+  border: 1px solid rgba(198,169,90,0.35);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.28), 0 6px 18px rgba(0,0,0,0.12);
   animation: loginBoxIn .5s cubic-bezier(.2,.9,.3,1);
 }
 @keyframes loginBoxIn { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
-.login-logo-wrap { display: flex; justify-content: center; margin-bottom: 18px; }
-.login-logo-wrap img { max-width: 210px; display: block; filter: drop-shadow(0 6px 16px rgba(15,61,46,0.18)); }
-.login-box h1 { font-size: 20px; color: var(--primary-dark); text-align: center; margin-bottom: 4px; }
-.login-box .subtitle { text-align: center; color: var(--text-muted); font-size: 13px; margin-bottom: 30px; line-height: 1.6; }
-.login-field { margin-bottom: 18px; }
-.login-field label { display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 7px; color: #6B756F; }
-.login-input-wrap { position: relative; }
-.login-input-wrap [data-lucide] {
-  position: absolute; top: 50%; right: 14px; transform: translateY(-50%);
-  width: 17px; height: 17px; color: #9AA39C; pointer-events: none; transition: color .15s ease;
+.login-logo-wrap { display: flex; justify-content: center; margin-bottom: 6px; }
+.login-logo-wrap img { max-width: 200px; display: block; }
+.login-box .login-tagline {
+  text-align: center; color: #9A6B12; font-size: 12.5px; font-weight: 700; margin: 2px 0 22px;
+  position: relative; padding-top: 10px;
 }
+.login-box .login-tagline::before {
+  content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 46px; height: 2px; background: linear-gradient(90deg, transparent, #D6A437, transparent);
+}
+.login-box h1 { font-size: 22px; font-weight: 800; color: #14431a; text-align: center; margin-bottom: 10px; }
+.login-box .subtitle { text-align: center; color: var(--text-muted); font-size: 13px; margin-bottom: 26px; line-height: 1.7; }
+.login-field { margin-bottom: 18px; }
+.login-field label { display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 7px; color: #4d5750; }
+.login-input-wrap { position: relative; }
+.login-input-wrap .login-input-icon {
+  position: absolute; top: 50%; right: 16px; transform: translateY(-50%);
+  width: 18px; height: 18px; color: #8b968f; pointer-events: none; transition: color .15s ease;
+}
+.login-input-wrap .login-eye-toggle {
+  position: absolute; top: 50%; left: 14px; transform: translateY(-50%);
+  width: 18px; height: 18px; color: #8b968f; background: none; border: none; padding: 0;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; transition: color .15s ease;
+}
+.login-input-wrap .login-eye-toggle:hover { color: #14431a; }
 .login-input-wrap input {
-  width: 100%; box-sizing: border-box; padding: 13px 42px 13px 14px; border: 1.5px solid #EDEAE0;
-  border-radius: 13px; outline: none; font-size: 14px; background: #F9F8F4; color: var(--text);
+  width: 100%; box-sizing: border-box; height: 56px; padding: 0 46px; border: 1.5px solid #E3E7E2;
+  border-radius: 14px; outline: none; font-size: 14px; background: #F9FAF8; color: var(--text);
   transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
 }
-.login-input-wrap input:focus { border-color: var(--accent); background: #fff; box-shadow: 0 0 0 4px rgba(249,168,37,0.14); }
-.login-input-wrap input:focus + [data-lucide], .login-input-wrap:focus-within [data-lucide] { color: var(--accent); }
+.login-input-wrap input:focus { border-color: #2E7D32; background: #fff; box-shadow: 0 0 0 4px rgba(46,125,50,0.1); }
+.login-input-wrap input:focus ~ .login-input-icon { color: #2E7D32; }
+.login-options-row { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 22px; font-size: 12.5px; }
+.login-remember { display: flex; align-items: center; gap: 7px; color: #4d5750; cursor: pointer; user-select: none; }
+.login-remember input[type=checkbox] { width: 16px; height: 16px; accent-color: #1B5E20; cursor: pointer; }
+.login-forgot { color: #14431a; font-weight: 700; text-decoration: none; transition: color .15s ease; }
+.login-forgot:hover { color: #D6A437; text-decoration: underline; }
 .login-submit-btn {
-  width: 100%; border: none; border-radius: 13px; padding: 14px 18px; margin-top: 6px;
-  font-size: 14.5px; font-weight: 800; color: #fff; cursor: pointer;
+  width: 100%; height: 58px; border-radius: 14px; margin-top: 2px;
+  font-size: 15px; font-weight: 800; color: #fff; cursor: pointer;
   display: flex; align-items: center; justify-content: center; gap: 8px;
-  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-  box-shadow: 0 10px 24px rgba(27,94,32,0.32);
+  background: linear-gradient(135deg, #1B5E20, #0F3D2E); border: 1.5px solid #D6A437;
+  box-shadow: 0 10px 24px rgba(15,61,46,0.32);
   transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
 }
-.login-submit-btn:hover { transform: translateY(-1px); box-shadow: 0 14px 30px rgba(27,94,32,0.4); }
+.login-submit-btn:hover { transform: translateY(-1px); box-shadow: 0 14px 30px rgba(15,61,46,0.4); }
 .login-submit-btn:active { transform: translateY(0); filter: brightness(.95); }
-.login-submit-btn:disabled { opacity: .75; cursor: default; transform: none; }
+.login-submit-btn:disabled { opacity: .8; cursor: default; transform: none; }
 .login-submit-btn .login-spinner {
   width: 15px; height: 15px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.4);
   border-top-color: #fff; animation: loginSpin .7s linear infinite;
@@ -95,6 +116,12 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 }
 .login-error.show { display: flex; }
 .login-error [data-lucide] { width: 15px; height: 15px; flex-shrink: 0; }
+.login-footer-note { text-align: center; color: #9AA39C; font-size: 11.5px; margin-top: 22px; }
+@media (max-width: 900px) { .login-leaf { display: none; } }
+@media (max-width: 640px) {
+  .login-box { max-width: 100%; }
+  .login-glow { width: 75%; height: 40%; }
+}
 .field { margin-bottom: 16px; }
 .field label { display: block; font-size: 13px; margin-bottom: 6px; color: var(--text-muted); }
 .field input, .field select, .field textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; }
@@ -407,8 +434,11 @@ tr:hover td { background: var(--primary-light); }
   .drawer { width: 100%; max-width: 100%; }
   .modal-box { width: 94% !important; overflow-x: auto; }
   .modal-box table { min-width: 480px; }
-  .login-box { padding: 30px 22px 26px; border-radius: 22px; }
-  .login-logo-wrap img { max-width: 170px; }
+  .login-box { padding: 28px 18px 22px; border-radius: 22px; }
+  .login-logo-wrap img { max-width: 160px; }
+  .login-box h1 { font-size: 19px; }
+  .login-input-wrap input { height: 52px; }
+  .login-submit-btn { height: 54px; }
   .row-actions { opacity: 1; }
   .mform-layout { grid-template-columns: 1fr; }
   .mform-grid { grid-template-columns: 1fr; }
@@ -1572,35 +1602,65 @@ const root = document.getElementById('root');
 function renderLogin() {
   root.innerHTML = `
     <div class="login-page">
+      <div class="login-glow"></div>
+      <svg class="login-leaf leaf-tl" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <path d="M100 10 C40 40 20 100 40 160 C60 130 90 120 100 90 C110 120 140 130 160 160 C180 100 160 40 100 10 Z" fill="#ffffff" opacity="0.07"/>
+        <path d="M100 30 C60 55 45 105 60 150 C75 125 95 118 100 95 C105 118 125 125 140 150 C155 105 140 55 100 30 Z" fill="#D6A437" opacity="0.10"/>
+      </svg>
+      <svg class="login-leaf leaf-bl" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <path d="M100 10 C40 40 20 100 40 160 C60 130 90 120 100 90 C110 120 140 130 160 160 C180 100 160 40 100 10 Z" fill="#ffffff" opacity="0.06"/>
+        <path d="M100 30 C60 55 45 105 60 150 C75 125 95 118 100 95 C105 118 125 125 140 150 C155 105 140 55 100 30 Z" fill="#D6A437" opacity="0.09"/>
+      </svg>
       <div class="login-box">
         <div class="login-logo-wrap">
           <img src="${LOGO_DATA_URI}" alt="شؤون الغذاء">
         </div>
-        <p class="subtitle">لتطوير وإدارة المطاعم — نظام متابعة الاجتماعات والمهام</p>
+        <p class="login-tagline">لتطوير وإدارة المطاعم</p>
+        <h1>مرحبًا بعودتك</h1>
+        <p class="subtitle">سجّل الدخول للوصول إلى نظام متابعة الاجتماعات والمهام</p>
         <div class="login-error" id="loginError"><span data-lucide="alert-circle"></span><span id="loginErrorText"></span></div>
         <form id="loginForm">
           <div class="login-field">
-            <label>اسم المستخدم</label>
+            <label for="loginUsername">اسم المستخدم</label>
             <div class="login-input-wrap">
-              <input type="text" id="loginUsername" required autofocus autocomplete="username">
-              <span data-lucide="user"></span>
+              <input type="text" id="loginUsername" placeholder="أدخل اسم المستخدم" required autofocus autocomplete="username">
+              <span class="login-input-icon" data-lucide="user"></span>
             </div>
           </div>
           <div class="login-field">
-            <label>كلمة المرور</label>
+            <label for="loginPassword">كلمة المرور</label>
             <div class="login-input-wrap">
-              <input type="password" id="loginPassword" required autocomplete="current-password">
-              <span data-lucide="lock"></span>
+              <input type="password" id="loginPassword" placeholder="أدخل كلمة المرور" required autocomplete="current-password">
+              <span class="login-input-icon" data-lucide="lock"></span>
+              <button type="button" class="login-eye-toggle" id="loginEyeToggle" aria-label="إظهار كلمة المرور" tabindex="-1">
+                <span data-lucide="eye"></span>
+              </button>
             </div>
+          </div>
+          <div class="login-options-row">
+            <label class="login-remember"><input type="checkbox" id="loginRemember"> تذكرني</label>
+            <a href="javascript:void(0)" class="login-forgot" id="loginForgotLink">نسيت كلمة المرور؟</a>
           </div>
           <button type="submit" class="login-submit-btn" id="loginSubmitBtn">
             <span data-lucide="log-in"></span><span>تسجيل الدخول</span>
           </button>
         </form>
+        <p class="login-footer-note">نظام شؤون الغذاء</p>
       </div>
     </div>
   `;
   if (window.lucide) lucide.createIcons();
+  const eyeToggle = document.getElementById('loginEyeToggle');
+  const pwdInput = document.getElementById('loginPassword');
+  eyeToggle.addEventListener('click', () => {
+    const showing = pwdInput.type === 'text';
+    pwdInput.type = showing ? 'password' : 'text';
+    eyeToggle.innerHTML = `<span data-lucide="${showing ? 'eye' : 'eye-off'}"></span>`;
+    if (window.lucide) lucide.createIcons();
+  });
+  document.getElementById('loginForgotLink').addEventListener('click', () => {
+    toast('يرجى التواصل مع مسؤول النظام لإعادة تعيين كلمة المرور', 'success');
+  });
   document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const errBox = document.getElementById('loginError');
@@ -1610,7 +1670,7 @@ function renderLogin() {
     const username = document.getElementById('loginUsername').value.trim();
     const password = document.getElementById('loginPassword').value;
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span class="login-spinner"></span><span>جارٍ الدخول...</span>';
+    submitBtn.innerHTML = '<span class="login-spinner"></span><span>جارٍ تسجيل الدخول...</span>';
     try {
       const { data, error } = await sb.from('users')
         .select('*, departments(name)')
