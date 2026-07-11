@@ -6,7 +6,12 @@
 <title>شركة شؤون الغذاء للمتابعة</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1B5E20">
-<link rel="apple-touch-icon" href="app-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="شؤون الغذاء">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Tajawal:wght@400;500;700&family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -420,7 +425,10 @@ tr:hover td { background: var(--primary-light); }
   .topbar { flex-wrap: wrap !important; }
   .mobile-menu-btn { order: 1; }
   .user-info { order: 2; margin-left: auto; }
-  .topbar-search { order: 3 !important; max-width: 100% !important; width: 100% !important; flex-basis: 100% !important; }
+  /* شريط البحث أصغر من صف الأيقونات فوقه */
+  .topbar-search { order: 3 !important; max-width: 100% !important; width: 100% !important; flex-basis: 100% !important; height: 38px !important; }
+  .topbar-search .search-icon { width: 38px; height: 38px; background-size: 15px 15px; }
+  .topbar-search input { font-size: 12.5px; }
   .page-body { padding: 12px; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .kpi-card { padding: 12px 14px; }
@@ -732,9 +740,15 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
   background: #D6A437; border: 1.5px solid #FFFDF7;
 }
 @media (max-width: 768px) {
-  .user-topbar-card { padding: 4px 8px 4px 10px; gap: 8px; }
+  .user-topbar-card { padding: 5px 9px; gap: 10px; }
   .utc-user-text { display: none; }
   .utc-divider { display: none; }
+  /* تكبير صف اسم المستخدم والرسائل والإشعارات */
+  .utc-avatar { width: 48px; height: 48px; font-size: 16px; }
+  .utc-online-dot { width: 12px; height: 12px; }
+  .utc-icon-btn { width: 48px; height: 48px; }
+  .utc-icon-btn svg { width: 22px !important; height: 22px !important; }
+  .utc-dot { width: 9px; height: 9px; }
 }
 /* ============ مركز المتابعة اليومي ============ */
 .followup-tabs { display: flex; gap: 6px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
@@ -998,6 +1012,64 @@ input[type=datetime-local]::-webkit-calendar-picker-indicator:hover {
 }
 #iabIosModal .modal-box { max-width: 340px; text-align: center; }
 #iabIosModal .iab-cover { width: 72px; height: 72px; border-radius: 20px; object-fit: cover; margin: 0 auto 12px; display: block; box-shadow: 0 4px 14px rgba(0,0,0,0.18); }
+
+/* ============ صفحة تحميل التطبيق ============ */
+.install-page { max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.install-hero {
+  background: linear-gradient(160deg, #0F3D2E 0%, #14431a 100%);
+  border-radius: 24px; padding: 34px 26px; text-align: center; color: #fff;
+  box-shadow: 0 10px 30px rgba(15,61,46,0.25); position: relative; overflow: hidden;
+}
+.install-hero::after {
+  content: ''; position: absolute; top: -40px; left: -40px; width: 160px; height: 160px;
+  background: radial-gradient(circle, rgba(214,164,55,0.35), transparent 70%); pointer-events: none;
+}
+.install-icon-wrap {
+  width: 104px; height: 104px; margin: 0 auto 16px; border-radius: 26px; background: #fff;
+  padding: 10px; box-shadow: 0 8px 22px rgba(0,0,0,0.28); position: relative; z-index: 1;
+}
+.install-icon-wrap img { width: 100%; height: 100%; object-fit: contain; border-radius: 18px; }
+.install-hero h2 { font-size: 22px; font-weight: 800; margin-bottom: 8px; position: relative; z-index: 1; }
+.install-hero p { font-size: 13.5px; line-height: 1.8; color: rgba(255,255,255,0.88); max-width: 440px; margin: 0 auto 20px; position: relative; z-index: 1; }
+.install-main-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  background: #F9A825; color: #24352E; border: none; border-radius: 999px;
+  padding: 15px 34px; font-size: 15.5px; font-weight: 800; cursor: pointer;
+  box-shadow: 0 6px 18px rgba(249,168,37,0.4); position: relative; z-index: 1;
+  transition: transform .15s ease, box-shadow .15s ease; font-family: inherit;
+}
+.install-main-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(249,168,37,0.5); }
+.install-main-btn:active { transform: translateY(0); }
+.install-hint { margin-top: 12px; font-size: 12px; color: rgba(255,255,255,0.8); position: relative; z-index: 1; }
+.install-done {
+  display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.3); color: #fff; border-radius: 999px;
+  padding: 13px 24px; font-size: 14px; font-weight: 700; position: relative; z-index: 1;
+}
+.install-steps-card { background: #FFFDF7; border: 1px solid #E8E3D6; border-radius: 18px; padding: 20px 22px; }
+.install-steps-title { display: flex; align-items: center; gap: 8px; font-size: 14.5px; font-weight: 800; color: #24352E; margin-bottom: 14px; }
+.install-steps-title svg { color: #0F3D2E; }
+.install-steps-list { list-style: none; counter-reset: step; padding: 0; margin: 0; }
+.install-steps-list li { counter-increment: step; display: flex; align-items: flex-start; gap: 12px; padding: 9px 0; font-size: 13.5px; line-height: 1.7; color: #24352E; border-bottom: 1px solid #f0ede0; }
+.install-steps-list li:last-child { border-bottom: none; }
+.install-steps-list li::before {
+  content: counter(step); flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%;
+  background: #0F3D2E; color: #fff; font-weight: 800; font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+}
+.install-benefits { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.install-benefits .ib-item {
+  background: #FFFDF7; border: 1px solid #E8E3D6; border-radius: 16px; padding: 16px 14px;
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px;
+}
+.install-benefits .ib-item svg { color: #D6A437; }
+.install-benefits .ib-item strong { font-size: 13px; color: #24352E; display: block; }
+.install-benefits .ib-item span { font-size: 11px; color: #6B756F; line-height: 1.5; }
+@media (max-width: 560px) {
+  .install-benefits { grid-template-columns: 1fr; }
+  .install-hero { padding: 28px 18px; }
+  .install-hero h2 { font-size: 19px; }
+}
 </style>
 </head>
 <body>
@@ -1749,9 +1821,10 @@ const MENU_ITEMS = [
   { key: 'maintenance', label: 'الصيانة', icon: 'wrench' },
   { key: 'reports', label: 'التقارير', icon: 'bar-chart-3' },
   { key: 'users', label: 'المستخدمون', icon: 'users', roles: ['admin', 'company_manager', 'department_manager'] },
+  { key: 'install_app', label: 'تحميل التطبيق', icon: 'download' },
   { key: 'settings', label: 'الإعدادات', icon: 'settings' },
 ];
-const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'المهام', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', reports: 'التقارير', users: 'المستخدمون', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات' };
+const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'المهام', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -4877,8 +4950,9 @@ async function renderApp() {
     }
   } catch (e) { /* تجاهل بصمت لو فشل الحساب */ }
 
+  const ALWAYS_VISIBLE = ['install_app'];
   const menuHtml = MENU_ITEMS
-    .filter(item => can(item.key, 'view'))
+    .filter(item => ALWAYS_VISIBLE.includes(item.key) || can(item.key, 'view'))
     .map(item => {
       const badge = (item.key === 'conversations' && unreadMsgCount > 0) ? `<span class="nav-badge">${unreadMsgCount > 9 ? '9+' : unreadMsgCount}</span>` : '';
       return `<a href="#${item.key}" class="${item.key === page ? 'active' : ''}" data-tooltip="${item.label}"><span data-lucide="${item.icon}" style="width:18px;height:18px;flex-shrink:0;"></span><span class="label">${item.label}</span>${badge}</a>`;
@@ -5099,6 +5173,7 @@ async function route() {
     else if (page === 'maintenance_new') await pageMaintenanceNew(body);
     else if (page === 'maintenance_detail') await pageMaintenanceDetail(body, param);
     else if (page === 'maintenance_suppliers') await pageMaintenanceSuppliers(body);
+    else if (page === 'install_app') await pageInstallApp(body);
     else if (page === 'reports') await pageReports(body);
     else if (page === 'users') await pageUsers(body);
     else if (page === 'settings') await pageSettings(body);
@@ -7395,7 +7470,17 @@ async function pageDashboard(body) {
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredInstallPrompt = e;
+    window.__deferredInstallPrompt = e;
+    document.dispatchEvent(new CustomEvent('pwa-installable'));
     showBanner();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    window.__deferredInstallPrompt = null;
+    window.__pwaInstalled = true;
+    document.dispatchEvent(new CustomEvent('pwa-installed'));
+    hideBanner();
   });
 
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -7438,6 +7523,112 @@ async function pageDashboard(body) {
     });
   });
 })();
+
+/* ============ صفحة تحميل التطبيق ============ */
+async function pageInstallApp(body) {
+  const ua = navigator.userAgent;
+  const isIOS = /iphone|ipad|ipod/i.test(ua);
+  const isAndroid = /android/i.test(ua);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  const hasPrompt = !!window.__deferredInstallPrompt;
+
+  const steps = isIOS ? [
+    'افتح الموقع من متصفح <b>Safari</b>.',
+    'اضغط زر المشاركة <span data-lucide="share" style="width:15px;height:15px;display:inline-block;vertical-align:-3px;"></span> بأسفل الشاشة.',
+    'اختر <b>«إضافة إلى الشاشة الرئيسية»</b>.',
+    'اضغط <b>«إضافة»</b> بالأعلى — وهيظهر التطبيق على جهازك.'
+  ] : [
+    'اضغط زر القائمة <b>⋮</b> بأعلى المتصفح (Chrome).',
+    'اختر <b>«تثبيت التطبيق»</b> أو <b>«إضافة إلى الشاشة الرئيسية»</b>.',
+    'أكِّد التثبيت — وهيظهر أيقونة التطبيق على جهازك.'
+  ];
+
+  body.innerHTML = `
+    <div class="install-page">
+      <div class="install-hero">
+        <div class="install-icon-wrap">
+          <img src="icon-512.png" alt="شؤون الغذاء" onerror="this.src='${LOGO_DATA_URI}'">
+        </div>
+        <h2>تطبيق شؤون الغذاء</h2>
+        <p>ثبّت التطبيق على جهازك للوصول السريع، بدون فتح المتصفح في كل مرة — يعمل مثل أي تطبيق عادي على شاشتك الرئيسية.</p>
+
+        <div id="installActionZone">
+          ${isStandalone ? `
+            <div class="install-done">
+              <span data-lucide="check-circle-2" style="width:22px;height:22px;"></span>
+              التطبيق مثبّت بالفعل على جهازك ✔
+            </div>
+          ` : `
+            <button class="install-main-btn" id="installMainBtn">
+              <span data-lucide="download" style="width:20px;height:20px;"></span>
+              تثبيت التطبيق الآن
+            </button>
+            <div class="install-hint" id="installHint">${hasPrompt ? 'اضغط الزر وسيظهر لك تأكيد التثبيت مباشرة.' : 'اضغط الزر وسنوضّح لك خطوات التثبيت على جهازك.'}</div>
+          `}
+        </div>
+      </div>
+
+      ${isStandalone ? '' : `
+      <div class="install-steps-card">
+        <div class="install-steps-title">
+          <span data-lucide="${isIOS ? 'apple' : 'smartphone'}" style="width:18px;height:18px;"></span>
+          خطوات التثبيت اليدوي ${isIOS ? '(آيفون / آيباد)' : (isAndroid ? '(أندرويد)' : '')}
+        </div>
+        <ol class="install-steps-list">
+          ${steps.map(s => `<li><span>${s}</span></li>`).join('')}
+        </ol>
+      </div>
+      `}
+
+      <div class="install-benefits">
+        <div class="ib-item"><span data-lucide="zap" style="width:18px;height:18px;"></span><div><strong>أسرع في الفتح</strong><span>يشتغل مباشرة من الشاشة الرئيسية</span></div></div>
+        <div class="ib-item"><span data-lucide="wifi-off" style="width:18px;height:18px;"></span><div><strong>يعمل بثبات</strong><span>واجهة كاملة الشاشة بدون شريط المتصفح</span></div></div>
+        <div class="ib-item"><span data-lucide="bell" style="width:18px;height:18px;"></span><div><strong>تنبيهات فورية</strong><span>تصلك إشعارات المهام والاجتماعات</span></div></div>
+      </div>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  const btn = document.getElementById('installMainBtn');
+  const hint = document.getElementById('installHint');
+
+  function showManualSteps() {
+    if (hint) {
+      hint.innerHTML = isIOS
+        ? 'متصفح آيفون لا يسمح بالتثبيت التلقائي — اتبع الخطوات بالأسفل ⬇️'
+        : 'اتبع الخطوات بالأسفل لإكمال التثبيت ⬇️';
+      hint.style.color = 'var(--danger)';
+    }
+    const card = document.querySelector('.install-steps-card');
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  btn?.addEventListener('click', async () => {
+    const prompt = window.__deferredInstallPrompt;
+    if (prompt) {
+      prompt.prompt();
+      const choice = await prompt.userChoice;
+      if (choice && choice.outcome === 'accepted') {
+        toast('تم بدء تثبيت التطبيق ✔', 'success');
+        window.__deferredInstallPrompt = null;
+      } else {
+        if (hint) { hint.textContent = 'أُلغي التثبيت — يمكنك المحاولة مرة أخرى في أي وقت.'; }
+      }
+    } else {
+      showManualSteps();
+    }
+  });
+
+  // لو أصبح التطبيق قابلاً للتثبيت بعد فتح الصفحة
+  document.addEventListener('pwa-installable', () => {
+    if (hint) { hint.textContent = 'اضغط الزر وسيظهر لك تأكيد التثبيت مباشرة.'; hint.style.color = ''; }
+  }, { once: true });
+  document.addEventListener('pwa-installed', () => {
+    const zone = document.getElementById('installActionZone');
+    if (zone) zone.innerHTML = '<div class="install-done"><span data-lucide="check-circle-2" style="width:22px;height:22px;"></span> تم تثبيت التطبيق بنجاح ✔</div>';
+    if (window.lucide) lucide.createIcons();
+  }, { once: true });
+}
 
 /* ============================================================
    ============  قسم الصيانة (Maintenance Module)  =============
