@@ -9,7 +9,7 @@ create table if not exists branches (
   id bigserial primary key,
   name text not null,
   address text,
-  manager_id uuid references users(id) on delete set null,
+  manager_id bigint references users(id) on delete set null,
   is_active boolean default true,
   created_at timestamptz default now()
 );
@@ -39,8 +39,8 @@ create table if not exists maintenance_requests (
   severity text default 'normal',
   affects_operation boolean default false,
   status text default 'new',
-  requester_id uuid references users(id) on delete set null,
-  current_owner_id uuid references users(id) on delete set null,
+  requester_id bigint references users(id) on delete set null,
+  current_owner_id bigint references users(id) on delete set null,
   reported_at timestamptz default now(),
   reject_reason text,
   estimated_cost numeric,
@@ -78,7 +78,7 @@ create table if not exists maintenance_inspections (
   spare_parts_details text,
   recommendation text,
   notes text,
-  inspector_id uuid references users(id) on delete set null,
+  inspector_id bigint references users(id) on delete set null,
   created_at timestamptz default now()
 );
 
@@ -107,7 +107,7 @@ create table if not exists maintenance_finance_approvals (
   payment_method text,
   po_number text,
   reject_reason text,
-  approver_id uuid references users(id) on delete set null,
+  approver_id bigint references users(id) on delete set null,
   created_at timestamptz default now()
 );
 
@@ -136,7 +136,7 @@ create table if not exists maintenance_receipts (
   id bigserial primary key,
   request_id bigint references maintenance_requests(id) on delete cascade,
   closure_status text,
-  confirmer_id uuid references users(id) on delete set null,
+  confirmer_id bigint references users(id) on delete set null,
   notes text,
   created_at timestamptz default now()
 );
@@ -149,7 +149,7 @@ create table if not exists maintenance_attachments (
   file_url text,
   file_name text,
   file_type text,
-  uploaded_by uuid references users(id) on delete set null,
+  uploaded_by bigint references users(id) on delete set null,
   uploaded_at timestamptz default now()
 );
 
@@ -161,7 +161,7 @@ create table if not exists maintenance_timeline (
   from_status text,
   to_status text,
   note text,
-  actor_id uuid references users(id) on delete set null,
+  actor_id bigint references users(id) on delete set null,
   created_at timestamptz default now()
 );
 create index if not exists idx_mt_request on maintenance_timeline(request_id);
