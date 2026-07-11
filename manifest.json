@@ -1,0 +1,13 @@
+{
+  "name": "شؤون الغذاء - متابعة الاجتماعات والمهام",
+  "short_name": "شؤون الغذاء",
+  "start_url": "./index.html.html",
+  "display": "standalone",
+  "background_color": "#F5F5F5",
+  "theme_color": "#1B5E20",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    { "src": "app-icon.png", "sizes": "1920x1080", "type": "image/png", "purpose": "any" }
+  ]
+}

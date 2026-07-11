@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>شركة شؤون الغذاء للمتابعة</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1B5E20">
+<link rel="apple-touch-icon" href="app-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Tajawal:wght@400;500;700&family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -848,10 +851,64 @@ input[type=datetime-local]::-webkit-calendar-picker-indicator:hover {
 .emergency-preview-box .ep-row:last-child { border-bottom:none; }
 .emergency-upload-box { border:2px dashed #D8C27A; border-radius:14px; padding:16px; text-align:center; cursor:pointer; background:#FFFDF7; position:relative; }
 .emergency-upload-box input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; }
+
+/* ============ بانر تثبيت التطبيق ============ */
+#installAppBanner {
+  position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+  width: calc(100% - 24px); max-width: 420px; z-index: 999;
+  background: #FFFDF7; border: 1px solid #E8E3D6; border-radius: 18px;
+  box-shadow: 0 8px 28px rgba(15,61,46,0.22); padding: 14px; display: flex; align-items: center; gap: 12px;
+  animation: iabSlideUp .35s ease;
+}
+@keyframes iabSlideUp { from { opacity:0; transform: translateX(-50%) translateY(20px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
+#installAppBanner .iab-cover {
+  width: 56px; height: 56px; border-radius: 16px; object-fit: cover; flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+#installAppBanner .iab-text { flex: 1; min-width: 0; }
+#installAppBanner .iab-text .iab-title { font-size: 13px; font-weight: 800; color: #24352E; margin-bottom: 2px; }
+#installAppBanner .iab-text .iab-sub { font-size: 11.5px; color: #6B756F; }
+#installAppBanner .iab-btn {
+  background: #0F3D2E; color: #fff; border: none; border-radius: 999px; padding: 9px 16px;
+  font-size: 12.5px; font-weight: 700; cursor: pointer; flex-shrink: 0; white-space: nowrap;
+}
+#installAppBanner .iab-close {
+  position: absolute; top: -8px; left: -8px; width: 22px; height: 22px; border-radius: 50%;
+  background: #24352E; color: #fff; border: none; font-size: 13px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+@media (max-width: 480px) {
+  #installAppBanner { flex-wrap: wrap; padding: 12px; }
+  #installAppBanner .iab-btn { width: 100%; padding: 10px; }
+}
+#iabIosModal .modal-box { max-width: 340px; text-align: center; }
+#iabIosModal .iab-cover { width: 72px; height: 72px; border-radius: 20px; object-fit: cover; margin: 0 auto 12px; display: block; box-shadow: 0 4px 14px rgba(0,0,0,0.18); }
 </style>
 </head>
 <body>
 <div id="root"></div>
+
+<div id="installAppBanner" class="hidden">
+  <button class="iab-close" id="iabCloseBtn">✕</button>
+  <img src="app-cover.png" class="iab-cover" alt="شؤون الغذاء">
+  <div class="iab-text">
+    <div class="iab-title">حمّل التطبيق على جوالك</div>
+    <div class="iab-sub">وصول أسرع وتجربة أفضل من الجوال</div>
+  </div>
+  <button class="iab-btn" id="iabInstallBtn">اضغط هنا</button>
+</div>
+
+<div id="iabIosModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <img src="app-cover.png" class="iab-cover" alt="شؤون الغذاء">
+    <h3 style="margin-bottom:10px;">تثبيت التطبيق على آيفون</h3>
+    <p style="font-size:13px; color:var(--text-muted); line-height:1.9; margin-bottom:16px;">
+      اضغط زر <b>المشاركة</b> <span data-lucide="share" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;"></span> بالأسفل في Safari،
+      ثم اختر <b>"إضافة إلى الشاشة الرئيسية"</b>.
+    </p>
+    <button class="btn btn-primary" id="iabIosCloseBtn" style="width:100%;">حسناً</button>
+  </div>
+</div>
 
 <script>
 // ============ إعداد الاتصال بـ Supabase ============
@@ -7130,6 +7187,68 @@ async function pageDashboard(body) {
   initPremiumDateFields();
 }
 
+/* ============ تثبيت التطبيق (PWA) ============ */
+(function () {
+  const DISMISS_KEY = 'iabDismissedAt';
+  const DISMISS_DAYS = 3;
+  let deferredInstallPrompt = null;
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  }
+
+  function isStandalone() {
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  }
+  function isDismissedRecently() {
+    const t = localStorage.getItem(DISMISS_KEY);
+    if (!t) return false;
+    return (Date.now() - Number(t)) < DISMISS_DAYS * 24 * 60 * 60 * 1000;
+  }
+  function showBanner() {
+    if (isStandalone() || isDismissedRecently()) return;
+    const el = document.getElementById('installAppBanner');
+    if (el) el.classList.remove('hidden');
+  }
+  function hideBanner() {
+    const el = document.getElementById('installAppBanner');
+    if (el) el.classList.add('hidden');
+    localStorage.setItem(DISMISS_KEY, String(Date.now()));
+  }
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    showBanner();
+  });
+
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+  document.addEventListener('DOMContentLoaded', () => {
+    if (isIOS && !isStandalone()) showBanner();
+
+    document.getElementById('iabCloseBtn')?.addEventListener('click', hideBanner);
+
+    document.getElementById('iabInstallBtn')?.addEventListener('click', async () => {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        await deferredInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+        hideBanner();
+      } else if (isIOS) {
+        document.getElementById('iabIosModal')?.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+      } else {
+        hideBanner();
+      }
+    });
+
+    document.getElementById('iabIosCloseBtn')?.addEventListener('click', () => {
+      document.getElementById('iabIosModal')?.classList.add('hidden');
+      hideBanner();
+    });
+  });
+})();
 </script>
 </body>
 </html>
