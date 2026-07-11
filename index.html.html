@@ -440,6 +440,14 @@ tr:hover td { background: var(--primary-light); }
   .login-input-wrap input { height: 52px; }
   .login-submit-btn { height: 54px; }
   .row-actions { opacity: 1; }
+  .user-menu-dropdown, #notifDropdown, #msgsDropdown {
+    position: fixed !important; left: 8px !important; right: 8px !important; top: auto !important;
+    bottom: 0 !important; width: auto !important; max-width: 100% !important;
+    max-height: 70vh !important; border-radius: 18px 18px 0 0 !important;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.18) !important; z-index: 9999 !important;
+    animation: mobileSheetUp .25s ease;
+  }
+  @keyframes mobileSheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
   .mform-layout { grid-template-columns: 1fr; }
   .mform-grid { grid-template-columns: 1fr; }
   .mstat-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
@@ -4980,6 +4988,7 @@ async function renderApp() {
       dd.id = 'notifDropdown';
       dd.className = 'user-menu-dropdown show';
       dd.style.cssText = 'left:44px; top:46px; width:320px; max-height:400px; overflow-y:auto;';
+      if (window.innerWidth <= 768) dd.style.cssText = '';
       dd.innerHTML = (notifs && notifs.length) ? notifs.map(n => `
         <div style="padding:10px 14px; border-bottom:1px solid var(--border); ${n.is_read ? '' : 'background:var(--primary-light);'} cursor:pointer;" onclick="location.hash='${n.link || '#dashboard'}'; document.getElementById('notifDropdown')?.remove();">
           <div style="font-weight:600; font-size:13px; display:flex; align-items:center; gap:5px;"><span data-lucide="bell" style="width:12px;height:12px;"></span>${esc(n.title)}</div>
@@ -5012,6 +5021,7 @@ async function renderApp() {
       dd.id = 'msgsDropdown';
       dd.className = 'user-menu-dropdown show';
       dd.style.cssText = 'left:44px; top:46px; width:340px; max-height:420px; overflow-y:auto;';
+      if (window.innerWidth <= 768) dd.style.cssText = '';
       dd.innerHTML = recentMsgsList.length ? `
         <div style="padding:10px 14px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
           <strong style="font-size:13px;">آخر الرسائل</strong>
