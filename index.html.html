@@ -337,14 +337,23 @@ tr:hover td { background: var(--primary-light); }
   .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .stat-card { padding: 12px; }
   .panel-body { padding: 12px; }
+  .panel-body { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .panel-body table { min-width: 560px; }
   .adv-table, table { font-size: 12.5px; }
   .adv-table th, .adv-table td, table th, table td { padding: 8px 6px; }
   .table-toolbar { flex-direction: column; align-items: stretch; }
   .search-wrap { max-width: 100%; }
   .drawer { width: 100%; max-width: 100%; }
-  .modal-box { width: 94% !important; }
+  .modal-box { width: 94% !important; overflow-x: auto; }
+  .modal-box table { min-width: 480px; }
   .login-box { padding: 28px 20px; }
   .row-actions { opacity: 1; }
+  .mform-layout { grid-template-columns: 1fr; }
+  .mform-grid { grid-template-columns: 1fr; }
+  .mstat-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .attendance-table-head { grid-template-columns: 22px 1fr 100px; gap: 6px; }
+  .attendance-row { grid-template-columns: 22px 1fr 100px; gap: 6px; }
+  .attendance-table-head span:nth-child(3), .attendance-row > span:not(.ar-person) { display: none; }
   .chat-box { height: 320px; }
   /* .user-info span تمت إزالتها - استُبدلت بقواعد utc-* أدق تحديدًا */
 }
