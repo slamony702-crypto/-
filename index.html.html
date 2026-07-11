@@ -7975,7 +7975,7 @@ async function pageMaintenanceNew(body) {
   const nowStr = fmtDateAr(new Date().toISOString());
 
   // الحالة الداخلية للطلب (للاختيارات + المعاينة + المرفقات)
-  const st = { severity: 'medium', impact: 'none', stoppage: 'none', images: [] };
+  const st = { severity: 'medium', impact: 'none', stoppage: 'none', images: [], video: null };
 
   const noBranches = !branches || !branches.length;
 
@@ -8098,9 +8098,15 @@ async function pageMaintenanceNew(body) {
               <div class="mt-thumbs" id="mtThumbs"></div>
             </div>
             <div class="form-field">
-              <label>رابط ملف / فيديو (اختياري)</label>
-              <input type="url" name="attachment_url" class="form-input" placeholder="https://...">
-              <input type="url" name="video_url" class="form-input" style="margin-top:8px;" placeholder="رابط فيديو (اختياري)">
+              <label>رفع فيديو (اختياري)</label>
+              <div class="mt-upload" id="mtVidUpload">
+                <input type="file" accept="video/*" id="mtVidInput">
+                <span data-lucide="video" class="u-ic" style="width:26px;height:26px;"></span>
+                <div class="u-t">اسحب الفيديو هنا أو اضغط للاختيار</div>
+                <div class="u-s">MP4, MOV — الحد الأقصى 50MB</div>
+              </div>
+              <div id="mtVidPreview" style="margin-top:8px;"></div>
+              <input type="url" name="attachment_url" class="form-input" style="margin-top:10px;" placeholder="أو ألصق رابط ملف (اختياري)">
             </div>
             <div class="form-field full">
               <label>ملاحظات إضافية (اختياري)</label>
@@ -8202,6 +8208,23 @@ async function pageMaintenanceNew(body) {
     renderThumbs();
   });
 
+  // رفع الفيديو (يُرفع على Storage عند الإرسال)
+  const vidInput = document.getElementById('mtVidInput');
+  const vidPreview = document.getElementById('mtVidPreview');
+  vidInput.addEventListener('change', () => {
+    const f = vidInput.files && vidInput.files[0];
+    if (!f) return;
+    if (f.size > 50 * 1024 * 1024) { toast('حجم الفيديو أكبر من 50MB', 'error'); vidInput.value = ''; return; }
+    st.video = f;
+    vidPreview.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px;border:1px solid #E8E3D6;border-radius:10px;background:#FFFDF7;">
+        <span style="display:flex;align-items:center;gap:7px;font-size:12px;color:#24352E;min-width:0;"><span data-lucide="film" style="width:15px;height:15px;color:#D6A437;flex-shrink:0;"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(f.name)}</span> <span style="color:#6B756F;font-size:11px;flex-shrink:0;">(${(f.size/1024/1024).toFixed(1)}MB)</span></span>
+        <button type="button" id="mtVidRemove" style="width:22px;height:22px;border-radius:50%;background:rgba(211,47,47,0.9);color:#fff;border:none;cursor:pointer;flex-shrink:0;">×</button>
+      </div>`;
+    if (window.lucide) lucide.createIcons();
+    document.getElementById('mtVidRemove').addEventListener('click', () => { st.video = null; vidInput.value = ''; vidPreview.innerHTML = ''; });
+  });
+
   // تحديث المعاينة الحية
   function updatePreview() {
     const branchSel = form.querySelector('[name="branch_id"]');
@@ -8239,7 +8262,7 @@ async function pageMaintenanceNew(body) {
       affects_operation: st.impact !== 'none',
       additional_notes: fd.get('additional_notes') || null,
       attachment_url: fd.get('attachment_url') || null,
-      video_url: fd.get('video_url') || null,
+      video_url: null,
       is_draft: !!isDraft,
       status: isDraft ? 'new' : 'new',
       requester_id: CURRENT_USER.id,
@@ -8262,10 +8285,28 @@ async function pageMaintenanceNew(body) {
     } else if (!payload.branch_id && !payload.issue_title) {
       toast('أدخل الفرع أو عنوان المشكلة على الأقل للحفظ كمسودة', 'warning'); return;
     }
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const draftBtn = document.getElementById('mtSaveDraft');
+    submitBtn.disabled = true; draftBtn.disabled = true;
+    const restore = () => { submitBtn.disabled = false; draftBtn.disabled = false; };
+
     const { data: created, error } = await sb.from('maintenance_requests').insert(payload).select().single();
-    if (error) { toast(error.message, 'error'); return; }
+    if (error) { toast(error.message, 'error'); restore(); return; }
     await logMaintTimeline(created.id, 'created', null, 'new', isDraft ? 'تم حفظ الطلب كمسودة' : 'تم رفع الطلب');
     await saveImages(created.id);
+
+    // رفع الفيديو على Storage (إن وُجد)
+    if (st.video) {
+      if (submitBtn) submitBtn.innerHTML = '<span data-lucide="loader" style="width:15px;height:15px;"></span> جاري رفع الفيديو...';
+      const vidUrl = await uploadMaintFile(st.video, created.id);
+      if (vidUrl) {
+        await sb.from('maintenance_requests').update({ video_url: vidUrl }).eq('id', created.id);
+        try { await sb.from('maintenance_attachments').insert({ request_id: created.id, stage: 'request', file_url: vidUrl, file_name: 'فيديو الطلب', file_type: 'video', uploaded_by: CURRENT_USER.id }); } catch (e) {}
+      } else {
+        toast('تعذّر رفع الفيديو (تحقق من تفعيل التخزين) — تم حفظ باقي الطلب', 'warning');
+      }
+    }
+
     if (payload.attachment_url) {
       try { await sb.from('maintenance_attachments').insert({ request_id: created.id, stage: 'request', file_url: payload.attachment_url, file_name: 'مرفق (رابط)', uploaded_by: CURRENT_USER.id }); } catch (e) {}
     }
@@ -8279,6 +8320,18 @@ async function pageMaintenanceNew(body) {
 
   form.addEventListener('submit', (e) => { e.preventDefault(); submitRequest(false); });
   document.getElementById('mtSaveDraft').addEventListener('click', () => submitRequest(true));
+}
+
+// رفع ملف إلى Supabase Storage (bucket: maintenance) وإرجاع الرابط العام
+async function uploadMaintFile(file, requestId) {
+  try {
+    const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const path = `req-${requestId}/${Date.now()}.${ext}`;
+    const { error } = await sb.storage.from('maintenance').upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type || undefined });
+    if (error) { console.warn('storage upload failed:', error.message); return null; }
+    const { data } = sb.storage.from('maintenance').getPublicUrl(path);
+    return data?.publicUrl || null;
+  } catch (e) { console.warn('storage upload exception:', e); return null; }
 }
 
 // ضغط الصورة إلى data URI صغير عبر canvas
@@ -8390,11 +8443,15 @@ async function pageMaintenanceDetail(body, id) {
         <div class="panel-header"><h3 class="panel-title"><span data-lucide="paperclip" style="width:16px;height:16px;vertical-align:-3px;"></span> المرفقات</h3></div>
         <div class="panel-body">
           ${(() => {
-            const imgs = (attachments||[]).filter(a => a.file_type === 'image' || (a.file_url||'').startsWith('data:image'));
-            const links = (attachments||[]).filter(a => !(a.file_type === 'image' || (a.file_url||'').startsWith('data:image')));
-            if (!imgs.length && !links.length) return '<p style="color:var(--text-muted);font-size:12.5px;">لا توجد مرفقات</p>';
+            const isImg = a => a.file_type === 'image' || (a.file_url||'').startsWith('data:image');
+            const isVid = a => a.file_type === 'video' || /\.(mp4|mov|webm|ogg)(\?|$)/i.test(a.file_url||'');
+            const imgs = (attachments||[]).filter(isImg);
+            const vids = (attachments||[]).filter(a => !isImg(a) && isVid(a));
+            const links = (attachments||[]).filter(a => !isImg(a) && !isVid(a));
+            if (!imgs.length && !vids.length && !links.length) return '<p style="color:var(--text-muted);font-size:12.5px;">لا توجد مرفقات</p>';
             return `
               ${imgs.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">${imgs.map(a => `<a href="${esc(a.file_url)}" target="_blank" style="width:70px;height:70px;border-radius:10px;overflow:hidden;border:1px solid var(--border);"><img src="${esc(a.file_url)}" style="width:100%;height:100%;object-fit:cover;"></a>`).join('')}</div>` : ''}
+              ${vids.map(a => `<video src="${esc(a.file_url)}" controls preload="metadata" style="width:100%;border-radius:10px;border:1px solid var(--border);margin-bottom:8px;background:#000;"></video>`).join('')}
               ${links.map(a => `
                 <a href="${esc(a.file_url)}" target="_blank" style="display:flex;justify-content:space-between;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:12.5px;text-decoration:none;color:var(--text);">
                   <span>${esc(a.file_name || 'مرفق')}</span>
