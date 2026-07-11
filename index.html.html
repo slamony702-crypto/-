@@ -8098,12 +8098,12 @@ async function pageMaintenanceNew(body) {
               <div class="mt-thumbs" id="mtThumbs"></div>
             </div>
             <div class="form-field">
-              <label>رفع فيديو (اختياري)</label>
+              <label>رفع فيديو قصير (اختياري)</label>
               <div class="mt-upload" id="mtVidUpload">
                 <input type="file" accept="video/*" id="mtVidInput">
                 <span data-lucide="video" class="u-ic" style="width:26px;height:26px;"></span>
                 <div class="u-t">اسحب الفيديو هنا أو اضغط للاختيار</div>
-                <div class="u-s">MP4, MOV — الحد الأقصى 50MB</div>
+                <div class="u-s">MP4, MOV — الحد الأقصى <b>10 ثوانٍ</b></div>
               </div>
               <div id="mtVidPreview" style="margin-top:8px;"></div>
               <input type="url" name="attachment_url" class="form-input" style="margin-top:10px;" placeholder="أو ألصق رابط ملف (اختياري)">
@@ -8211,14 +8211,17 @@ async function pageMaintenanceNew(body) {
   // رفع الفيديو (يُرفع على Storage عند الإرسال)
   const vidInput = document.getElementById('mtVidInput');
   const vidPreview = document.getElementById('mtVidPreview');
-  vidInput.addEventListener('change', () => {
+  vidInput.addEventListener('change', async () => {
     const f = vidInput.files && vidInput.files[0];
     if (!f) return;
     if (f.size > 50 * 1024 * 1024) { toast('حجم الفيديو أكبر من 50MB', 'error'); vidInput.value = ''; return; }
+    let dur = 0;
+    try { dur = await getVideoDuration(f); } catch (e) { toast('تعذّر قراءة الفيديو', 'error'); vidInput.value = ''; return; }
+    if (dur > 10.5) { toast(`مدة الفيديو ${Math.round(dur)} ثانية — الحد الأقصى 10 ثوانٍ`, 'error'); vidInput.value = ''; st.video = null; vidPreview.innerHTML = ''; return; }
     st.video = f;
     vidPreview.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px;border:1px solid #E8E3D6;border-radius:10px;background:#FFFDF7;">
-        <span style="display:flex;align-items:center;gap:7px;font-size:12px;color:#24352E;min-width:0;"><span data-lucide="film" style="width:15px;height:15px;color:#D6A437;flex-shrink:0;"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(f.name)}</span> <span style="color:#6B756F;font-size:11px;flex-shrink:0;">(${(f.size/1024/1024).toFixed(1)}MB)</span></span>
+        <span style="display:flex;align-items:center;gap:7px;font-size:12px;color:#24352E;min-width:0;"><span data-lucide="film" style="width:15px;height:15px;color:#D6A437;flex-shrink:0;"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(f.name)}</span> <span style="color:#6B756F;font-size:11px;flex-shrink:0;">(${Math.round(dur)} ث · ${(f.size/1024/1024).toFixed(1)}MB)</span></span>
         <button type="button" id="mtVidRemove" style="width:22px;height:22px;border-radius:50%;background:rgba(211,47,47,0.9);color:#fff;border:none;cursor:pointer;flex-shrink:0;">×</button>
       </div>`;
     if (window.lucide) lucide.createIcons();
@@ -8320,6 +8323,17 @@ async function pageMaintenanceNew(body) {
 
   form.addEventListener('submit', (e) => { e.preventDefault(); submitRequest(false); });
   document.getElementById('mtSaveDraft').addEventListener('click', () => submitRequest(true));
+}
+
+// قراءة مدة الفيديو بالثواني قبل الرفع
+function getVideoDuration(file) {
+  return new Promise((resolve, reject) => {
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.onloadedmetadata = () => { const d = v.duration; URL.revokeObjectURL(v.src); resolve(d); };
+    v.onerror = () => { URL.revokeObjectURL(v.src); reject(new Error('cannot read video')); };
+    v.src = URL.createObjectURL(file);
+  });
 }
 
 // رفع ملف إلى Supabase Storage (bucket: maintenance) وإرجاع الرابط العام
