@@ -629,6 +629,14 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
 }
 .sidebar-logout-btn:hover { background: var(--danger); color: #fff; }
 
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed !important; right: 0; top: 0; bottom: 0; width: 250px !important; z-index: 90;
+    transform: translateX(100%); transition: transform .25s ease;
+  }
+  .sidebar.mobile-open { transform: translateX(0); }
+}
+
 /* ============ هيدر محسّن ============ */
 .topbar .welcome-block { display: flex; flex-direction: column; line-height: 1.3; }
 .topbar .welcome-block .greet { font-size: 13px; color: var(--text-muted); }
@@ -990,11 +998,8 @@ input[type=datetime-local]::-webkit-calendar-picker-indicator:hover {
 <div id="iabIosModal" class="modal-overlay hidden">
   <div class="modal-box">
     <img src="app-cover.png" class="iab-cover" alt="شؤون الغذاء">
-    <h3 style="margin-bottom:10px;">تثبيت التطبيق على آيفون</h3>
-    <p style="font-size:13px; color:var(--text-muted); line-height:1.9; margin-bottom:16px;">
-      اضغط زر <b>المشاركة</b> <span data-lucide="share" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;"></span> بالأسفل في Safari،
-      ثم اختر <b>"إضافة إلى الشاشة الرئيسية"</b>.
-    </p>
+    <h3 style="margin-bottom:10px;" id="iabInstructionsTitle">تثبيت التطبيق</h3>
+    <p style="font-size:13px; color:var(--text-muted); line-height:1.9; margin-bottom:16px;" id="iabInstructionsText"></p>
     <button class="btn btn-primary" id="iabIosCloseBtn" style="width:100%;">حسناً</button>
   </div>
 </div>
@@ -7364,9 +7369,25 @@ async function pageDashboard(body) {
   });
 
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isAndroid = /android/i.test(navigator.userAgent);
+  const isMobile = isIOS || isAndroid;
+
+  function showManualInstructions() {
+    const titleEl = document.getElementById('iabInstructionsTitle');
+    const textEl = document.getElementById('iabInstructionsText');
+    if (isIOS) {
+      titleEl.textContent = 'تثبيت التطبيق على آيفون';
+      textEl.innerHTML = 'اضغط زر <b>المشاركة</b> <span data-lucide="share" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;"></span> بالأسفل في Safari، ثم اختر <b>"إضافة إلى الشاشة الرئيسية"</b>.';
+    } else {
+      titleEl.textContent = 'تثبيت التطبيق على الأندرويد';
+      textEl.innerHTML = 'اضغط زر القائمة <b>⋮</b> بأعلى المتصفح، ثم اختر <b>"إضافة إلى الشاشة الرئيسية"</b> أو <b>"تثبيت التطبيق"</b>.';
+    }
+    document.getElementById('iabIosModal')?.classList.remove('hidden');
+    if (window.lucide) lucide.createIcons();
+  }
 
   document.addEventListener('DOMContentLoaded', () => {
-    if (isIOS && !isStandalone()) showBanner();
+    if (isMobile && !isStandalone()) setTimeout(showBanner, 600);
 
     document.getElementById('iabCloseBtn')?.addEventListener('click', hideBanner);
 
@@ -7376,11 +7397,8 @@ async function pageDashboard(body) {
         await deferredInstallPrompt.userChoice;
         deferredInstallPrompt = null;
         hideBanner();
-      } else if (isIOS) {
-        document.getElementById('iabIosModal')?.classList.remove('hidden');
-        if (window.lucide) lucide.createIcons();
       } else {
-        hideBanner();
+        showManualInstructions();
       }
     });
 
