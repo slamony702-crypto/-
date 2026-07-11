@@ -1075,7 +1075,12 @@ function can(sectionKey, mode = 'view') {
 
 // ============ ترجمة القيم ============
 const LABELS = {
-  role: { admin: 'مدير النظام', company_manager: 'مدير الشركة', department_manager: 'مدير قسم', projects_manager: 'مدير مشاريع', development_manager: 'مدير تطوير', meeting_organizer: 'منظم اجتماع', employee: 'موظف' },
+  role: { admin: 'مدير النظام', company_manager: 'مدير الشركة', department_manager: 'مدير قسم', projects_manager: 'مدير مشاريع', development_manager: 'مدير تطوير', meeting_organizer: 'منظم اجتماع', employee: 'موظف', maintenance_officer: 'مسؤول الصيانة', operations_manager: 'مدير التشغيل', finance: 'المالية' },
+  maint_severity: { emergency: 'طارئ', urgent: 'عاجل', normal: 'عادي', preventive: 'وقائي' },
+  maint_area: { kitchen: 'مطبخ', hall: 'صالة', cashier: 'كاشير', ac: 'تكييف', electric: 'كهرباء', plumbing: 'سباكة', equipment: 'معدات', other: 'أخرى' },
+  maint_status: { new: 'طلب جديد', under_review: 'تحت المراجعة', awaiting_inspection: 'بانتظار الفحص', inspection_reported: 'تم رفع تقرير الفحص', awaiting_approval: 'بانتظار الاعتماد', awaiting_quotes: 'بانتظار عروض الأسعار', awaiting_finance: 'بانتظار موافقة المالية', in_progress: 'قيد التنفيذ', awaiting_receipt: 'بانتظار استلام الفرع', closed: 'مغلق', rejected: 'مرفوض' },
+  maint_recommend: { repair: 'إصلاح', replace: 'استبدال', postpone: 'تأجيل', reject: 'رفض' },
+  maint_closure: { fixed: 'تم الإصلاح', partially_fixed: 'تم الإصلاح جزئيًا', needs_followup: 'يحتاج متابعة', replaced: 'تم الاستبدال', not_fixed: 'لم يتم الإصلاح' },
   meeting_type: { weekly: 'أسبوعي', emergency: 'طارئ', administrative: 'إداري', financial: 'مالي', sales: 'مبيعات', operations: 'تشغيل' },
   location_type: { in_person: 'حضوري', online: 'أونلاين' },
   meeting_status: { scheduled: 'مجدول', done: 'تم', in_follow_up: 'تحت المتابعة', closed: 'مغلق', postponed: 'مؤجل', cancelled: 'ملغي' },
@@ -1741,11 +1746,12 @@ const MENU_ITEMS = [
   { key: 'decisions', label: 'القرارات', icon: 'pin' },
   { key: 'conversations', label: 'تواصل داخلي', icon: 'message-circle' },
   { key: 'emergency', label: 'تواصل طارئ', icon: 'siren' },
+  { key: 'maintenance', label: 'الصيانة', icon: 'wrench' },
   { key: 'reports', label: 'التقارير', icon: 'bar-chart-3' },
   { key: 'users', label: 'المستخدمون', icon: 'users', roles: ['admin', 'company_manager', 'department_manager'] },
   { key: 'settings', label: 'الإعدادات', icon: 'settings' },
 ];
-const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'المهام', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', reports: 'التقارير', users: 'المستخدمون', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات' };
+const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'المهام', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', reports: 'التقارير', users: 'المستخدمون', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -5089,6 +5095,10 @@ async function route() {
     else if (page === 'decisions') await pageDecisions(body, query);
     else if (page === 'conversations') await pageConversations(body);
     else if (page === 'emergency') await pageEmergency(body);
+    else if (page === 'maintenance') await pageMaintenance(body, query);
+    else if (page === 'maintenance_new') await pageMaintenanceNew(body);
+    else if (page === 'maintenance_detail') await pageMaintenanceDetail(body, param);
+    else if (page === 'maintenance_suppliers') await pageMaintenanceSuppliers(body);
     else if (page === 'reports') await pageReports(body);
     else if (page === 'users') await pageUsers(body);
     else if (page === 'settings') await pageSettings(body);
@@ -7428,6 +7438,896 @@ async function pageDashboard(body) {
     });
   });
 })();
+
+/* ============================================================
+   ============  قسم الصيانة (Maintenance Module)  =============
+   ============================================================ */
+
+const MAINT_SEVERITY_COLOR = {
+  emergency: '#D32F2F', urgent: '#F2994A', normal: '#2F80C9', preventive: '#1F7A3A'
+};
+const MAINT_STATUS_COLOR = {
+  new: '#2F80C9', under_review: '#7C6BF2', awaiting_inspection: '#F2994A',
+  inspection_reported: '#4A90E2', awaiting_approval: '#F2994A',
+  awaiting_quotes: '#F2994A', awaiting_finance: '#F2994A',
+  in_progress: '#D6A437', awaiting_receipt: '#4A90E2',
+  closed: '#1F7A3A', rejected: '#D32F2F'
+};
+
+function maintSevBadge(sev) {
+  const color = MAINT_SEVERITY_COLOR[sev] || '#666';
+  return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:12px;font-size:11.5px;font-weight:700;background:${color}18;color:${color};">${label('maint_severity', sev)}</span>`;
+}
+function maintStatusBadge(st) {
+  const color = MAINT_STATUS_COLOR[st] || '#666';
+  return `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border-radius:12px;font-size:11.5px;font-weight:700;background:${color}18;color:${color};">${label('maint_status', st)}</span>`;
+}
+
+async function logMaintTimeline(requestId, eventType, fromStatus, toStatus, note) {
+  try {
+    await sb.from('maintenance_timeline').insert({
+      request_id: requestId, event_type: eventType,
+      from_status: fromStatus, to_status: toStatus,
+      note: note || null, actor_id: CURRENT_USER?.id || null
+    });
+  } catch (e) { /* silent */ }
+}
+
+async function notifyMaintUsers(userIds, title, body, link) {
+  const rows = (userIds || []).filter(Boolean).map(uid => ({
+    user_id: uid, title, body, link: link || '#maintenance'
+  }));
+  if (!rows.length) return;
+  try { await sb.from('notifications').insert(rows); } catch (e) {}
+}
+
+/* ============ Dashboard + List ============ */
+async function pageMaintenance(body, urlQuery) {
+  const canCreate = can('maintenance', 'manage') || ['admin','company_manager','department_manager','maintenance_officer'].includes(CURRENT_USER.role);
+
+  body.innerHTML = `
+    <div class="kpi-grid" id="mtKpi">
+      ${[1,2,3,4,5,6].map(() => `<div class="kpi-card"><div class="skeleton skeleton-row" style="width:42px;height:42px;border-radius:8px;"></div><div class="skeleton skeleton-row" style="width:60%;margin-top:12px;"></div></div>`).join('')}
+    </div>
+    <div class="panel"><div class="panel-body"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+  `;
+
+  const [{ data: requests }, { data: branches }] = await Promise.all([
+    sb.from('maintenance_requests').select('*, branches(name), requester:users!maintenance_requests_requester_id_fkey(full_name), owner:users!maintenance_requests_current_owner_id_fkey(full_name)').order('created_at', { ascending: false }),
+    sb.from('branches').select('*').eq('is_active', true).order('name')
+  ]);
+  const rows = requests || [];
+
+  // KPIs
+  const total = rows.length;
+  const newCount = rows.filter(r => r.status === 'new').length;
+  const emergencyCount = rows.filter(r => r.severity === 'emergency' && r.status !== 'closed' && r.status !== 'rejected').length;
+  const inProgress = rows.filter(r => r.status === 'in_progress').length;
+  const closedCount = rows.filter(r => r.status === 'closed').length;
+  const totalCost = rows.filter(r => r.final_cost).reduce((s, r) => s + Number(r.final_cost || 0), 0);
+  const monthCost = rows.filter(r => r.final_cost && new Date(r.created_at).getMonth() === new Date().getMonth()).reduce((s, r) => s + Number(r.final_cost || 0), 0);
+
+  // Filters state
+  const state = {
+    branch: urlQuery?.branch || '',
+    status: urlQuery?.status || '',
+    severity: urlQuery?.severity || '',
+    area: urlQuery?.area || '',
+    search: ''
+  };
+
+  const kpiEl = document.getElementById('mtKpi');
+  kpiEl.innerHTML = `
+    <div class="kpi-card clickable-stat-card" data-target-page="maintenance"><div class="kpi-icon c-blue"><span data-lucide="clipboard-list" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${total}</div><div class="kpi-label">إجمالي الطلبات</div></div>
+    <div class="kpi-card clickable-stat-card" data-target-page="maintenance" data-filter-key="status" data-filter-value="new"><div class="kpi-icon c-cyan"><span data-lucide="plus-circle" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${newCount}</div><div class="kpi-label">طلبات جديدة</div></div>
+    <div class="kpi-card clickable-stat-card" data-target-page="maintenance" data-filter-key="severity" data-filter-value="emergency"><div class="kpi-icon c-red"><span data-lucide="siren" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${emergencyCount}</div><div class="kpi-label">طلبات طارئة</div></div>
+    <div class="kpi-card clickable-stat-card" data-target-page="maintenance" data-filter-key="status" data-filter-value="in_progress"><div class="kpi-icon c-yellow"><span data-lucide="wrench" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${inProgress}</div><div class="kpi-label">قيد التنفيذ</div></div>
+    <div class="kpi-card clickable-stat-card" data-target-page="maintenance" data-filter-key="status" data-filter-value="closed"><div class="kpi-icon c-green"><span data-lucide="check-circle-2" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${closedCount}</div><div class="kpi-label">طلبات مغلقة</div></div>
+    <div class="kpi-card"><div class="kpi-icon c-yellow"><span data-lucide="banknote" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${monthCost.toLocaleString()}</div><div class="kpi-label">تكلفة صيانة هذا الشهر (ر.س)</div></div>
+  `;
+
+  // Top branches
+  const branchCount = {};
+  rows.forEach(r => { const bn = r.branches?.name || 'غير محدد'; branchCount[bn] = (branchCount[bn] || 0) + 1; });
+  const topBranches = Object.entries(branchCount).sort((a,b) => b[1]-a[1]).slice(0, 5);
+
+  // Top areas
+  const areaCount = {};
+  rows.forEach(r => { if (r.affected_area) areaCount[r.affected_area] = (areaCount[r.affected_area] || 0) + 1; });
+  const topAreas = Object.entries(areaCount).sort((a,b) => b[1]-a[1]).slice(0, 5);
+
+  // Filter options
+  const statusOpts = ['new','under_review','awaiting_inspection','inspection_reported','awaiting_approval','awaiting_quotes','awaiting_finance','in_progress','awaiting_receipt','closed','rejected'];
+  const severityOpts = ['emergency','urgent','normal','preventive'];
+  const areaOpts = ['kitchen','hall','cashier','ac','electric','plumbing','equipment','other'];
+
+  const analyticsHtml = `
+    <div class="panel" style="margin-top:14px;"><div class="panel-header"><h3 class="panel-title">تحليل سريع</h3></div><div class="panel-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <h4 style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text-muted);">أكثر الفروع طلبًا للصيانة</h4>
+          ${topBranches.length ? topBranches.map(([n,c]) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px;"><span>${esc(n)}</span><strong>${c}</strong></div>`).join('') : '<p style="font-size:12px;color:var(--text-muted);">لا توجد بيانات</p>'}
+        </div>
+        <div>
+          <h4 style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text-muted);">أكثر الأعطال تكرارًا</h4>
+          ${topAreas.length ? topAreas.map(([n,c]) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px;"><span>${esc(label('maint_area', n))}</span><strong>${c}</strong></div>`).join('') : '<p style="font-size:12px;color:var(--text-muted);">لا توجد بيانات</p>'}
+        </div>
+      </div>
+    </div></div>
+  `;
+
+  const filterBar = `
+    <div class="panel" style="margin-top:14px;" id="maintTable"><div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+      <h3 class="panel-title"><span data-lucide="clipboard-list" style="width:18px;height:18px;vertical-align:-3px;"></span> قائمة طلبات الصيانة</h3>
+      <div style="display:flex;gap:8px;">
+        <a href="#maintenance_suppliers" class="btn btn-outline" style="font-size:12.5px;"><span data-lucide="briefcase" style="width:14px;height:14px;"></span> الموردون</a>
+        ${canCreate ? '<a href="#maintenance_new" class="btn" style="background:var(--primary);color:#fff;font-size:12.5px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> طلب صيانة جديد</a>' : ''}
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="table-toolbar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <div class="search-wrap" style="flex:1;min-width:180px;"><input type="text" id="mtSearch" placeholder="بحث بالوصف أو رقم الطلب..." class="search-input"></div>
+        <select id="mtBranchFilter" class="form-select"><option value="">كل الفروع</option>${(branches||[]).map(b => `<option value="${b.id}" ${state.branch==String(b.id)?'selected':''}>${esc(b.name)}</option>`).join('')}</select>
+        <select id="mtStatusFilter" class="form-select"><option value="">كل الحالات</option>${statusOpts.map(s => `<option value="${s}" ${state.status===s?'selected':''}>${label('maint_status', s)}</option>`).join('')}</select>
+        <select id="mtSeverityFilter" class="form-select"><option value="">كل الخطورة</option>${severityOpts.map(s => `<option value="${s}" ${state.severity===s?'selected':''}>${label('maint_severity', s)}</option>`).join('')}</select>
+        <select id="mtAreaFilter" class="form-select"><option value="">كل الأعطال</option>${areaOpts.map(a => `<option value="${a}" ${state.area===a?'selected':''}>${label('maint_area', a)}</option>`).join('')}</select>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="adv-table" id="mtTable">
+          <thead><tr>
+            <th>#</th><th>الفرع</th><th>العطل</th><th>الوصف</th><th>الخطورة</th><th>الحالة</th><th>المسؤول</th><th>التكلفة</th><th>البلاغ</th><th></th>
+          </tr></thead>
+          <tbody id="mtTbody"></tbody>
+        </table>
+      </div>
+    </div></div>
+  `;
+
+  body.insertAdjacentHTML('beforeend', analyticsHtml + filterBar);
+  if (window.lucide) lucide.createIcons();
+  wireClickableStatCards();
+
+  function renderList() {
+    const q = state.search.trim().toLowerCase();
+    const filtered = rows.filter(r => {
+      if (state.branch && String(r.branch_id) !== state.branch) return false;
+      if (state.status && r.status !== state.status) return false;
+      if (state.severity && r.severity !== state.severity) return false;
+      if (state.area && r.affected_area !== state.area) return false;
+      if (q) {
+        const hay = ((r.description||'') + ' ' + (r.request_no||'') + ' ' + (r.cause||'')).toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    const tb = document.getElementById('mtTbody');
+    if (!filtered.length) { tb.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted);">لا توجد طلبات</td></tr>'; return; }
+    tb.innerHTML = filtered.map(r => `
+      <tr style="cursor:pointer;" onclick="location.hash='#maintenance_detail/${r.id}'">
+        <td style="font-weight:700;color:var(--primary);">${esc(r.request_no || r.id)}</td>
+        <td>${esc(r.branches?.name || '-')}</td>
+        <td>${label('maint_area', r.affected_area)}</td>
+        <td style="max-width:220px;">${esc((r.description||'').slice(0, 60))}${(r.description||'').length>60?'…':''}</td>
+        <td>${maintSevBadge(r.severity)}</td>
+        <td>${maintStatusBadge(r.status)}</td>
+        <td>${esc(r.owner?.full_name || r.requester?.full_name || '-')}</td>
+        <td>${r.estimated_cost ? Number(r.estimated_cost).toLocaleString() + ' ر.س' : '-'}</td>
+        <td style="font-size:11.5px;color:var(--text-muted);">${fmtDate(r.reported_at)}</td>
+        <td><a href="#maintenance_detail/${r.id}" class="btn btn-outline" style="padding:4px 10px;font-size:11px;" onclick="event.stopPropagation();">عرض</a></td>
+      </tr>
+    `).join('');
+  }
+  renderList();
+
+  document.getElementById('mtSearch').addEventListener('input', (e) => { state.search = e.target.value; renderList(); });
+  document.getElementById('mtBranchFilter').addEventListener('change', (e) => { state.branch = e.target.value; renderList(); });
+  document.getElementById('mtStatusFilter').addEventListener('change', (e) => { state.status = e.target.value; renderList(); });
+  document.getElementById('mtSeverityFilter').addEventListener('change', (e) => { state.severity = e.target.value; renderList(); });
+  document.getElementById('mtAreaFilter').addEventListener('change', (e) => { state.area = e.target.value; renderList(); });
+
+  if (urlQuery?.scroll === 'maintTable') scrollToTableTarget('maintTable');
+}
+
+/* ============ New Request ============ */
+async function pageMaintenanceNew(body) {
+  const { data: branches } = await sb.from('branches').select('*').eq('is_active', true).order('name');
+  const areas = ['kitchen','hall','cashier','ac','electric','plumbing','equipment','other'];
+  const severities = ['emergency','urgent','normal','preventive'];
+
+  body.innerHTML = `
+    <div class="panel" style="max-width:820px;margin:0 auto;">
+      <div class="panel-header"><h3 class="panel-title"><span data-lucide="wrench" style="width:18px;height:18px;vertical-align:-3px;"></span> رفع طلب صيانة جديد</h3></div>
+      <div class="panel-body">
+        ${(!branches || !branches.length) ? '<div class="empty-state" style="padding:16px;background:#FFF8E1;border-radius:10px;margin-bottom:14px;font-size:13px;">لا توجد فروع مسجلة. من فضلك أضف فرعًا أولًا (من صفحة الإعدادات مؤقتًا أو مباشرة من قاعدة البيانات).</div>' : ''}
+        <form id="mtNewForm" class="mform-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-field">
+            <label>الفرع *</label>
+            <select name="branch_id" required class="form-select">
+              <option value="">اختر الفرع</option>
+              ${(branches||[]).map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field">
+            <label>القسم المتضرر *</label>
+            <select name="affected_area" required class="form-select">
+              <option value="">اختر القسم</option>
+              ${areas.map(a => `<option value="${a}">${label('maint_area', a)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field" style="grid-column:1/-1;">
+            <label>وصف المشكلة *</label>
+            <textarea name="description" required rows="3" class="form-input" placeholder="اشرح المشكلة بالتفصيل..."></textarea>
+          </div>
+          <div class="form-field" style="grid-column:1/-1;">
+            <label>سبب المشكلة (إن وُجد)</label>
+            <input type="text" name="cause" class="form-input" placeholder="اختياري">
+          </div>
+          <div class="form-field">
+            <label>درجة الخطورة *</label>
+            <select name="severity" required class="form-select">
+              ${severities.map(s => `<option value="${s}" ${s==='normal'?'selected':''}>${label('maint_severity', s)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field">
+            <label>هل يؤثر العطل على التشغيل؟</label>
+            <select name="affects_operation" class="form-select">
+              <option value="false">لا</option>
+              <option value="true">نعم</option>
+            </select>
+          </div>
+          <div class="form-field" style="grid-column:1/-1;">
+            <label>رابط صور / فيديو (اختياري)</label>
+            <input type="url" name="attachment_url" class="form-input" placeholder="ألصق رابط الملف من Drive/Storage">
+          </div>
+          <div style="grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;">
+            <a href="#maintenance" class="btn btn-outline">إلغاء</a>
+            <button type="submit" class="btn" style="background:var(--primary);color:#fff;">
+              <span data-lucide="send" style="width:14px;height:14px;"></span> رفع الطلب
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  document.getElementById('mtNewForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = {
+      branch_id: Number(fd.get('branch_id')),
+      affected_area: fd.get('affected_area'),
+      description: fd.get('description'),
+      cause: fd.get('cause') || null,
+      severity: fd.get('severity'),
+      affects_operation: fd.get('affects_operation') === 'true',
+      status: 'new',
+      requester_id: CURRENT_USER.id,
+      reported_at: new Date().toISOString()
+    };
+    const { data: created, error } = await sb.from('maintenance_requests').insert(payload).select().single();
+    if (error) { toast(error.message, 'error'); return; }
+    await logMaintTimeline(created.id, 'created', null, 'new', 'تم رفع الطلب');
+
+    // Optional attachment link
+    const attUrl = fd.get('attachment_url');
+    if (attUrl) {
+      await sb.from('maintenance_attachments').insert({
+        request_id: created.id, stage: 'request',
+        file_url: attUrl, file_name: 'مرفق الطلب',
+        uploaded_by: CURRENT_USER.id
+      });
+    }
+
+    // Notify maintenance officers and operations managers
+    const { data: staff } = await sb.from('users').select('id').in('role', ['maintenance_officer','operations_manager','admin']).eq('is_active', true);
+    await notifyMaintUsers((staff||[]).map(u => u.id), '🔧 طلب صيانة جديد', `${created.request_no || '#'+created.id} — ${created.description?.slice(0,60) || ''}`, '#maintenance_detail/' + created.id);
+
+    toast('تم رفع طلب الصيانة بنجاح', 'success');
+    location.hash = '#maintenance_detail/' + created.id;
+  });
+}
+
+/* ============ Detail + Timeline + Actions ============ */
+async function pageMaintenanceDetail(body, id) {
+  if (!id) { body.innerHTML = '<p class="empty-state">طلب غير معروف</p>'; return; }
+  const rid = Number(id);
+  const [{ data: req }, { data: timeline }, { data: inspections }, { data: quotes }, { data: financeApp }, { data: repairs }, { data: receipts }, { data: attachments }] = await Promise.all([
+    sb.from('maintenance_requests').select('*, branches(name), requester:users!maintenance_requests_requester_id_fkey(full_name), owner:users!maintenance_requests_current_owner_id_fkey(full_name)').eq('id', rid).single(),
+    sb.from('maintenance_timeline').select('*, users(full_name)').eq('request_id', rid).order('created_at', { ascending: true }),
+    sb.from('maintenance_inspections').select('*, users(full_name)').eq('request_id', rid).order('created_at', { ascending: false }),
+    sb.from('maintenance_quotes').select('*, maintenance_suppliers(name)').eq('request_id', rid).order('created_at', { ascending: true }),
+    sb.from('maintenance_finance_approvals').select('*, users(full_name)').eq('request_id', rid).order('created_at', { ascending: false }).limit(1),
+    sb.from('maintenance_repairs').select('*').eq('request_id', rid).order('created_at', { ascending: false }).limit(1),
+    sb.from('maintenance_receipts').select('*, users(full_name)').eq('request_id', rid).order('created_at', { ascending: false }).limit(1),
+    sb.from('maintenance_attachments').select('*').eq('request_id', rid).order('uploaded_at', { ascending: false })
+  ]);
+  if (!req) { body.innerHTML = '<p class="empty-state">الطلب غير موجود</p>'; return; }
+
+  const currentStatus = req.status;
+  const role = CURRENT_USER.role;
+  const isMgr = ['admin','company_manager','operations_manager','maintenance_officer'].includes(role);
+  const isFinance = ['admin','company_manager','finance'].includes(role);
+  const isBranchMgr = ['admin','company_manager','department_manager'].includes(role);
+
+  const actionsHtml = renderMaintActions(currentStatus, req, { isMgr, isFinance, isBranchMgr });
+
+  const timelineHtml = (timeline || []).length ? timeline.map(t => {
+    const c = MAINT_STATUS_COLOR[t.to_status] || '#666';
+    return `
+      <div style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);">
+        <div style="width:10px;height:10px;border-radius:50%;background:${c};margin-top:6px;flex-shrink:0;box-shadow:0 0 0 3px ${c}22;"></div>
+        <div style="flex:1;">
+          <div style="font-weight:600;font-size:13px;">${esc(t.note || label('maint_status', t.to_status) || t.event_type)}</div>
+          <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">${esc(t.users?.full_name || '-')} · ${fmtDate(t.created_at)}</div>
+        </div>
+      </div>
+    `;
+  }).join('') : '<p style="color:var(--text-muted);font-size:12.5px;">لا توجد أحداث بعد</p>';
+
+  body.innerHTML = `
+    <a href="#maintenance" style="display:inline-flex;align-items:center;gap:4px;font-size:12.5px;color:var(--text-muted);margin-bottom:10px;"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لقائمة الطلبات</a>
+
+    <div class="panel">
+      <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <div>
+          <h3 class="panel-title" style="margin:0;">${esc(req.request_no || '#'+req.id)}</h3>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${esc(req.branches?.name || '-')} · ${label('maint_area', req.affected_area)}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          ${maintStatusBadge(req.status)} ${maintSevBadge(req.severity)}
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="mstat-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px;">
+          <div><div style="font-size:11.5px;color:var(--text-muted);">تاريخ البلاغ</div><div style="font-weight:600;font-size:13px;">${fmtDate(req.reported_at)}</div></div>
+          <div><div style="font-size:11.5px;color:var(--text-muted);">مقدم الطلب</div><div style="font-weight:600;font-size:13px;">${esc(req.requester?.full_name || '-')}</div></div>
+          <div><div style="font-size:11.5px;color:var(--text-muted);">المسؤول الحالي</div><div style="font-weight:600;font-size:13px;">${esc(req.owner?.full_name || '-')}</div></div>
+          <div><div style="font-size:11.5px;color:var(--text-muted);">يؤثر على التشغيل</div><div style="font-weight:600;font-size:13px;color:${req.affects_operation?'var(--danger)':'inherit'};">${req.affects_operation ? 'نعم' : 'لا'}</div></div>
+          <div><div style="font-size:11.5px;color:var(--text-muted);">التكلفة التقديرية</div><div style="font-weight:600;font-size:13px;">${req.estimated_cost ? Number(req.estimated_cost).toLocaleString() + ' ر.س' : '-'}</div></div>
+          <div><div style="font-size:11.5px;color:var(--text-muted);">التكلفة النهائية</div><div style="font-weight:600;font-size:13px;">${req.final_cost ? Number(req.final_cost).toLocaleString() + ' ر.س' : '-'}</div></div>
+        </div>
+        <div style="background:var(--bg);padding:12px 14px;border-radius:10px;margin-bottom:10px;">
+          <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:4px;">وصف المشكلة</div>
+          <div style="font-size:13px;line-height:1.7;">${esc(req.description || '-')}</div>
+          ${req.cause ? `<div style="font-size:11.5px;color:var(--text-muted);margin-top:8px;">السبب: <span style="color:var(--text);font-weight:600;">${esc(req.cause)}</span></div>` : ''}
+          ${req.reject_reason ? `<div style="font-size:12px;color:var(--danger);margin-top:8px;">سبب الرفض: ${esc(req.reject_reason)}</div>` : ''}
+        </div>
+        ${actionsHtml}
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;" class="mform-grid">
+      <div class="panel">
+        <div class="panel-header"><h3 class="panel-title"><span data-lucide="git-branch" style="width:16px;height:16px;vertical-align:-3px;"></span> المسار الزمني</h3></div>
+        <div class="panel-body">${timelineHtml}</div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h3 class="panel-title"><span data-lucide="paperclip" style="width:16px;height:16px;vertical-align:-3px;"></span> المرفقات</h3></div>
+        <div class="panel-body">
+          ${(attachments||[]).length ? attachments.map(a => `
+            <a href="${esc(a.file_url)}" target="_blank" style="display:flex;justify-content:space-between;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:12.5px;text-decoration:none;color:var(--text);">
+              <span>${esc(a.file_name || 'مرفق')} <span style="color:var(--text-muted);font-size:11px;">(${label('maint_status', a.stage) || a.stage})</span></span>
+              <span data-lucide="external-link" style="width:14px;height:14px;color:var(--text-muted);"></span>
+            </a>
+          `).join('') : '<p style="color:var(--text-muted);font-size:12.5px;">لا توجد مرفقات</p>'}
+        </div>
+      </div>
+    </div>
+
+    ${(inspections||[]).length ? `
+      <div class="panel" style="margin-top:14px;">
+        <div class="panel-header"><h3 class="panel-title"><span data-lucide="search" style="width:16px;height:16px;vertical-align:-3px;"></span> تقرير الفحص</h3></div>
+        <div class="panel-body">
+          ${inspections.map(ins => `
+            <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;font-size:12.5px;">
+                <div><span style="color:var(--text-muted);">السبب:</span> <strong>${esc(ins.cause || '-')}</strong></div>
+                <div><span style="color:var(--text-muted);">نوع الإصلاح:</span> <strong>${ins.fix_type === 'external' ? 'مورد خارجي' : 'داخلي'}</strong></div>
+                <div><span style="color:var(--text-muted);">التقدير:</span> <strong>${ins.estimated_cost ? Number(ins.estimated_cost).toLocaleString() + ' ر.س' : '-'}</strong></div>
+                <div><span style="color:var(--text-muted);">التوصية:</span> <strong>${label('maint_recommend', ins.recommendation)}</strong></div>
+                <div><span style="color:var(--text-muted);">قطع غيار:</span> <strong>${ins.needs_spare_parts ? 'نعم' : 'لا'}</strong></div>
+                <div><span style="color:var(--text-muted);">الفاحص:</span> <strong>${esc(ins.users?.full_name || '-')}</strong></div>
+              </div>
+              ${ins.notes ? `<div style="margin-top:8px;font-size:12.5px;background:var(--bg);padding:8px 10px;border-radius:6px;">${esc(ins.notes)}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    ${(quotes||[]).length ? `
+      <div class="panel" style="margin-top:14px;">
+        <div class="panel-header"><h3 class="panel-title"><span data-lucide="file-text" style="width:16px;height:16px;vertical-align:-3px;"></span> عروض الأسعار</h3></div>
+        <div class="panel-body">
+          <div style="overflow-x:auto;">
+          <table class="adv-table">
+            <thead><tr><th>المورد</th><th>السعر</th><th>المدة</th><th>الضمان</th><th>ملاحظات</th><th></th></tr></thead>
+            <tbody>
+              ${quotes.map(q => `
+                <tr style="background:${q.is_selected ? 'rgba(31,122,58,0.08)' : ''}">
+                  <td>${esc(q.supplier_name || q.maintenance_suppliers?.name || '-')}</td>
+                  <td>${q.price ? Number(q.price).toLocaleString() + ' ر.س' : '-'}</td>
+                  <td>${q.duration_days || '-'} يوم</td>
+                  <td>${q.warranty_months || '-'} شهر</td>
+                  <td style="max-width:200px;font-size:12px;">${esc((q.notes || '').slice(0,80))}</td>
+                  <td>${q.is_selected ? '<span style="color:var(--primary);font-weight:700;font-size:11.5px;">✓ مختار</span>' : ''}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          </div>
+        </div>
+      </div>
+    ` : ''}
+
+    ${(financeApp && financeApp.length) ? `
+      <div class="panel" style="margin-top:14px;">
+        <div class="panel-header"><h3 class="panel-title"><span data-lucide="banknote" style="width:16px;height:16px;vertical-align:-3px;"></span> موافقة المالية</h3></div>
+        <div class="panel-body">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;font-size:12.5px;">
+            <div><span style="color:var(--text-muted);">الحالة:</span> <strong style="color:${financeApp[0].approved ? 'var(--primary)' : 'var(--danger)'};">${financeApp[0].approved ? 'معتمد' : 'مرفوض'}</strong></div>
+            <div><span style="color:var(--text-muted);">المبلغ:</span> <strong>${financeApp[0].approved_amount ? Number(financeApp[0].approved_amount).toLocaleString() + ' ر.س' : '-'}</strong></div>
+            <div><span style="color:var(--text-muted);">طريقة الصرف:</span> <strong>${esc(financeApp[0].payment_method || '-')}</strong></div>
+            <div><span style="color:var(--text-muted);">رقم أمر الشراء:</span> <strong>${esc(financeApp[0].po_number || '-')}</strong></div>
+            <div><span style="color:var(--text-muted);">المعتمد:</span> <strong>${esc(financeApp[0].users?.full_name || '-')}</strong></div>
+          </div>
+          ${financeApp[0].reject_reason ? `<div style="margin-top:8px;font-size:12.5px;color:var(--danger);">سبب الرفض: ${esc(financeApp[0].reject_reason)}</div>` : ''}
+        </div>
+      </div>
+    ` : ''}
+
+    ${(repairs && repairs.length) ? `
+      <div class="panel" style="margin-top:14px;">
+        <div class="panel-header"><h3 class="panel-title"><span data-lucide="hammer" style="width:16px;height:16px;vertical-align:-3px;"></span> تقرير الإصلاح</h3></div>
+        <div class="panel-body">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;font-size:12.5px;">
+            <div><span style="color:var(--text-muted);">المنفذ:</span> <strong>${esc(repairs[0].technician_name || '-')}</strong></div>
+            <div><span style="color:var(--text-muted);">بداية:</span> <strong>${fmtDate(repairs[0].started_at)}</strong></div>
+            <div><span style="color:var(--text-muted);">نهاية:</span> <strong>${fmtDate(repairs[0].ended_at)}</strong></div>
+            <div><span style="color:var(--text-muted);">التكلفة النهائية:</span> <strong>${repairs[0].final_cost ? Number(repairs[0].final_cost).toLocaleString() + ' ر.س' : '-'}</strong></div>
+            <div><span style="color:var(--text-muted);">إيقاف جزئي:</span> <strong>${repairs[0].branch_partially_closed ? 'نعم' : 'لا'}</strong></div>
+          </div>
+          ${repairs[0].what_was_fixed ? `<div style="margin-top:8px;font-size:12.5px;background:var(--bg);padding:8px 10px;border-radius:6px;">${esc(repairs[0].what_was_fixed)}</div>` : ''}
+        </div>
+      </div>
+    ` : ''}
+
+    ${(receipts && receipts.length) ? `
+      <div class="panel" style="margin-top:14px;">
+        <div class="panel-header"><h3 class="panel-title"><span data-lucide="check-circle-2" style="width:16px;height:16px;vertical-align:-3px;color:var(--primary);"></span> استلام الفرع</h3></div>
+        <div class="panel-body">
+          <div style="font-size:13px;"><strong>الحالة:</strong> ${label('maint_closure', receipts[0].closure_status)}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${esc(receipts[0].users?.full_name || '')} · ${fmtDate(receipts[0].created_at)}</div>
+          ${receipts[0].notes ? `<div style="margin-top:6px;font-size:12.5px;">${esc(receipts[0].notes)}</div>` : ''}
+        </div>
+      </div>
+    ` : ''}
+  `;
+
+  if (window.lucide) lucide.createIcons();
+  wireMaintActionButtons(req);
+}
+
+function renderMaintActions(status, req, perms) {
+  const { isMgr, isFinance, isBranchMgr } = perms;
+  const btns = [];
+
+  if (status === 'new' && isMgr) {
+    btns.push(`<button class="btn" data-mt-action="accept_review" style="background:var(--primary);color:#fff;"><span data-lucide="check" style="width:14px;height:14px;"></span> قبول للفحص</button>`);
+    btns.push(`<button class="btn btn-outline" data-mt-action="reject" style="color:var(--danger);border-color:var(--danger);"><span data-lucide="x" style="width:14px;height:14px;"></span> رفض</button>`);
+  }
+  if (status === 'awaiting_inspection' && isMgr) {
+    btns.push(`<button class="btn" data-mt-action="add_inspection" style="background:var(--primary);color:#fff;"><span data-lucide="search" style="width:14px;height:14px;"></span> رفع تقرير الفحص</button>`);
+  }
+  if (status === 'inspection_reported' && isMgr) {
+    btns.push(`<button class="btn" data-mt-action="approve_next" style="background:var(--primary);color:#fff;"><span data-lucide="check-circle" style="width:14px;height:14px;"></span> اعتماد الحالة</button>`);
+  }
+  if (status === 'awaiting_quotes' && isMgr) {
+    btns.push(`<button class="btn" data-mt-action="add_quote" style="background:var(--primary);color:#fff;"><span data-lucide="plus" style="width:14px;height:14px;"></span> إضافة عرض سعر</button>`);
+    btns.push(`<button class="btn btn-outline" data-mt-action="send_finance"><span data-lucide="send" style="width:14px;height:14px;"></span> إرسال للمالية</button>`);
+  }
+  if (status === 'awaiting_finance' && isFinance) {
+    btns.push(`<button class="btn" data-mt-action="finance_approve" style="background:var(--primary);color:#fff;"><span data-lucide="banknote" style="width:14px;height:14px;"></span> اعتماد الصرف</button>`);
+    btns.push(`<button class="btn btn-outline" data-mt-action="finance_reject" style="color:var(--danger);border-color:var(--danger);"><span data-lucide="x" style="width:14px;height:14px;"></span> رفض الصرف</button>`);
+  }
+  if (status === 'in_progress' && isMgr) {
+    btns.push(`<button class="btn" data-mt-action="finish_repair" style="background:var(--primary);color:#fff;"><span data-lucide="hammer" style="width:14px;height:14px;"></span> رفع تقرير الإصلاح</button>`);
+  }
+  if (status === 'awaiting_receipt' && (isBranchMgr || isMgr)) {
+    btns.push(`<button class="btn" data-mt-action="confirm_receipt" style="background:var(--primary);color:#fff;"><span data-lucide="check-circle-2" style="width:14px;height:14px;"></span> تأكيد الاستلام</button>`);
+  }
+
+  if (!btns.length) return '';
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--border);">${btns.join('')}</div>`;
+}
+
+function wireMaintActionButtons(req) {
+  document.querySelectorAll('[data-mt-action]').forEach(btn => {
+    btn.addEventListener('click', () => handleMaintAction(btn.dataset.mtAction, req));
+  });
+}
+
+async function handleMaintAction(action, req) {
+  const rid = req.id;
+  const prev = req.status;
+
+  const advance = async (newStatus, note) => {
+    await sb.from('maintenance_requests').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', rid);
+    await logMaintTimeline(rid, 'status_change', prev, newStatus, note);
+    if (req.requester_id) await notifyMaintUsers([req.requester_id], `تحديث حالة الطلب ${req.request_no || '#'+rid}`, label('maint_status', newStatus), '#maintenance_detail/' + rid);
+    toast(note || 'تم تحديث الحالة', 'success');
+    pageMaintenanceDetail(document.getElementById('pageBody'), rid);
+  };
+
+  if (action === 'accept_review') return advance('awaiting_inspection', 'تم قبول الطلب للفحص');
+  if (action === 'approve_next') {
+    // Decide by last inspection recommendation
+    const { data: last } = await sb.from('maintenance_inspections').select('*').eq('request_id', rid).order('created_at', { ascending: false }).limit(1);
+    const rec = last?.[0]?.recommendation;
+    if (rec === 'reject') return advance('rejected', 'تم رفض الحالة بناءً على تقرير الفحص');
+    if (last?.[0]?.fix_type === 'external') return advance('awaiting_quotes', 'اعتُمدت الحالة — بانتظار عروض الأسعار');
+    return advance('in_progress', 'اعتُمدت الحالة للإصلاح المباشر');
+  }
+  if (action === 'send_finance') return advance('awaiting_finance', 'أُرسل الطلب للمالية');
+
+  if (action === 'reject') {
+    const reason = prompt('سبب الرفض:');
+    if (!reason) return;
+    await sb.from('maintenance_requests').update({ status: 'rejected', reject_reason: reason, updated_at: new Date().toISOString() }).eq('id', rid);
+    await logMaintTimeline(rid, 'status_change', prev, 'rejected', 'رُفض الطلب: ' + reason);
+    toast('تم الرفض', 'success');
+    return pageMaintenanceDetail(document.getElementById('pageBody'), rid);
+  }
+
+  if (action === 'add_inspection') return openMaintInspectionModal(req);
+  if (action === 'add_quote') return openMaintQuoteModal(req);
+  if (action === 'finance_approve') return openMaintFinanceModal(req, true);
+  if (action === 'finance_reject') return openMaintFinanceModal(req, false);
+  if (action === 'finish_repair') return openMaintRepairModal(req);
+  if (action === 'confirm_receipt') return openMaintReceiptModal(req);
+}
+
+/* ============ Modals for stage actions ============ */
+function openMaintInspectionModal(req) {
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:560px;max-width:95%;">
+      <div class="panel-header"><h3 class="panel-title">تقرير الفحص المبدئي</h3></div>
+      <div class="panel-body">
+        <form id="mtInspForm" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-field" style="grid-column:1/-1;"><label>سبب العطل</label><input name="cause" class="form-input" required></div>
+          <div class="form-field"><label>نوع الإصلاح</label><select name="fix_type" class="form-select"><option value="internal">داخلي</option><option value="external">مورد خارجي</option></select></div>
+          <div class="form-field"><label>تقدير التكلفة</label><input type="number" step="0.01" name="estimated_cost" class="form-input"></div>
+          <div class="form-field"><label>يحتاج قطع غيار؟</label><select name="needs_spare_parts" class="form-select"><option value="false">لا</option><option value="true">نعم</option></select></div>
+          <div class="form-field"><label>التوصية</label><select name="recommendation" class="form-select"><option value="repair">إصلاح</option><option value="replace">استبدال</option><option value="postpone">تأجيل</option><option value="reject">رفض</option></select></div>
+          <div class="form-field" style="grid-column:1/-1;"><label>تفاصيل قطع الغيار</label><input name="spare_parts_details" class="form-input"></div>
+          <div class="form-field" style="grid-column:1/-1;"><label>ملاحظات</label><textarea name="notes" rows="2" class="form-input"></textarea></div>
+          <div style="grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="mtInspCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:var(--primary);color:#fff;">حفظ</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(host);
+  host.querySelector('#mtInspCancel').addEventListener('click', () => host.remove());
+  host.querySelector('#mtInspForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = {
+      request_id: req.id, cause: fd.get('cause'),
+      fix_type: fd.get('fix_type'),
+      estimated_cost: fd.get('estimated_cost') ? Number(fd.get('estimated_cost')) : null,
+      needs_spare_parts: fd.get('needs_spare_parts') === 'true',
+      spare_parts_details: fd.get('spare_parts_details') || null,
+      recommendation: fd.get('recommendation'),
+      notes: fd.get('notes') || null,
+      inspector_id: CURRENT_USER.id
+    };
+    const { error } = await sb.from('maintenance_inspections').insert(payload);
+    if (error) { toast(error.message, 'error'); return; }
+    await sb.from('maintenance_requests').update({ status: 'inspection_reported', estimated_cost: payload.estimated_cost, updated_at: new Date().toISOString() }).eq('id', req.id);
+    await logMaintTimeline(req.id, 'inspection', req.status, 'inspection_reported', 'تم رفع تقرير الفحص');
+    toast('تم حفظ التقرير', 'success');
+    host.remove();
+    pageMaintenanceDetail(document.getElementById('pageBody'), req.id);
+  });
+}
+
+function openMaintQuoteModal(req) {
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:520px;max-width:95%;">
+      <div class="panel-header"><h3 class="panel-title">إضافة عرض سعر</h3></div>
+      <div class="panel-body">
+        <form id="mtQForm" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-field" style="grid-column:1/-1;"><label>اسم المورد</label><input name="supplier_name" class="form-input" required></div>
+          <div class="form-field"><label>السعر</label><input type="number" step="0.01" name="price" class="form-input" required></div>
+          <div class="form-field"><label>مدة التنفيذ (يوم)</label><input type="number" name="duration_days" class="form-input"></div>
+          <div class="form-field"><label>مدة الضمان (شهر)</label><input type="number" name="warranty_months" class="form-input"></div>
+          <div class="form-field"><label>ملف مرفق (URL)</label><input type="url" name="attachment_url" class="form-input"></div>
+          <div class="form-field" style="grid-column:1/-1;"><label>قطع الغيار</label><input name="spare_parts_details" class="form-input"></div>
+          <div class="form-field" style="grid-column:1/-1;"><label>ملاحظات</label><textarea name="notes" rows="2" class="form-input"></textarea></div>
+          <div style="grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="mtQCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:var(--primary);color:#fff;">إضافة</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(host);
+  host.querySelector('#mtQCancel').addEventListener('click', () => host.remove());
+  host.querySelector('#mtQForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = {
+      request_id: req.id, supplier_name: fd.get('supplier_name'),
+      price: Number(fd.get('price')),
+      duration_days: fd.get('duration_days') ? Number(fd.get('duration_days')) : null,
+      warranty_months: fd.get('warranty_months') ? Number(fd.get('warranty_months')) : null,
+      attachment_url: fd.get('attachment_url') || null,
+      spare_parts_details: fd.get('spare_parts_details') || null,
+      notes: fd.get('notes') || null
+    };
+    const { error } = await sb.from('maintenance_quotes').insert(payload);
+    if (error) { toast(error.message, 'error'); return; }
+    if (req.status !== 'awaiting_quotes' && req.status !== 'awaiting_finance') {
+      await sb.from('maintenance_requests').update({ status: 'awaiting_quotes', updated_at: new Date().toISOString() }).eq('id', req.id);
+      await logMaintTimeline(req.id, 'quote_added', req.status, 'awaiting_quotes', 'إضافة عرض سعر');
+    } else {
+      await logMaintTimeline(req.id, 'quote_added', req.status, req.status, 'إضافة عرض سعر');
+    }
+    toast('تم إضافة العرض', 'success');
+    host.remove();
+    pageMaintenanceDetail(document.getElementById('pageBody'), req.id);
+  });
+}
+
+function openMaintFinanceModal(req, approving) {
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:480px;max-width:95%;">
+      <div class="panel-header"><h3 class="panel-title">${approving ? 'اعتماد الصرف' : 'رفض الصرف'}</h3></div>
+      <div class="panel-body">
+        <form id="mtFForm" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          ${approving ? `
+            <div class="form-field"><label>المبلغ المعتمد</label><input type="number" step="0.01" name="approved_amount" class="form-input" required></div>
+            <div class="form-field"><label>طريقة الصرف</label><input name="payment_method" class="form-input" placeholder="تحويل / نقدي / أمر شراء"></div>
+            <div class="form-field" style="grid-column:1/-1;"><label>رقم أمر الشراء / التعميد</label><input name="po_number" class="form-input"></div>
+          ` : `<div class="form-field" style="grid-column:1/-1;"><label>سبب الرفض</label><textarea name="reject_reason" rows="3" class="form-input" required></textarea></div>`}
+          <div style="grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="mtFCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:${approving ? 'var(--primary)' : 'var(--danger)'};color:#fff;">${approving ? 'اعتماد' : 'رفض'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(host);
+  host.querySelector('#mtFCancel').addEventListener('click', () => host.remove());
+  host.querySelector('#mtFForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = {
+      request_id: req.id, approved: approving,
+      approved_amount: approving ? Number(fd.get('approved_amount')) : null,
+      payment_method: approving ? fd.get('payment_method') : null,
+      po_number: approving ? fd.get('po_number') : null,
+      reject_reason: approving ? null : fd.get('reject_reason'),
+      approver_id: CURRENT_USER.id
+    };
+    const { error } = await sb.from('maintenance_finance_approvals').insert(payload);
+    if (error) { toast(error.message, 'error'); return; }
+    const newStatus = approving ? 'in_progress' : 'rejected';
+    const upd = { status: newStatus, updated_at: new Date().toISOString() };
+    if (!approving) upd.reject_reason = fd.get('reject_reason');
+    await sb.from('maintenance_requests').update(upd).eq('id', req.id);
+    await logMaintTimeline(req.id, 'finance_' + (approving ? 'approved' : 'rejected'), req.status, newStatus, approving ? 'اعتُمد الصرف' : 'رُفض الصرف');
+    toast(approving ? 'تم الاعتماد' : 'تم الرفض', 'success');
+    host.remove();
+    pageMaintenanceDetail(document.getElementById('pageBody'), req.id);
+  });
+}
+
+function openMaintRepairModal(req) {
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:620px;max-width:95%;">
+      <div class="panel-header"><h3 class="panel-title">تقرير الإصلاح النهائي</h3></div>
+      <div class="panel-body">
+        <form id="mtRForm" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-field"><label>الفني / المنفذ</label><input name="technician_name" class="form-input" required></div>
+          <div class="form-field"><label>التكلفة النهائية</label><input type="number" step="0.01" name="final_cost" class="form-input"></div>
+          <div class="form-field"><label>بداية الإصلاح</label><input type="datetime-local" name="started_at" class="form-input"></div>
+          <div class="form-field"><label>نهاية الإصلاح</label><input type="datetime-local" name="ended_at" class="form-input"></div>
+          <div class="form-field"><label>إيقاف جزء من الفرع؟</label><select name="branch_partially_closed" class="form-select"><option value="false">لا</option><option value="true">نعم</option></select></div>
+          <div class="form-field"><label>مدة الضمان</label><input name="warranty_details" class="form-input" placeholder="مثال: 6 أشهر"></div>
+          <div class="form-field" style="grid-column:1/-1;"><label>ما تم إصلاحه</label><textarea name="what_was_fixed" rows="2" class="form-input" required></textarea></div>
+          <div class="form-field" style="grid-column:1/-1;"><label>قطع الغيار المستخدمة</label><input name="spare_parts_used" class="form-input"></div>
+          <div class="form-field"><label>صور قبل (URL)</label><input type="url" name="before_photos_url" class="form-input"></div>
+          <div class="form-field"><label>صور بعد (URL)</label><input type="url" name="after_photos_url" class="form-input"></div>
+          <div class="form-field" style="grid-column:1/-1;"><label>ملاحظات الفني</label><textarea name="technician_notes" rows="2" class="form-input"></textarea></div>
+          <div style="grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="mtRCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:var(--primary);color:#fff;">حفظ وإرسال للاستلام</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(host);
+  host.querySelector('#mtRCancel').addEventListener('click', () => host.remove());
+  host.querySelector('#mtRForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = {
+      request_id: req.id,
+      technician_name: fd.get('technician_name'),
+      final_cost: fd.get('final_cost') ? Number(fd.get('final_cost')) : null,
+      started_at: fd.get('started_at') || null,
+      ended_at: fd.get('ended_at') || null,
+      branch_partially_closed: fd.get('branch_partially_closed') === 'true',
+      warranty_details: fd.get('warranty_details') || null,
+      what_was_fixed: fd.get('what_was_fixed'),
+      spare_parts_used: fd.get('spare_parts_used') || null,
+      before_photos_url: fd.get('before_photos_url') || null,
+      after_photos_url: fd.get('after_photos_url') || null,
+      technician_notes: fd.get('technician_notes') || null
+    };
+    const { error } = await sb.from('maintenance_repairs').insert(payload);
+    if (error) { toast(error.message, 'error'); return; }
+    await sb.from('maintenance_requests').update({ status: 'awaiting_receipt', final_cost: payload.final_cost, updated_at: new Date().toISOString() }).eq('id', req.id);
+    await logMaintTimeline(req.id, 'repair_ended', req.status, 'awaiting_receipt', 'تم رفع تقرير الإصلاح');
+    if (req.requester_id) await notifyMaintUsers([req.requester_id], `✅ تم الإصلاح - ${req.request_no || '#'+req.id}`, 'تفضل بتأكيد استلام الفرع', '#maintenance_detail/' + req.id);
+    toast('تم حفظ التقرير', 'success');
+    host.remove();
+    pageMaintenanceDetail(document.getElementById('pageBody'), req.id);
+  });
+}
+
+function openMaintReceiptModal(req) {
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:440px;max-width:95%;">
+      <div class="panel-header"><h3 class="panel-title">استلام الفرع وإغلاق الطلب</h3></div>
+      <div class="panel-body">
+        <form id="mtCForm" style="display:grid;gap:12px;">
+          <div class="form-field"><label>حالة الإغلاق</label>
+            <select name="closure_status" class="form-select" required>
+              <option value="fixed">تم الإصلاح</option>
+              <option value="partially_fixed">تم الإصلاح جزئيًا</option>
+              <option value="needs_followup">يحتاج متابعة</option>
+              <option value="replaced">تم الاستبدال</option>
+              <option value="not_fixed">لم يتم الإصلاح</option>
+            </select>
+          </div>
+          <div class="form-field"><label>ملاحظات</label><textarea name="notes" rows="3" class="form-input"></textarea></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="mtCCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:var(--primary);color:#fff;">تأكيد الإغلاق</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(host);
+  host.querySelector('#mtCCancel').addEventListener('click', () => host.remove());
+  host.querySelector('#mtCForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = {
+      request_id: req.id,
+      closure_status: fd.get('closure_status'),
+      notes: fd.get('notes') || null,
+      confirmer_id: CURRENT_USER.id
+    };
+    const { error } = await sb.from('maintenance_receipts').insert(payload);
+    if (error) { toast(error.message, 'error'); return; }
+    await sb.from('maintenance_requests').update({ status: 'closed', updated_at: new Date().toISOString() }).eq('id', req.id);
+    await logMaintTimeline(req.id, 'closed', req.status, 'closed', 'تم إغلاق الطلب - ' + label('maint_closure', payload.closure_status));
+    toast('تم الإغلاق', 'success');
+    host.remove();
+    pageMaintenanceDetail(document.getElementById('pageBody'), req.id);
+  });
+}
+
+/* ============ Suppliers page ============ */
+async function pageMaintenanceSuppliers(body) {
+  const canManage = ['admin','company_manager','maintenance_officer','operations_manager'].includes(CURRENT_USER.role);
+  const { data: suppliers } = await sb.from('maintenance_suppliers').select('*').order('name');
+
+  body.innerHTML = `
+    <div class="panel">
+      <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <h3 class="panel-title"><span data-lucide="briefcase" style="width:18px;height:18px;vertical-align:-3px;"></span> الموردون</h3>
+        ${canManage ? '<button class="btn" id="mtSAdd" style="background:var(--primary);color:#fff;"><span data-lucide="plus" style="width:14px;height:14px;"></span> إضافة مورد</button>' : ''}
+      </div>
+      <div class="panel-body">
+        <div style="overflow-x:auto;">
+          <table class="adv-table">
+            <thead><tr><th>الاسم</th><th>النشاط</th><th>الهاتف</th><th>البريد</th><th>التقييم</th><th>عدد الأعمال</th><th></th></tr></thead>
+            <tbody id="mtSTbody">
+              ${(suppliers||[]).length ? suppliers.map(s => `
+                <tr>
+                  <td style="font-weight:600;">${esc(s.name)}</td>
+                  <td>${esc(s.activity || '-')}</td>
+                  <td style="direction:ltr;text-align:right;">${esc(s.phone || '-')}</td>
+                  <td>${esc(s.email || '-')}</td>
+                  <td>${s.rating ? '⭐ ' + Number(s.rating).toFixed(1) : '-'}</td>
+                  <td>${s.works_count || 0}</td>
+                  <td>${canManage ? `<button class="btn btn-outline" data-mt-s-edit="${s.id}" style="padding:4px 10px;font-size:11px;">تعديل</button>` : ''}</td>
+                </tr>
+              `).join('') : '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted);">لا يوجد موردون</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  const openSupplierModal = (existing) => {
+    const host = document.createElement('div');
+    host.className = 'modal-overlay';
+    host.innerHTML = `
+      <div class="panel modal-box" style="width:480px;max-width:95%;">
+        <div class="panel-header"><h3 class="panel-title">${existing ? 'تعديل المورد' : 'إضافة مورد'}</h3></div>
+        <div class="panel-body">
+          <form id="mtSForm" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-field" style="grid-column:1/-1;"><label>الاسم</label><input name="name" class="form-input" required value="${esc(existing?.name || '')}"></div>
+            <div class="form-field"><label>النشاط</label><input name="activity" class="form-input" value="${esc(existing?.activity || '')}"></div>
+            <div class="form-field"><label>الهاتف</label><input name="phone" class="form-input" value="${esc(existing?.phone || '')}"></div>
+            <div class="form-field"><label>البريد</label><input type="email" name="email" class="form-input" value="${esc(existing?.email || '')}"></div>
+            <div class="form-field"><label>التقييم (0-5)</label><input type="number" step="0.1" min="0" max="5" name="rating" class="form-input" value="${existing?.rating || ''}"></div>
+            <div class="form-field" style="grid-column:1/-1;"><label>ملاحظات</label><textarea name="notes" rows="2" class="form-input">${esc(existing?.notes || '')}</textarea></div>
+            <div style="grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;">
+              <button type="button" class="btn btn-outline" id="mtSCancel">إلغاء</button>
+              <button type="submit" class="btn" style="background:var(--primary);color:#fff;">حفظ</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(host);
+    host.querySelector('#mtSCancel').addEventListener('click', () => host.remove());
+    host.querySelector('#mtSForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const payload = {
+        name: fd.get('name'), activity: fd.get('activity') || null,
+        phone: fd.get('phone') || null, email: fd.get('email') || null,
+        rating: fd.get('rating') ? Number(fd.get('rating')) : null,
+        notes: fd.get('notes') || null
+      };
+      const q = existing
+        ? sb.from('maintenance_suppliers').update(payload).eq('id', existing.id)
+        : sb.from('maintenance_suppliers').insert(payload);
+      const { error } = await q;
+      if (error) { toast(error.message, 'error'); return; }
+      toast('تم الحفظ', 'success');
+      host.remove();
+      pageMaintenanceSuppliers(document.getElementById('pageBody'));
+    });
+  };
+
+  document.getElementById('mtSAdd')?.addEventListener('click', () => openSupplierModal(null));
+  document.querySelectorAll('[data-mt-s-edit]').forEach(b => {
+    b.addEventListener('click', () => {
+      const id = Number(b.dataset.mtSEdit);
+      const s = (suppliers || []).find(x => x.id === id);
+      openSupplierModal(s);
+    });
+  });
+}
+
 </script>
 </body>
 </html>
