@@ -34,10 +34,20 @@ create table if not exists maintenance_requests (
   request_no text unique,
   branch_id bigint references branches(id) on delete set null,
   affected_area text,
+  maintenance_type text,
+  issue_title text,
+  branch_location text,
   description text,
   cause text,
   severity text default 'normal',
   affects_operation boolean default false,
+  impact_on_operation text default 'none',
+  stoppage_type text,
+  additional_notes text,
+  internal_notes text,
+  attachment_url text,
+  video_url text,
+  is_draft boolean default false,
   status text default 'new',
   requester_id bigint references users(id) on delete set null,
   current_owner_id bigint references users(id) on delete set null,
@@ -52,6 +62,18 @@ create table if not exists maintenance_requests (
 create index if not exists idx_mr_status on maintenance_requests(status);
 create index if not exists idx_mr_branch on maintenance_requests(branch_id);
 create index if not exists idx_mr_severity on maintenance_requests(severity);
+
+-- Safe migration: add new columns if the table already existed
+alter table maintenance_requests add column if not exists maintenance_type text;
+alter table maintenance_requests add column if not exists issue_title text;
+alter table maintenance_requests add column if not exists branch_location text;
+alter table maintenance_requests add column if not exists impact_on_operation text default 'none';
+alter table maintenance_requests add column if not exists stoppage_type text;
+alter table maintenance_requests add column if not exists additional_notes text;
+alter table maintenance_requests add column if not exists internal_notes text;
+alter table maintenance_requests add column if not exists attachment_url text;
+alter table maintenance_requests add column if not exists video_url text;
+alter table maintenance_requests add column if not exists is_draft boolean default false;
 
 -- Auto-generate request_no like MR-2026-000012
 create or replace function gen_maintenance_request_no()
