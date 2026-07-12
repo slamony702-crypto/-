@@ -3243,7 +3243,7 @@ function renderSignupRequestSuccess() {
         <span data-lucide="check-check" style="width:30px;height:30px;color:#1F7A3A;"></span>
       </div>
       <h1 style="margin-bottom:10px;">تم استلام طلبك بنجاح</h1>
-      <p class="subtitle" style="margin-bottom:22px;">خلال يوم عمل سيتم مراجعة بياناتك، وعند الموافقة سيتم إرسال إشعار لكم</p>
+      <p class="subtitle" style="margin-bottom:22px;">سيتم مراجعة بياناتك من قسم الموارد البشرية، والرد عليكم خلال يوم عمل</p>
       <button type="button" class="login-submit-btn" id="srInstallBtn" style="margin-bottom:12px;">
         <span data-lucide="download"></span><span>تحميل التطبيق عشان توصلك الإشعارات</span>
       </button>
@@ -8372,7 +8372,7 @@ async function pageUsers(body) {
       <button type="button" class="tqt-btn ${UsersPageState.activeTab==='departments'?'active':''}" data-tab="departments"><span data-lucide="building-2" style="width:14px;height:14px;"></span> دليل الأقسام</button>
       <button type="button" class="tqt-btn ${UsersPageState.activeTab==='list'?'active':''}" data-tab="list"><span data-lucide="list" style="width:14px;height:14px;"></span> قائمة المستخدمين</button>
       ${isAdmin ? `<button type="button" class="tqt-btn ${UsersPageState.activeTab==='add'?'active':''}" data-tab="add"><span data-lucide="user-plus" style="width:14px;height:14px;"></span> إضافة مستخدم</button>` : ''}
-      ${isAdmin ? `<button type="button" class="tqt-btn ${UsersPageState.activeTab==='signup_requests'?'active':''}" data-tab="signup_requests"><span data-lucide="inbox" style="width:14px;height:14px;"></span> طلبات التسجيل ${pendingSignups.length?`<span class="stat-badge" style="margin-right:4px;">${pendingSignups.length}</span>`:''}</button>` : ''}
+      ${isAdmin ? `<button type="button" class="tqt-btn ${UsersPageState.activeTab==='signup_requests'?'active':''}" data-tab="signup_requests"><span data-lucide="inbox" style="width:14px;height:14px;"></span> طلبات الانضمام ${pendingSignups.length?`<span class="stat-badge" style="margin-right:4px;">${pendingSignups.length}</span>`:''}</button>` : ''}
       <button type="button" class="tqt-btn ${UsersPageState.activeTab==='roles'?'active':''}" data-tab="roles"><span data-lucide="shield" style="width:14px;height:14px;"></span> الأدوار والصلاحيات</button>
       <button type="button" class="tqt-btn ${UsersPageState.activeTab==='activity'?'active':''}" data-tab="activity"><span data-lucide="history" style="width:14px;height:14px;"></span> سجل النشاط</button>
     </div>
@@ -8604,34 +8604,97 @@ function renderUsersTabContent() {
     });
 
   } else if (UsersPageState.activeTab === 'signup_requests') {
-    const { pendingSignups } = window.__usersPageData;
+    const { pendingSignups, departments } = window.__usersPageData;
     host.innerHTML = `
       <div class="panel">
-        <div class="panel-header"><h3><span data-lucide="inbox" style="width:15px;height:15px;vertical-align:-2px;margin-left:5px;"></span>طلبات انضمام قيد المراجعة</h3></div>
-        <div class="panel-body">
-          ${(pendingSignups||[]).length ? pendingSignups.map(r => `
-            <div class="followup-row" data-sr-id="${r.id}">
-              <span data-lucide="user-round" style="width:14px;height:14px; color:#0F3D2E;"></span>
-              <div class="followup-row-info">
-                <strong>${esc(r.full_name)}</strong> — ${esc(r.job_title)}
-                <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">
-                  📱 ${esc(r.mobile_number)} &nbsp; · &nbsp; ✉️ ${esc(r.email)} &nbsp; · &nbsp; 📍 ${esc(r.region)}
-                  ${r.notes ? `<br>${esc(r.notes)}` : ''}
-                </div>
-                <div style="font-size:10.5px; color:var(--text-muted); margin-top:2px;">استُلم ${fmtDate(r.created_at)}</div>
-              </div>
-              <button class="chat-action-btn" style="background:rgba(31,122,58,0.1);color:#1F7A3A;" data-sr-approve="${r.id}"><span data-lucide="check" style="width:13px;height:13px;"></span> قبول</button>
-              <button class="chat-action-btn" style="background:rgba(211,47,47,0.1);color:#D32F2F;" data-sr-reject="${r.id}"><span data-lucide="x" style="width:13px;height:13px;"></span> رفض</button>
-            </div>`).join('') : '<p class="empty-state">لا توجد طلبات انضمام جديدة حاليًا</p>'}
+        <div class="panel-header"><h3><span data-lucide="inbox" style="width:15px;height:15px;vertical-align:-2px;margin-left:5px;"></span>طلبات الانضمام قيد المراجعة</h3></div>
+        <div class="panel-body" style="overflow-x:auto;">
+          ${(pendingSignups||[]).length ? `
+          <table class="adv-table">
+            <thead><tr>
+              <th>الاسم</th><th>الجوال</th><th>الإيميل</th><th>المسمى الوظيفي</th><th>المنطقة/الفرع</th><th>ملاحظات</th><th>القسم المناسب</th><th>الإجراء</th>
+            </tr></thead>
+            <tbody>
+              ${pendingSignups.map(r => `
+                <tr data-sr-row="${r.id}">
+                  <td><strong>${esc(r.full_name)}</strong><div style="font-size:10.5px;color:var(--text-muted);">استُلم ${fmtDate(r.created_at)}</div></td>
+                  <td>${esc(r.mobile_number)}</td>
+                  <td>${esc(r.email)}</td>
+                  <td>${esc(r.job_title)}</td>
+                  <td>${esc(r.region)}</td>
+                  <td style="max-width:160px;">${r.notes ? esc(r.notes) : '<span style="color:var(--text-muted);">—</span>'}</td>
+                  <td>
+                    <select class="meeting-select" data-sr-dept="${r.id}" style="min-width:150px;">
+                      <option value="">كما أرسلها (بدون قسم محدد)</option>
+                      ${(departments||[]).map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('')}
+                    </select>
+                  </td>
+                  <td style="white-space:nowrap;">
+                    <button title="قبول وإنشاء الحساب" class="chat-action-btn" style="background:rgba(31,122,58,0.12);color:#1F7A3A;" data-sr-approve="${r.id}"><span data-lucide="check" style="width:15px;height:15px;"></span></button>
+                    <button title="رفض الطلب" class="chat-action-btn" style="background:rgba(211,47,47,0.1);color:#D32F2F;" data-sr-reject="${r.id}"><span data-lucide="x" style="width:15px;height:15px;"></span></button>
+                  </td>
+                </tr>`).join('')}
+            </tbody>
+          </table>` : '<p class="empty-state">لا توجد طلبات انضمام جديدة حاليًا</p>'}
         </div>
       </div>`;
+    if (window.lucide) lucide.createIcons();
+
+    function genUsernameBase(req) {
+      const emailLocal = (req.email||'').split('@')[0] || '';
+      const fromEmail = emailLocal.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (fromEmail) return fromEmail;
+      const fromPhone = (req.mobile_number||'').replace(/[^0-9]/g, '');
+      return fromPhone ? 'user' + fromPhone.slice(-6) : 'user' + req.id;
+    }
+    function genPassword() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+      let out = '';
+      for (let i = 0; i < 8; i++) out += chars[Math.floor(Math.random() * chars.length)];
+      return out;
+    }
+    async function uniqueUsername(base) {
+      let candidate = base, n = 1;
+      while (true) {
+        const { data } = await sb.from('users').select('id').eq('username', candidate).maybeSingle();
+        if (!data) return candidate;
+        n += 1; candidate = base + n;
+      }
+    }
+
     host.querySelectorAll('[data-sr-approve]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const req = (pendingSignups||[]).find(r => r.id === Number(btn.dataset.srApprove));
         if (!req) return;
-        UsersPageState.prefillFromSignup = req;
-        UsersPageState.activeTab = 'add';
-        renderUsersPageShell();
+        if (!confirm('تأكيد قبول طلب "' + req.full_name + '" وإنشاء حساب له؟')) return;
+        btn.disabled = true;
+        try {
+          const deptSelect = host.querySelector(`[data-sr-dept="${req.id}"]`);
+          const departmentId = deptSelect && deptSelect.value ? Number(deptSelect.value) : null;
+          const username = await uniqueUsername(genUsernameBase(req));
+          const password = genPassword();
+          const { data: newUser, error } = await sb.from('users').insert({
+            full_name: req.full_name, username, password_plain: password,
+            email: req.email, mobile_number: req.mobile_number,
+            department_id: departmentId, position_title: req.job_title,
+            role: 'employee', status: 'active', is_active: true
+          }).select().single();
+          if (error) throw error;
+          await sb.from('signup_requests').update({
+            status: 'approved', reviewed_by: CURRENT_USER.id, reviewed_at: new Date().toISOString()
+          }).eq('id', req.id);
+          if (newUser) {
+            await sb.from('notifications').insert({
+              user_id: newUser.id, title: 'تم قبول طلب انضمامك 🎉',
+              body: 'تم تفعيل حسابك على نظام شؤون الغذاء — راجع بيانات الدخول اللي وصلتك',
+              link: '#dashboard'
+            }).catch(() => {});
+          }
+          showApprovalConfirmModal(req, username, password);
+        } catch (err) {
+          toast('حدث خطأ أثناء إنشاء الحساب: ' + err.message, 'error');
+          btn.disabled = false;
+        }
       });
     });
     host.querySelectorAll('[data-sr-reject]').forEach(btn => {
@@ -8703,6 +8766,37 @@ function renderUsersTabContent() {
     host.innerHTML = `<div class="panel"><div class="panel-body"><p class="empty-state">تبويب "${UsersPageState.activeTab}" — قادم في المرحلة القادمة.</p></div></div>`;
   }
   if (window.lucide) lucide.createIcons();
+}
+
+// بعد قبول طلب انضمام: بيانات الدخول + رسالة تأكيد جاهزة للإرسال واتساب
+function showApprovalConfirmModal(req, username, password) {
+  const appUrl = location.origin + location.pathname;
+  const msg = `مرحبًا ${req.full_name} 👋\nتم قبول طلب انضمامك لنظام شؤون الغذاء.\n\nبيانات الدخول:\nاسم المستخدم: ${username}\nكلمة المرور: ${password}\n\nرابط الدخول: ${appUrl}`;
+  const waPhone = (req.mobile_number || '').replace(/[^0-9]/g, '').replace(/^0/, '966');
+  document.getElementById('root').insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="srConfirmOverlay">
+      <div class="panel modal-box" style="max-width:420px;">
+        <div class="panel-header">
+          <h3><span data-lucide="check-check" style="width:16px;height:16px;color:#1F7A3A;vertical-align:-2px;"></span> تم إنشاء الحساب بنجاح</h3>
+          <button class="modal-close-x" id="srConfirmCloseX"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+        </div>
+        <div class="panel-body">
+          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:10px;">ابعت الرسالة دي لـ <strong>${esc(req.full_name)}</strong> عشان يعرف بيانات دخوله:</p>
+          <textarea class="meeting-input" id="srConfirmMsg" rows="7" style="width:100%;font-size:12.5px;" readonly>${esc(msg)}</textarea>
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+            <button class="meeting-action-btn mab-primary" id="srCopyMsgBtn"><span data-lucide="copy" style="width:14px;height:14px;"></span> نسخ الرسالة</button>
+            ${waPhone ? `<a class="meeting-action-btn mab-secondary" style="text-decoration:none;" target="_blank" href="https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}"><span data-lucide="message-circle" style="width:14px;height:14px;"></span> إرسال واتساب</a>` : ''}
+          </div>
+        </div>
+      </div>
+    </div>`);
+  if (window.lucide) lucide.createIcons();
+  const close = () => { document.getElementById('srConfirmOverlay')?.remove(); renderApp(); };
+  document.getElementById('srConfirmCloseX').addEventListener('click', close);
+  document.getElementById('srCopyMsgBtn').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(msg); toast('تم نسخ الرسالة', 'success'); }
+    catch (e) { toast('تعذّر النسخ التلقائي، انسخ النص يدويًا', 'error'); }
+  });
 }
 
 window.openUserEditModal = function(userId) {
