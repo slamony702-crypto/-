@@ -823,7 +823,45 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
 }
 .employee-row:hover .chat-action-btn { opacity: 1; }
 @media (max-width: 768px) { .employee-row .chat-action-btn { opacity: 1; padding: 6px 10px; } }
-/* ============ رؤية الشركة - كروت الأقسام الفاخرة ============ */
+/* ============ كروت الأقسام المضغوطة — التواصل الداخلي ============ */
+.dept-compact-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.dept-compact-card {
+  background: #FFFDF7; border: 1px solid rgba(15,61,46,0.08); border-radius: 12px;
+  padding: 10px 12px; box-shadow: 0 2px 6px rgba(15,61,46,0.05);
+  transition: transform .12s ease, box-shadow .15s ease, border-color .15s ease;
+  border-right: 3px solid var(--dept-color, #1F7A3A);
+}
+.dept-compact-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(15,61,46,0.1); border-color: rgba(214,164,55,0.35); }
+.dcc-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.dcc-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 15px; flex-shrink: 0; }
+.dcc-main { flex: 1; min-width: 0; }
+.dcc-name { font-size: 13.5px; font-weight: 700; color: #24352E; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dcc-meta { font-size: 11px; color: #6B756F; margin-top: 2px; }
+.dcc-actions { display: flex; gap: 5px; }
+.dcc-btn {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  font-size: 11.5px; font-weight: 700; padding: 5px 6px; border-radius: 8px; text-decoration: none;
+  border: 1px solid transparent; white-space: nowrap;
+}
+.dcc-btn-primary { background: linear-gradient(90deg, #1F7A3A, #0F3D2E); color: #fff; }
+.dcc-btn-primary:hover { filter: brightness(1.06); }
+.dcc-btn-ghost { background: #F1EEE2; color: #24352E; border-color: #E8E3D6; }
+.dcc-btn-ghost:hover { background: rgba(214,164,55,0.12); border-color: #D6A437; }
+
+/* كروت الشات المخصص */
+.custom-chat-card {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  background: #FFFDF7; border: 1px solid rgba(15,61,46,0.08); border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(15,61,46,0.05); text-decoration: none;
+  transition: transform .12s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.custom-chat-card:hover { transform: translateY(-2px); border-color: #D6A437; box-shadow: 0 4px 12px rgba(15,61,46,0.1); }
+.ccc-icon { width: 34px; height: 34px; border-radius: 9px; background: rgba(214,164,55,0.15); color: #9A6B12; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ccc-body { flex: 1; min-width: 0; }
+.ccc-title { font-size: 13px; font-weight: 700; color: #24352E; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ccc-sub { font-size: 11px; color: #6B756F; margin-top: 2px; }
+
+/* ============ رؤية الشركة - كروت الأقسام الفاخرة (تبقى كما هي) ============ */
 .dept-vision-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
 .dept-vision-card {
   background: rgba(255,255,255,0.92); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.3);
@@ -2476,6 +2514,7 @@ const AUTO_WRAP_TARGETS = [
   { selector: '.rep-mini-grid', title: 'ملخّص التقرير', icon: 'pie-chart' },
   { selector: '.rep-tabs', title: 'تصفية التقرير', icon: 'filter' },
   { selector: '#deptGrid', title: 'الأقسام والفروع', icon: 'building-2' },
+  { selector: '.dept-compact-grid', title: 'الأقسام والفروع', icon: 'building-2' },
   { selector: '.dept-vision-grid', title: 'الأقسام والفروع', icon: 'building-2' }
 ];
 
@@ -7645,6 +7684,8 @@ async function route() {
     else if (page === 'department_tasks') await pageDepartmentTasks(body, query);
     else if (page === 'decisions') await pageDecisions(body, query);
     else if (page === 'conversations') await pageConversations(body, query);
+    else if (page === 'dept_chat') await pageDeptChat(body, param);
+    else if (page === 'custom_chat') await pageCustomChat(body, param);
     else if (page === 'emergency') await pageEmergency(body);
     else if (page === 'maintenance') await pageMaintenance(body, query);
     else if (page === 'maintenance_new') await pageMaintenanceNew(body, param);
@@ -7746,28 +7787,75 @@ async function pageConversations(body, query) {
   window.__inMeetingUserIds = inMeetingUserIds;
   __directorySelectedDept = 'all';
 
+  // شاتات مخصصة نشطة وأرشيف
+  const { data: customChats } = await sb.from('conversations').select('*').eq('conversation_type', 'custom').order('id', { ascending: false });
+  const activeCustom = (customChats||[]).filter(c => !c.is_archived);
+  const archivedCustom = (customChats||[]).filter(c => c.is_archived);
+
   body.innerHTML = `
     <div class="task-page-header">
       <div>
         <h2><span class="tph-accent"></span><span data-lucide="message-square" style="width:22px;height:22px; color:#0F3D2E;"></span> تواصل داخلي</h2>
         <p>تواصل مع الموظفين والأقسام وتابع محادثات الاجتماعات والمهام</p>
       </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="meeting-action-btn mab-primary" id="btnCreateCustomChat"><span data-lucide="message-square-plus" style="width:14px;height:14px;"></span> عمل شات مخصص</button>
+      </div>
     </div>
     <div class="pill-tabs">
-      <button class="pill-tab active" data-tab="directory"><span data-lucide="users" style="width:13px;height:13px;"></span> دليل الموظفين</button>
+      <button class="pill-tab active" data-tab="directory"><span data-lucide="users" style="width:13px;height:13px;"></span> محادثات الأقسام</button>
       <button class="pill-tab" data-tab="myconvs"><span data-lucide="message-circle" style="width:13px;height:13px;"></span> محادثاتي</button>
       <button class="pill-tab" data-tab="meetings"><span data-lucide="calendar" style="width:13px;height:13px;"></span> محادثات الاجتماعات</button>
       <button class="pill-tab" data-tab="tasks"><span data-lucide="check-circle-2" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;color:var(--success);"></span> محادثات المهام</button>
+      <button class="pill-tab" data-tab="custom"><span data-lucide="message-square-plus" style="width:13px;height:13px;"></span> الشات المخصص${activeCustom.length?` <span class="ft-badge" style="background:#D6A437;color:#fff;">${activeCustom.length}</span>`:''}</button>
+      <button class="pill-tab" data-tab="archive"><span data-lucide="archive" style="width:13px;height:13px;"></span> الأرشيف${archivedCustom.length?` (${archivedCustom.length})`:''}</button>
     </div>
 
     <div id="tabDirectory">
       <div class="panel"><div class="panel-body">
         <div class="search-wrap" style="max-width:100%; margin-bottom:18px;">
-          <input type="text" id="directorySearch" placeholder="ابحث بالاسم أو أول حرف...">
+          <input type="text" id="directorySearch" placeholder="ابحث باسم موظف...">
           <span class="search-icon"></span>
         </div>
-        <div class="dept-vision-grid" id="deptGrid"></div>
-        <div id="deptPeopleList" style="margin-top:20px;"></div>
+        <div class="dept-compact-grid" id="deptGrid"></div>
+        <div id="deptSearchResults" style="margin-top:18px;"></div>
+      </div></div>
+    </div>
+
+    <div id="tabCustom" class="hidden">
+      <div class="panel"><div class="panel-body">
+        ${activeCustom.length ? `
+          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:10px;">
+            ${activeCustom.map(c => `
+              <a href="#custom_chat/${c.id}" class="custom-chat-card">
+                <div class="ccc-icon"><span data-lucide="message-square-plus" style="width:15px;height:15px;"></span></div>
+                <div class="ccc-body">
+                  <div class="ccc-title">${esc(c.title || 'شات مخصص')}</div>
+                  <div class="ccc-sub">${c.last_message_at ? 'آخر رسالة: ' + fmtDate(c.last_message_at) : 'لم تُرسل رسائل بعد'}</div>
+                </div>
+              </a>`).join('')}
+          </div>` : `
+          <div class="task-empty-state">
+            <div class="tes-icon"><span data-lucide="message-square-plus" style="width:38px;height:38px;"></span></div>
+            <div class="tes-title">لا توجد شاتات مخصصة</div>
+            <div class="tes-sub">اضغط "عمل شات مخصص" أعلى الصفحة لإنشاء أول شات.</div>
+          </div>`}
+      </div></div>
+    </div>
+
+    <div id="tabArchive" class="hidden">
+      <div class="panel"><div class="panel-body">
+        ${archivedCustom.length ? `
+          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:10px;">
+            ${archivedCustom.map(c => `
+              <a href="#custom_chat/${c.id}" class="custom-chat-card" style="opacity:.75;">
+                <div class="ccc-icon" style="background:rgba(107,117,111,0.15);color:#6B756F;"><span data-lucide="archive" style="width:15px;height:15px;"></span></div>
+                <div class="ccc-body">
+                  <div class="ccc-title">${esc(c.title || 'شات مخصص')}</div>
+                  <div class="ccc-sub">أُرشِف ${c.archived_at ? fmtDate(c.archived_at) : ''}</div>
+                </div>
+              </a>`).join('')}
+          </div>` : '<p class="empty-state">لا توجد شاتات مؤرشفة</p>'}
       </div></div>
     </div>
 
@@ -7835,9 +7923,15 @@ async function pageConversations(body, query) {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.pill-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      ['directory','myconvs','meetings','tasks'].forEach(t => document.getElementById('tab' + t[0].toUpperCase() + t.slice(1)).classList.toggle('hidden', t !== btn.dataset.tab));
+      ['directory','myconvs','meetings','tasks','custom','archive'].forEach(t => {
+        const el = document.getElementById('tab' + t[0].toUpperCase() + t.slice(1));
+        if (el) el.classList.toggle('hidden', t !== btn.dataset.tab);
+      });
     });
   });
+
+  // زر عمل شات مخصص
+  document.getElementById('btnCreateCustomChat')?.addEventListener('click', () => openCreateCustomChatModal(allUsers, departments));
 
   function avatarInitials(name) { return (name||'').trim().split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join(''); }
   function deptColorIndex(deptId) {
@@ -7851,37 +7945,29 @@ async function pageConversations(body, query) {
   }
 
   function renderDeptGrid() {
-    const total = (allUsers||[]).length;
-    const totalOnline = (allUsers||[]).filter(u => isUserOnline(u.last_active_at)).length;
-    const cards = [`
-      <div class="dept-vision-card ${__directorySelectedDept==='all'?'selected':''}" onclick="selectDept('all', 'الكل')">
-        <div class="dept-icon-circle" style="background:linear-gradient(135deg, var(--primary), var(--primary-dark));"><span data-lucide="users" style="width:20px;height:20px;color:#fff;"></span></div>
-        <div class="dept-name">الكل</div>
-        <div class="dept-count" style="color:var(--primary);">${total}</div>
-        <div class="dept-count-label">موظف</div>
-        <div style="font-size:10.5px; color:var(--text-muted); margin-top:4px; display:flex; align-items:center; justify-content:center; gap:4px;"><span style="width:6px;height:6px;border-radius:50%;background:var(--success);display:inline-block;"></span>${totalOnline} متصل الآن</div>
-      </div>`];
-    (departments||[]).forEach((d, i) => {
+    const cards = (departments||[]).map((d, i) => {
       const deptUsers = (allUsers||[]).filter(u => u.department_id === d.id);
       const onlineCount = deptUsers.filter(u => isUserOnline(u.last_active_at)).length;
       const style = deptStyle(d.name);
       const deptUnread = unreadByDeptId[d.id] || 0;
-      cards.push(`
-        <div class="dept-vision-card ${__directorySelectedDept===d.id?'selected':''}" style="animation-delay:${i*0.05}s; --dept-glow:${style.color}55; position:relative;">
-          <div onclick="selectDept(${d.id}, '${esc(d.name).replace(/'/g,"")}')">
-            <div class="dept-icon-circle" style="background:linear-gradient(135deg, ${style.color}, ${style.color}cc);">${style.icon}</div>
-            <div class="dept-name">${esc(d.name)}</div>
-            <div class="dept-count" style="color:${style.color};">${deptUsers.length}</div>
-            <div class="dept-count-label">${deptUsers.length === 1 ? 'موظف' : 'موظفين'}</div>
-            <div style="font-size:10.5px; color:var(--text-muted); margin-top:4px; display:flex; align-items:center; justify-content:center; gap:4px;"><span style="width:6px;height:6px;border-radius:50%;background:var(--success);display:inline-block;"></span>${onlineCount} متصل الآن</div>
+      const nameEsc = esc(d.name).replace(/'/g,"");
+      return `
+        <div class="dept-compact-card" style="--dept-color:${style.color};">
+          <div class="dcc-head">
+            <div class="dcc-icon" style="background:${style.color};">${style.icon}</div>
+            <div class="dcc-main">
+              <div class="dcc-name">${esc(d.name)}</div>
+              <div class="dcc-meta">${deptUsers.length} موظف${onlineCount?` · <span style="color:#1F7A3A;font-weight:700;">${onlineCount} متاح</span>`:''}</div>
+            </div>
+            ${deptUnread > 0 ? `<span class="ft-badge ft-red">${deptUnread}</span>` : ''}
           </div>
-          <button class="chat-action-btn" style="width:100%; justify-content:center; margin-top:8px; position:relative;" onclick="event.stopPropagation(); openDepartmentChat(${d.id}, '${esc(d.name).replace(/'/g,"")}')">
-            <span data-lucide="users" style="width:12px;height:12px;"></span> محادثة القسم
-            ${deptUnread > 0 ? `<span class="ft-badge ft-red" style="position:absolute; top:-6px; left:-6px;">${deptUnread}</span>` : ''}
-          </button>
-        </div>`);
-    });
-    document.getElementById('deptGrid').innerHTML = cards.join('');
+          <div class="dcc-actions">
+            <a href="#dept_chat/${d.id}" class="dcc-btn dcc-btn-primary" title="محادثة داخل القسم"><span data-lucide="message-circle" style="width:12px;height:12px;"></span> محادثة داخل القسم</a>
+            <a href="#dept_chat/${d.id}?tab=members" class="dcc-btn dcc-btn-ghost" title="عرض الموظفين"><span data-lucide="users" style="width:12px;height:12px;"></span> الموظفون</a>
+          </div>
+        </div>`;
+    }).join('');
+    document.getElementById('deptGrid').innerHTML = cards;
     if (window.lucide) lucide.createIcons();
   }
   renderDeptGrid();
@@ -7928,20 +8014,35 @@ async function pageConversations(body, query) {
     if (window.lucide) lucide.createIcons();
   }
 
-  window.selectDept = function(deptId, deptName) {
-    __directorySelectedDept = deptId;
-    renderDeptGrid();
-    const people = deptId === 'all' ? (allUsers||[]) : (allUsers||[]).filter(u => u.department_id === deptId);
-    renderPeopleList(people, deptId === 'all' ? 'كل الموظفين' : 'الموظفون في: ' + deptName, deptId);
+  // النقر على قسم يفتح صفحة جديدة (Route) بدل التوسّع تحت
+  window.selectDept = function(deptId) {
+    if (!deptId || deptId === 'all') return;
+    location.hash = '#dept_chat/' + deptId;
   };
-  window.showDeptPeople = window.selectDept; // توافق مع الاستدعاءات القديمة إن وجدت
+  window.showDeptPeople = window.selectDept;
 
   document.getElementById('directorySearch').addEventListener('input', (e) => {
     const q = e.target.value.trim().toLowerCase();
-    if (!q) { renderDeptGrid(); document.getElementById('deptPeopleList').innerHTML = ''; return; }
-    document.getElementById('deptGrid').innerHTML = '';
+    const resHost = document.getElementById('deptSearchResults');
+    if (!q) { document.getElementById('deptGrid').style.display = ''; resHost.innerHTML = ''; return; }
+    document.getElementById('deptGrid').style.display = 'none';
     const matched = (allUsers||[]).filter(u => u.full_name.toLowerCase().includes(q));
-    renderPeopleList(matched, `نتائج البحث (${matched.length})`, null);
+    resHost.innerHTML = matched.length ? `
+      <div class="panel"><div class="panel-header"><h3>نتائج البحث (${matched.length})</h3></div><div class="panel-body">
+        ${matched.map(u => {
+          const status = getUserStatus(u);
+          return `<div class="employee-row">
+            <div class="avatar-gradient avatar-g${deptColorIndex(u.department_id)}">${esc(avatarInitials(u.full_name))}</div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:600; font-size:13.5px;">${esc(u.full_name)}</div>
+              <div style="font-size:12px; color:var(--text-muted);">${esc(u.position_title || '')}${u.position_title ? ' · ' : ''}${esc((departments||[]).find(d=>d.id===u.department_id)?.name || '')}</div>
+            </div>
+            <span class="status-pill ${status.cls}"><span class="dot"></span>${status.label}</span>
+            <button class="chat-action-btn" onclick="openDirectChatFromDirectory(${u.id}, '${esc(u.full_name).replace(/'/g,"")}')"><span data-lucide="message-circle" style="width:13px;height:13px;"></span> رسالة</button>
+          </div>`;
+        }).join('')}
+      </div></div>` : '<p class="empty-state">لا توجد نتائج</p>';
+    if (window.lucide) lucide.createIcons();
   });
 
   window.openDirectChatFromDirectory = async function(userId, userName) {
@@ -8118,23 +8219,277 @@ window.openSharedTasksModal = async function(otherUserId, otherUserName) {
   if (window.lucide) lucide.createIcons();
 };
 
-window.openDepartmentChat = async function(deptId, deptName) {
-  document.getElementById('taskChatPanel').classList.remove('hidden');
-  document.getElementById('taskChatTitle').innerHTML = `<span data-lucide="users" style="width:14px;height:14px;vertical-align:-2px;"></span> محادثة قسم ${esc(deptName)}`;
-  document.getElementById('taskChatPanel').scrollIntoView({ behavior: 'smooth' });
+// التوجيه القديم يعيد التوجيه لصفحة القسم الجديدة (بدل التوسّع تحت)
+window.openDepartmentChat = function(deptId) { location.hash = '#dept_chat/' + deptId; };
 
-  let { data: conv } = await sb.from('conversations').select('*').eq('department_id', deptId).eq('conversation_type', 'department').maybeSingle();
+// ═══════════════════════════════════════════════════════════
+// صفحة "محادثة داخل قسم" — صفحة مستقلة تحتوي الشات وقائمة الموظفين
+// ═══════════════════════════════════════════════════════════
+async function pageDeptChat(body, deptId) {
+  const id = Number(deptId);
+  const [{ data: dept }, { data: deptUsers }] = await Promise.all([
+    sb.from('departments').select('*').eq('id', id).maybeSingle(),
+    sb.from('users').select('id, full_name, position_title, department_id, last_active_at').eq('department_id', id).eq('is_active', true).order('full_name')
+  ]);
+  if (!dept) { body.innerHTML = '<p class="empty-state">القسم غير موجود</p>'; return; }
+
+  // الحصول على محادثة القسم أو إنشاؤها
+  let { data: conv } = await sb.from('conversations').select('*').eq('department_id', id).eq('conversation_type', 'department').maybeSingle();
   if (!conv) {
-    const { data: newConv, error } = await sb.from('conversations').insert({ conversation_type: 'department', department_id: deptId, title: 'محادثة قسم ' + deptName }).select().single();
-    if (error) { toast(error.message, 'error'); return; }
+    const { data: newConv } = await sb.from('conversations').insert({ conversation_type: 'department', department_id: id, title: 'محادثة قسم ' + dept.name, created_by: CURRENT_USER.id }).select().single();
     conv = newConv;
   }
-  __currentTaskConvId = conv.id;
   await sb.from('conversation_members').upsert({ conversation_id: conv.id, user_id: CURRENT_USER.id }, { onConflict: 'conversation_id,user_id' });
+
+  body.innerHTML = `
+    <a href="#conversations" style="display:inline-flex;align-items:center;gap:4px;font-size:12.5px;color:var(--text-muted);margin-bottom:10px;"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للتواصل الداخلي</a>
+    <div class="task-page-header">
+      <div>
+        <h2><span class="tph-accent"></span><span data-lucide="users" style="width:20px;height:20px;color:#0F3D2E;"></span> محادثة داخل قسم ${esc(dept.name)}</h2>
+        <p>${deptUsers?.length || 0} موظف في القسم · شات جماعي لأعضاء القسم</p>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 300px;gap:14px;" class="dash-two-col">
+      <div class="panel">
+        <div class="panel-header"><h3><span data-lucide="message-circle" style="width:14px;height:14px;vertical-align:-2px;margin-left:4px;"></span> شات القسم</h3></div>
+        <div class="panel-body">
+          <div class="chat-box">
+            <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-input">${chatInputBarHtml()}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h3><span data-lucide="users" style="width:14px;height:14px;vertical-align:-2px;margin-left:4px;"></span> موظفو القسم</h3></div>
+        <div class="panel-body" style="padding:8px;">
+          ${(deptUsers||[]).map(u => {
+            const online = isUserOnline(u.last_active_at);
+            return `
+              <div class="employee-row" style="padding:8px 6px;">
+                <div style="flex:1; min-width:0;">
+                  <div style="font-weight:600; font-size:13px;">${esc(u.full_name)}</div>
+                  <div style="font-size:11px; color:var(--text-muted);">${esc(u.position_title || '-')}</div>
+                </div>
+                <span class="status-pill ${online?'st-done':'st-cancelled'}" style="font-size:10px;padding:2px 6px;"><span class="dot"></span>${online?'متصل':'غير متصل'}</span>
+                <button class="chat-action-btn" style="padding:4px 8px;font-size:11px;" onclick="openDirectChatFromDirectory(${u.id}, '${esc(u.full_name).replace(/'/g,"")}')"><span data-lucide="message-circle" style="width:11px;height:11px;"></span> محادثة خاصة</button>
+              </div>`;
+          }).join('') || '<p class="empty-state" style="font-size:12px;">لا يوجد موظفون في القسم</p>'}
+        </div>
+      </div>
+    </div>`;
+  if (window.lucide) lucide.createIcons();
+
+  __currentTaskConvId = conv.id;
   await loadChatMessages(conv.id);
   wireChatInputBar((text, msgType, replyToId, attachment, textColor, textAlign) => sendChatMessage(__currentTaskConvId, text, msgType, replyToId, attachment, textColor, textAlign), __currentTaskConvId);
+}
+
+// ═══════════════════════════════════════════════════════════
+// إنشاء شات مخصص — Modal
+// ═══════════════════════════════════════════════════════════
+function openCreateCustomChatModal(allUsers, departments) {
+  const selected = new Set();
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:640px;max-width:96%;">
+      <div class="panel-header">
+        <h3 class="panel-title"><span data-lucide="message-square-plus" style="width:15px;height:15px;color:#D6A437;"></span> إنشاء شات مخصص</h3>
+        <button class="modal-close-x" id="cccClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body" style="display:grid;gap:14px;">
+        <div class="form-field"><label>اسم الشات *</label><input type="text" id="cccName" class="form-input" placeholder="مثال: متابعة تجهيز تقرير الجودة"></div>
+        <div class="form-field">
+          <label>اختر قسمًا لإضافة أعضاء منه</label>
+          <select id="cccDeptPicker" class="form-select">
+            <option value="">اختر قسمًا...</option>
+            ${(departments||[]).map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div id="cccDeptUsersBox" style="display:none; background:#FFFDF7; border:1px solid #E8E3D6; border-radius:10px; padding:10px; max-height:200px; overflow-y:auto;">
+          <button type="button" class="btn btn-outline btn-sm" id="cccSelectAllDept" style="margin-bottom:8px;font-size:11.5px;"><span data-lucide="check-square" style="width:12px;height:12px;"></span> اختيار القسم كامل</button>
+          <div id="cccDeptUsersList"></div>
+        </div>
+        <div>
+          <label style="font-size:12.5px;font-weight:700;color:#4d5750;">الأعضاء المختارون <span id="cccCount" style="color:#6B756F;font-weight:600;">(0)</span></label>
+          <div id="cccSelectedChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;min-height:36px;background:#F1EEE2;border-radius:10px;padding:8px;"></div>
+        </div>
+        <div class="error-msg" id="cccError"></div>
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button type="button" class="btn btn-outline" id="cccCancel">إلغاء</button>
+          <button type="button" class="btn" id="cccCreate" style="background:linear-gradient(90deg,#1F7A3A,#0F3D2E);color:#fff;"><span data-lucide="send" style="width:13px;height:13px;"></span> إنشاء الشات</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
   if (window.lucide) lucide.createIcons();
-};
+
+  const usersById = new Map((allUsers||[]).map(u => [u.id, u]));
+  const deptNameById = new Map((departments||[]).map(d => [d.id, d.name]));
+
+  function renderSelected() {
+    document.getElementById('cccCount').textContent = `(${selected.size})`;
+    document.getElementById('cccSelectedChips').innerHTML = [...selected].map(uid => {
+      const u = usersById.get(uid); if (!u) return '';
+      return `<span class="badge-status" style="background:rgba(31,122,58,0.1);color:#0F3D2E;padding:4px 10px;border-radius:14px;font-size:11.5px;font-weight:700;">${esc(u.full_name)} · ${esc(deptNameById.get(u.department_id) || '')} <button type="button" onclick="event.preventDefault();this.dispatchEvent(new CustomEvent('rm-user',{bubbles:true,detail:${uid}}))" style="background:none;border:none;color:#D32F2F;cursor:pointer;font-size:13px;line-height:1;padding:0 2px;">×</button></span>`;
+    }).join('') || '<span style="font-size:11.5px;color:#6B756F;">لم يتم اختيار أعضاء بعد</span>';
+  }
+  renderSelected();
+  host.addEventListener('rm-user', (e) => { selected.delete(e.detail); renderSelected(); renderDeptUsers(); });
+
+  function renderDeptUsers() {
+    const deptId = Number(document.getElementById('cccDeptPicker').value);
+    const box = document.getElementById('cccDeptUsersBox');
+    if (!deptId) { box.style.display = 'none'; return; }
+    box.style.display = '';
+    const users = (allUsers||[]).filter(u => u.department_id === deptId && u.id !== CURRENT_USER.id);
+    document.getElementById('cccDeptUsersList').innerHTML = users.length ? users.map(u => `
+      <label style="display:flex;align-items:center;gap:8px;padding:5px 4px;font-size:12.5px;cursor:pointer;">
+        <input type="checkbox" data-uid="${u.id}" ${selected.has(u.id)?'checked':''}>
+        <span>${esc(u.full_name)} <span style="color:#6B756F;font-size:11px;">${esc(u.position_title || '')}</span></span>
+      </label>`).join('') : '<p style="font-size:11.5px;color:#6B756F;text-align:center;">لا يوجد موظفون في هذا القسم</p>';
+    document.getElementById('cccDeptUsersList').querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const uid = Number(cb.dataset.uid);
+        if (cb.checked) selected.add(uid); else selected.delete(uid);
+        renderSelected();
+      });
+    });
+  }
+  document.getElementById('cccDeptPicker').addEventListener('change', renderDeptUsers);
+  document.getElementById('cccSelectAllDept').addEventListener('click', () => {
+    const deptId = Number(document.getElementById('cccDeptPicker').value);
+    if (!deptId) return;
+    (allUsers||[]).filter(u => u.department_id === deptId && u.id !== CURRENT_USER.id).forEach(u => selected.add(u.id));
+    renderSelected();
+    renderDeptUsers();
+  });
+
+  const close = () => host.remove();
+  document.getElementById('cccClose').addEventListener('click', close);
+  document.getElementById('cccCancel').addEventListener('click', close);
+  host.addEventListener('click', (e) => { if (e.target === host) close(); });
+
+  document.getElementById('cccCreate').addEventListener('click', async () => {
+    const errBox = document.getElementById('cccError');
+    errBox.classList.remove('show');
+    const name = document.getElementById('cccName').value.trim();
+    const missing = [];
+    if (!name) missing.push({ id: 'cccName', label: 'اسم الشات', message: 'اكتب اسمًا للشات.' });
+    if (selected.size === 0) missing.push({ id: 'cccDeptPicker', label: 'الأعضاء', message: 'اختر عضوًا واحدًا على الأقل.' });
+    if (missing.length) { showRequiredFieldsAlert(missing); return; }
+    try {
+      const { data: newConv, error } = await sb.from('conversations').insert({
+        conversation_type: 'custom', title: name, created_by: CURRENT_USER.id, is_archived: false
+      }).select().single();
+      if (error) throw error;
+      const members = [CURRENT_USER.id, ...selected].filter((v, i, a) => a.indexOf(v) === i);
+      await sb.from('conversation_members').insert(members.map(uid => ({ conversation_id: newConv.id, user_id: uid })));
+      // إشعارات للأعضاء
+      const others = members.filter(uid => uid !== CURRENT_USER.id);
+      if (others.length) {
+        await sb.from('notifications').insert(others.map(uid => ({
+          user_id: uid, title: 'تمت إضافتك إلى شات مخصص', body: name, link: '#custom_chat/' + newConv.id
+        })));
+      }
+      close();
+      toast('تم إنشاء الشات المخصص', 'success');
+      location.hash = '#custom_chat/' + newConv.id;
+    } catch (err) {
+      errBox.textContent = err.message || 'تعذّر إنشاء الشات';
+      errBox.classList.add('show');
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// صفحة شات مخصص
+// ═══════════════════════════════════════════════════════════
+async function pageCustomChat(body, convId) {
+  const cid = Number(convId);
+  const [{ data: conv }, { data: memRows }, { data: allUsers }] = await Promise.all([
+    sb.from('conversations').select('*').eq('id', cid).maybeSingle(),
+    sb.from('conversation_members').select('user_id, users(id, full_name, position_title, department_id, last_active_at)').eq('conversation_id', cid),
+    sb.from('users').select('id, full_name, department_id').eq('is_active', true)
+  ]);
+  if (!conv || conv.conversation_type !== 'custom') { body.innerHTML = '<p class="empty-state">الشات غير موجود</p>'; return; }
+  const isOwner = conv.created_by === CURRENT_USER.id || CURRENT_USER.role === 'admin';
+  const members = (memRows||[]).map(m => m.users).filter(Boolean);
+
+  body.innerHTML = `
+    <a href="#conversations" style="display:inline-flex;align-items:center;gap:4px;font-size:12.5px;color:var(--text-muted);margin-bottom:10px;"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للتواصل الداخلي</a>
+    <div class="task-page-header">
+      <div>
+        <h2><span class="tph-accent"></span><span data-lucide="message-square-plus" style="width:20px;height:20px;color:#D6A437;"></span> شات مخصص: ${esc(conv.title || '-')}</h2>
+        <p>${members.length} عضو ${conv.is_archived ? '· <span style="color:#D32F2F;font-weight:700;">مؤرشف</span>' : ''}</p>
+      </div>
+      ${isOwner ? `
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" id="cchEditName"><span data-lucide="edit-3" style="width:12px;height:12px;"></span> تعديل الاسم</button>
+          ${conv.is_archived
+            ? `<button class="btn btn-sm" id="cchUnarchive" style="background:#1F7A3A;color:#fff;"><span data-lucide="archive-restore" style="width:12px;height:12px;"></span> استعادة</button>`
+            : `<button class="btn btn-outline btn-sm" id="cchArchive" style="color:#9A6B12;border-color:#D6A437;"><span data-lucide="archive" style="width:12px;height:12px;"></span> أرشفة</button>`}
+        </div>` : ''}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 260px;gap:14px;" class="dash-two-col">
+      <div class="panel">
+        <div class="panel-header"><h3><span data-lucide="message-circle" style="width:14px;height:14px;vertical-align:-2px;margin-left:4px;"></span> الرسائل</h3></div>
+        <div class="panel-body">
+          <div class="chat-box">
+            <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-input">${chatInputBarHtml()}</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h3><span data-lucide="users" style="width:14px;height:14px;vertical-align:-2px;margin-left:4px;"></span> الأعضاء (${members.length})</h3></div>
+        <div class="panel-body" style="padding:8px;">
+          ${members.map(u => `
+            <div class="employee-row" style="padding:6px;">
+              <div style="flex:1; min-width:0;">
+                <div style="font-weight:600; font-size:12.5px;">${esc(u.full_name)}</div>
+                <div style="font-size:10.5px; color:var(--text-muted);">${esc(u.position_title || '')}</div>
+              </div>
+              ${isOwner && u.id !== CURRENT_USER.id ? `<button class="chat-action-btn" style="padding:3px 6px;font-size:10.5px;background:rgba(211,47,47,0.1);color:#D32F2F;" data-remove-member="${u.id}"><span data-lucide="user-minus" style="width:11px;height:11px;"></span></button>` : ''}
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+  if (window.lucide) lucide.createIcons();
+
+  __currentTaskConvId = cid;
+  await loadChatMessages(cid);
+  wireChatInputBar((text, msgType, replyToId, attachment, textColor, textAlign) => sendChatMessage(__currentTaskConvId, text, msgType, replyToId, attachment, textColor, textAlign), __currentTaskConvId);
+
+  // إجراءات المالك
+  document.getElementById('cchEditName')?.addEventListener('click', async () => {
+    const newName = prompt('اسم الشات الجديد:', conv.title || '');
+    if (!newName || !newName.trim() || newName === conv.title) return;
+    await sb.from('conversations').update({ title: newName.trim() }).eq('id', cid);
+    toast('تم تحديث الاسم', 'success');
+    renderApp();
+  });
+  document.getElementById('cchArchive')?.addEventListener('click', async () => {
+    if (!confirm('أرشفة الشات؟')) return;
+    await sb.from('conversations').update({ is_archived: true, archived_at: new Date().toISOString(), archived_by: CURRENT_USER.id }).eq('id', cid);
+    toast('تم أرشفة الشات', 'success');
+    location.hash = '#conversations';
+  });
+  document.getElementById('cchUnarchive')?.addEventListener('click', async () => {
+    await sb.from('conversations').update({ is_archived: false, archived_at: null, archived_by: null }).eq('id', cid);
+    toast('تمت استعادة الشات', 'success');
+    renderApp();
+  });
+  body.querySelectorAll('[data-remove-member]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('إزالة هذا العضو من الشات؟')) return;
+    await sb.from('conversation_members').delete().eq('conversation_id', cid).eq('user_id', Number(btn.dataset.removeMember));
+    toast('تمت الإزالة', 'success');
+    renderApp();
+  }));
+}
 
 window.openTaskChat = async function(taskId) {
   const t = window.__convTasks.find(x => x.id === taskId);
