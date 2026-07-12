@@ -2260,20 +2260,23 @@ const VOICE_COMMANDS = [
   ], action: 'meetings' },
 
   { keys: [
+    // أفعال إرسال بمفردها (كلمة واحدة كافية) — الأكثر شيوعًا في الكلام العادي
+    'ارسل','أرسل','ارسلي','ارسله','ارسلها','ارسللي','ارسله ل','ارسلها ل',
+    'ابعث','ابعثه','ابعثها','ابعثله','ابعثلها','ابعثلي',
+    'ابعت','ابعته','ابعتها','ابعتله','ابعتلها','ابعتلي','ابعت لـ','ابعت له',
     // فصحى / عام
     'رسالة','ارسل رسالة','أرسل رسالة','ابعث رسالة','ابعث له',
-    'راسل','راسله','راسلها','كلم','كلمه','كلمها',
-    'تواصل مع','اتصل ب','اتصل مع',
+    'راسل','راسله','راسلها','كلم','كلمه','كلمها','كلمهم','هكلمهم',
+    'تواصل مع','اتصل ب','اتصل مع','بلغ','بلغه','بلغها',
     // مصري
-    'ابعت رسالة','ابعتله','ابعت له','ابعت لـ','ابعتلها','ابعتلي',
-    'ابعت لـه رسالة','عايز ابعتله','عاوز اكلمه','عايز اكلمه',
-    'اتكلم مع','هكلم','هكلمه',
+    'ابعت رسالة','ابعت لـه رسالة','عايز ابعتله','عاوز اكلمه','عايز اكلمه',
+    'اتكلم مع','هكلم','هكلمه','عايز اتكلم مع',
     // سعودي / خليجي
     'ابغى اكلم','ابغي اكلم','ابى اكلم','ابي اكلم','ابغى اكلمه','بغيت اكلمه',
-    'طرّش رسالة','طرش رسالة','طرش له','طرشه','ابغى اطرش له',
+    'طرّش','طرش','طرّش رسالة','طرش رسالة','طرش له','طرشه','طرشها','ابغى اطرش له',
     'اراسل','ابغى اراسل','ابغى اراسله',
     // يمني
-    'بغيت اكلم','بغيت اراسل','ابا اكلمه','ابا اراسله','ابا ارسل له'
+    'بغيت اكلم','بغيت اراسل','ابا اكلمه','ابا اراسله','ابا ارسل له','ابا ارسل'
   ], action: 'message' },
 
   { keys: [
@@ -9544,7 +9547,8 @@ async function pageGlobalSearch(body, query) {
   res.querySelectorAll('[data-gs-assign]').forEach(b => b.addEventListener('click', () => openQuickAddTaskModal(Number(b.dataset.gsAssign), b.dataset.gsName)));
   res.querySelectorAll('[data-gs-tasks]').forEach(b => b.addEventListener('click', () => { location.hash = '#tasks?search=' + encodeURIComponent(b.dataset.gsTasks); }));
   res.querySelectorAll('[data-gs-meetings]').forEach(b => b.addEventListener('click', () => { location.hash = '#meetings?search=' + encodeURIComponent(b.dataset.gsMeetings); }));
-  res.querySelectorAll('[data-gs-msg]').forEach(b => b.addEventListener('click', () => openDirectChatFromDirectory(Number(b.dataset.gsMsg), b.dataset.gsMsgname)));
+  // زر «رسالة» من نتائج البحث: نتنقل لصفحة التواصل الداخلي أولًا (لأن openDirectChatFromDirectory يعتمد على DOM الخاص بها) ثم نفتح الشات
+  res.querySelectorAll('[data-gs-msg]').forEach(b => b.addEventListener('click', () => voiceOpenChatAndPrefill(Number(b.dataset.gsMsg), b.dataset.gsMsgname, null)));
 }
 
 /* ============ صفحة الإشعارات الموسّعة ============ */
