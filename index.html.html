@@ -5172,6 +5172,14 @@ async function sendChatMessage(conversationId, text, msgType, replyToId, attachm
     text_color: textColor || null,
     text_align: textAlign || 'right'
   });
+  // تحديث last_message_at + إلغاء التذكيرات لو نشاط رجع (يمنع أرشفة الشات النشط)
+  try {
+    await sb.from('conversations').update({
+      last_message_at: new Date().toISOString(),
+      archive_reminder_sent_at: null,
+      second_archive_reminder_sent_at: null
+    }).eq('id', conversationId);
+  } catch (e) {}
   await loadChatMessages(conversationId);
 }
 
@@ -7740,7 +7748,74 @@ function deptScope(query, field = 'department_id') {
 // ============ تواصل داخلي (عام) ============
 let __directorySelectedDept = 'all';
 
+// ═══════════════════════════════════════════════════════════
+// إعدادات الأرشفة التلقائية للشات المخصص
+// ═══════════════════════════════════════════════════════════
+const CUSTOM_CHAT_INACTIVITY_DAYS = 3;               // فترة الخمول قبل التذكير الأول
+const CUSTOM_CHAT_SECOND_REMINDER_AFTER_DAYS = 1;    // فترة انتظار قبل التذكير الثاني
+const CUSTOM_CHAT_AUTO_ARCHIVE_AFTER_DAYS = 1;       // فترة انتظار قبل الأرشفة النهائية
+
+// تفحص الشاتات المخصصة الخاملة وتبعت تذكيرات أو تأرشف حسب المرحلة
+async function checkCustomChatsForArchive() {
+  try {
+    const isAdmin = ['admin','company_manager'].includes(CURRENT_USER?.role);
+    if (!isAdmin) return; // ماشيك بس لو أدمن (منع تكرار الشغل من كل مستخدم)
+
+    const { data: chats } = await sb.from('conversations').select('*').eq('conversation_type', 'custom').eq('is_archived', false);
+    if (!chats?.length) return;
+
+    const now = Date.now();
+    const DAY = 24 * 60 * 60 * 1000;
+    const inactivityMs = CUSTOM_CHAT_INACTIVITY_DAYS * DAY;
+    const secondReminderMs = CUSTOM_CHAT_SECOND_REMINDER_AFTER_DAYS * DAY;
+    const autoArchiveMs = CUSTOM_CHAT_AUTO_ARCHIVE_AFTER_DAYS * DAY;
+
+    for (const c of chats) {
+      const lastActivity = c.last_message_at ? new Date(c.last_message_at).getTime()
+                         : new Date(c.created_at || c.updated_at || Date.now()).getTime();
+      const idle = now - lastActivity;
+      if (idle < inactivityMs) continue;
+
+      const firstSent = c.archive_reminder_sent_at ? new Date(c.archive_reminder_sent_at).getTime() : null;
+      const secondSent = c.second_archive_reminder_sent_at ? new Date(c.second_archive_reminder_sent_at).getTime() : null;
+      const ownerId = c.created_by;
+
+      if (!firstSent) {
+        if (ownerId) {
+          await sb.from('notifications').insert({
+            user_id: ownerId, title: 'هل تود أرشفة هذا الشات؟',
+            body: `الشات "${c.title||'مخصص'}" لم يشهد نشاطًا منذ ${CUSTOM_CHAT_INACTIVITY_DAYS} أيام. افتحه للاحتفاظ به أو لأرشفته.`,
+            link: '#custom_chat/' + c.id
+          }).catch(()=>{});
+        }
+        await sb.from('conversations').update({ archive_reminder_sent_at: new Date().toISOString() }).eq('id', c.id);
+      } else if (!secondSent && (now - firstSent) >= secondReminderMs) {
+        if (ownerId) {
+          await sb.from('notifications').insert({
+            user_id: ownerId, title: 'تذكير أخير — أرشفة الشات',
+            body: `الشات "${c.title||'مخصص'}" لم يُستخدم بعد. سيتم أرشفته تلقائيًا إن لم تتخذ إجراءً.`,
+            link: '#custom_chat/' + c.id
+          }).catch(()=>{});
+        }
+        await sb.from('conversations').update({ second_archive_reminder_sent_at: new Date().toISOString() }).eq('id', c.id);
+      } else if (secondSent && (now - secondSent) >= autoArchiveMs) {
+        await sb.from('conversations').update({ is_archived: true, archived_at: new Date().toISOString() }).eq('id', c.id);
+        if (ownerId) {
+          await sb.from('notifications').insert({
+            user_id: ownerId, title: 'تم أرشفة الشات المخصص',
+            body: `تمت أرشفة "${c.title||'مخصص'}" تلقائيًا بسبب عدم النشاط.`,
+            link: '#custom_chat/' + c.id
+          }).catch(()=>{});
+        }
+      }
+    }
+  } catch (e) { /* الفشل الصامت أفضل من كسر الصفحة */ }
+}
+
 async function pageConversations(body, query) {
+  // تشغيل الأرشفة التلقائية في الخلفية (لا ننتظرها)
+  checkCustomChatsForArchive();
+
   const { data: meetings } = await sb.from('meetings').select('id, title, meeting_datetime');
   const { data: tasks } = await sb.from('action_items').select('id, title, users(full_name), progress_percent');
   const { data: departments } = await sb.from('departments').select('*').order('name');
