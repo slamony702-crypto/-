@@ -4166,20 +4166,33 @@ window.openTaskProject = async function(taskId, task) {
             <button class="btn btn-outline btn-sm" id="viewReportBtn"><span data-lucide="bar-chart-3" style="width:14px;height:14px;"></span> تقرير الإنجاز</button>
           </div>
 
-          <h4 style="margin-top:16px;">أعضاء المشروع ومهامهم الفرعية</h4>
-          <table style="margin-top:8px; font-size:12.5px;"><thead><tr><th>العضو</th><th>المهمة الفرعية</th><th>القسم</th><th>البداية</th><th>النهاية</th><th>المدة</th><th>التقدم</th><th>الحالة</th><th></th></tr></thead><tbody>
-            ${(members||[]).map((mm,i) => `<tr>
+          <h4 style="margin-top:16px;"><span data-lucide="table" style="width:14px;height:14px;vertical-align:-2px;"></span> جدول متابعة المشاركين</h4>
+          <div style="overflow-x:auto;margin-top:8px;">
+          <table class="adv-table" style="font-size:12.5px;min-width:760px;">
+            <thead><tr><th>العضو</th><th>القسم</th><th>المهمة الفرعية</th><th>الحالة</th><th>الإنجاز</th><th>الموعد النهائي</th><th>ملاحظات</th><th>إجراءات</th></tr></thead>
+            <tbody>
+            ${(members||[]).map((mm,i) => {
+              const pct = mm.progress_percent || 0;
+              const pColor = mm.status === 'delayed' ? '#D32F2F' : (pct >= 70 ? '#1F7A3A' : pct >= 40 ? '#D6A437' : '#2F80C9');
+              return `<tr>
               <td><div style="display:flex; align-items:center; gap:6px;"><div class="avatar-gradient avatar-g${i%8}" style="width:26px; height:26px; font-size:10px;">${esc((mm.users?.full_name||'').trim().split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join(''))}</div>${mm.users ? esc(mm.users.full_name) : '-'}</div></td>
-              <td>${esc(mm.subtask_title || mm.assigned_part || '-')}</td>
               <td>${(allDepts||[]).find(d=>d.id===mm.department_id)?.name || '-'}</td>
-              <td>${mm.start_date || '-'}</td>
-              <td>${mm.end_date || '-'}</td>
-              <td>${mm.duration_days ? mm.duration_days + ' يوم' : '-'}</td>
-              <td>${mm.progress_percent}%</td>
+              <td style="max-width:160px;">${esc(mm.subtask_title || mm.assigned_part || '-')}</td>
               <td>${badgeHtml(mm.status, 'task_status')}</td>
-              <td>${mm.user_id !== CURRENT_USER.id ? `<button class="btn btn-outline btn-sm" onclick="openDirectChatFromDirectory(${mm.user_id}, '${esc(mm.users?.full_name||'')}')" style="padding:3px 8px; font-size:11px;"><span data-lucide="message-circle" style="width:12px;height:12px;"></span></button>` : ''}</td>
-            </tr>`).join('')}
-          </tbody></table>
+              <td style="min-width:110px;"><div style="display:flex;align-items:center;gap:6px;"><div style="flex:1;height:7px;background:#ECEFE9;border-radius:999px;overflow:hidden;min-width:50px;"><div style="height:100%;width:${pct}%;background:${pColor};border-radius:999px;"></div></div><span style="font-weight:700;font-size:11.5px;color:${pColor};">${pct}%</span></div></td>
+              <td style="font-size:11.5px;">${mm.end_date || mm.due_date || '-'}</td>
+              <td style="max-width:140px;font-size:11.5px;color:var(--text-muted);">${esc(mm.notes || '-')}</td>
+              <td>
+                <div style="display:flex;gap:4px;">
+                  ${mm.user_id !== CURRENT_USER.id ? `<button class="btn btn-outline btn-sm" title="تواصل" onclick="openDirectChatFromDirectory(${mm.user_id}, '${esc((mm.users?.full_name||'').replace(/'/g,''))}')" style="padding:4px 7px;"><span data-lucide="message-circle" style="width:12px;height:12px;"></span></button>` : ''}
+                  ${isLead && mm.user_id !== CURRENT_USER.id ? `<button class="btn btn-outline btn-sm" title="إرسال تذكير" data-remind="${mm.user_id}" data-remind-title="${esc((mm.subtask_title||mm.assigned_part||'مهمتك الفرعية').replace(/"/g,''))}" style="padding:4px 7px;color:#D6A437;border-color:#D6A437;"><span data-lucide="bell" style="width:12px;height:12px;"></span></button>` : ''}
+                  ${isLead && mm.status !== 'completed' ? `<button class="btn btn-outline btn-sm" title="إغلاق المهمة الفرعية" data-close-member="${mm.id}" style="padding:4px 7px;color:#1F7A3A;border-color:#1F7A3A;"><span data-lucide="check-circle-2" style="width:12px;height:12px;"></span></button>` : ''}
+                </div>
+              </td>
+            </tr>`; }).join('')}
+            </tbody>
+          </table>
+          </div>
 
           ${isLead ? `
           <h4 style="margin-top:16px;"><span data-lucide="user-plus" style="width:14px;height:14px;vertical-align:-2px;"></span> إضافة عضو ومهمة فرعية جديدة</h4>
@@ -4213,6 +4226,41 @@ window.openTaskProject = async function(taskId, task) {
     </div>
   `;
   initPremiumDateFields();
+
+  // إرسال تذكير لعضو
+  document.querySelectorAll('[data-remind]').forEach(btn => btn.addEventListener('click', async () => {
+    const uid = Number(btn.dataset.remind);
+    await sb.from('notifications').insert({
+      user_id: uid,
+      title: '🔔 تذكير من مسؤول المشروع',
+      body: `تذكير بمتابعة مهمتك الفرعية "${btn.dataset.remindTitle}" ضمن مشروع "${project.project_name}"`,
+      link: '#tasks'
+    });
+    toast('تم إرسال التذكير', 'success');
+  }));
+
+  // إغلاق مهمة فرعية (المسؤول الرئيسي)
+  document.querySelectorAll('[data-close-member]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('تأكيد إغلاق هذه المهمة الفرعية كمكتملة؟')) return;
+    const memberId = Number(btn.dataset.closeMember);
+    const mm = (members || []).find(x => x.id === memberId);
+    await sb.from('task_project_members').update({ status: 'completed', progress_percent: 100 }).eq('id', memberId);
+    if (mm) {
+      await sb.from('notifications').insert({
+        user_id: mm.user_id,
+        title: 'تم إغلاق مهمتك الفرعية',
+        body: `أغلق المسؤول الرئيسي مهمتك الفرعية "${mm.subtask_title || mm.assigned_part || ''}" في مشروع "${project.project_name}" كمكتملة`,
+        link: '#tasks'
+      });
+    }
+    const { data: allMembers } = await sb.from('task_project_members').select('progress_percent').eq('task_project_id', project.id);
+    const avg = allMembers.length ? Math.round(allMembers.reduce((s, x) => s + x.progress_percent, 0) / allMembers.length) : 0;
+    await sb.from('task_projects').update({ progress_percent: avg, updated_at: new Date().toISOString() }).eq('id', project.id);
+    await sb.from('action_items').update({ progress_percent: avg, status: avg >= 100 ? 'completed' : 'in_progress' }).eq('id', project.task_id);
+    toast('تم إغلاق المهمة الفرعية', 'success');
+    document.getElementById('projOverlay').remove();
+    openTaskProject(taskId, task);
+  }));
 
   if (isLead) {
     // حساب تاريخ الانتهاء تلقائيًا من تاريخ البداية + المدة
