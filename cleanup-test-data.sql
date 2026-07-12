@@ -7,7 +7,8 @@
 --   Supabase Dashboard → Database → Backups (أو صدّر الجداول يدويًا)
 --
 -- يُبقي فقط على 3 مستخدمين (الرميح، عبدالرحمن، نايف العتيبي)
--- ويحذف كل الاجتماعات والزيارات والمهام والرسائل والإشعارات التجريبية.
+-- ويحذف كل الاجتماعات والزيارات والمهام والرسائل والإشعارات التجريبية،
+-- بالإضافة إلى سجل المعدات والموردين وجداول الصيانة الوقائية.
 -- لا يمس: الأقسام، الفروع، قوالب الجودة (البنود)، مصفوفة الصلاحيات، الرؤية.
 -- ============================================================
 
@@ -80,7 +81,7 @@ delete from emergency_activity_log;
 delete from emergency_recipients;
 delete from emergency_alerts;
 
--- الصيانة (المعاملات فقط — لا يمس سجل المعدات/الموردين إن رغبت بإبقائه)
+-- الصيانة: المعاملات + سجل المعدات والموردين وجداول الصيانة الوقائية
 delete from maintenance_timeline;
 delete from maintenance_attachments;
 delete from maintenance_receipts;
@@ -89,6 +90,13 @@ delete from maintenance_finance_approvals;
 delete from maintenance_quotes;
 delete from maintenance_inspections;
 delete from maintenance_requests;
+
+-- سجل المعدات وجداول الصيانة الوقائية (احذف الجداول قبل المعدات التي تشير إليها)
+delete from maintenance_preventive_schedule;
+delete from maintenance_equipment;
+
+-- الموردون
+delete from maintenance_suppliers;
 
 -- الجودة: الزيارات فقط — القوالب (quality_sections / quality_items) تبقى كما هي
 delete from quality_attachments;
