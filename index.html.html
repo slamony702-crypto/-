@@ -1554,6 +1554,10 @@ const LABELS = {
   maint_area: { kitchen: 'مطبخ', hall: 'صالة', cashier: 'كاشير', ac: 'تكييف', electric: 'كهرباء', plumbing: 'سباكة', equipment: 'معدات', other: 'أخرى' },
   maint_type: { electric: 'كهرباء', plumbing: 'سباكة', ac: 'تكييف', equipment: 'أجهزة ومعدات', furniture: 'أثاث', network: 'شبكة / تقنية', other: 'أخرى' },
   maint_location: { kitchen: 'المطبخ', hall: 'الصالة', store: 'المخزن', office: 'المكتب', bathroom: 'الحمام', outdoor: 'خارجية', other: 'أخرى' },
+  equip_type: { ac: 'تكييف', fridge: 'ثلاجة', freezer: 'فريزر', fryer: 'قلاية', oven: 'فرن', generator: 'مولّد', fire_ext: 'طفاية حريق', other: 'أخرى' },
+  equip_status: { working: 'تعمل', needs_repair: 'تحتاج إصلاح', out_of_service: 'خارج الخدمة' },
+  pm_freq: { weekly: 'أسبوعي', monthly: 'شهري', quarterly: 'ربع سنوي', yearly: 'سنوي' },
+  pm_status: { scheduled: 'مجدولة', completed: 'منفّذة', overdue: 'متأخرة', cancelled: 'ملغاة' },
   maint_impact: { none: 'لا يؤثر', partial: 'يؤثر جزئيًا', full: 'يوقف التشغيل بالكامل' },
   maint_stoppage: { none: 'لا يوجد', partial: 'توقف جزئي', full: 'توقف كامل' },
   quality_status: { conform: 'مطابق', non_conform: 'غير مطابق', follow_up: 'يحتاج متابعة', na: 'غير قابل للتطبيق', fixed_on_site: 'تم التصحيح أثناء الزيارة' },
@@ -2279,7 +2283,7 @@ const MENU_ITEMS = [
   { key: 'install_app', label: 'تحميل التطبيق', icon: 'download' },
   { key: 'settings', label: 'الإعدادات', icon: 'settings' },
 ];
-const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'المهام', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات' };
+const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'المهام', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -6200,6 +6204,8 @@ async function route() {
     else if (page === 'maintenance_reports') await pageMaintenanceReports(body, query);
     else if (page === 'notifications') await pageNotifications(body, query);
     else if (page === 'search') await pageGlobalSearch(body, query);
+    else if (page === 'maintenance_equipment') await pageMaintenanceEquipment(body);
+    else if (page === 'maintenance_preventive') await pageMaintenancePreventive(body, query);
     else if (page === 'install_app') await pageInstallApp(body);
     else if (page === 'reports') await pageReports(body);
     else if (page === 'users') await pageUsers(body);
@@ -9976,6 +9982,8 @@ async function pageMaintenance(body, urlQuery) {
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <a href="#maintenance_reports" class="btn btn-outline" style="font-size:12.5px;border-color:#D6A437;color:#9A6B12;"><span data-lucide="bar-chart-3" style="width:15px;height:15px;"></span> تقارير الصيانة</a>
+        <a href="#maintenance_preventive" class="btn btn-outline" style="font-size:12.5px;"><span data-lucide="calendar-check-2" style="width:15px;height:15px;"></span> الصيانة الوقائية</a>
+        <a href="#maintenance_equipment" class="btn btn-outline" style="font-size:12.5px;"><span data-lucide="package" style="width:15px;height:15px;"></span> المعدات</a>
         <a href="#maintenance_suppliers" class="btn btn-outline" style="font-size:12.5px;"><span data-lucide="briefcase" style="width:15px;height:15px;"></span> الموردون</a>
         ${canManageBranches ? '<button class="btn btn-outline" id="mtBranchesBtn" style="font-size:12.5px;"><span data-lucide="building-2" style="width:15px;height:15px;"></span> الفروع</button>' : ''}
         ${canCreate ? '<a href="#maintenance_new" class="btn" style="background:var(--primary);color:#fff;font-size:12.5px;"><span data-lucide="plus" style="width:15px;height:15px;"></span> طلب صيانة جديد</a>' : ''}
@@ -11227,6 +11235,211 @@ async function openBranchesModal(onChange) {
 }
 
 /* ============ Suppliers page ============ */
+/* ============ سجل المعدات ============ */
+async function pageMaintenanceEquipment(body) {
+  const canManage = ['admin','company_manager','operations_manager','maintenance_officer'].includes(CURRENT_USER.role);
+  const [{ data: equipment }, { data: branches }] = await Promise.all([
+    sb.from('maintenance_equipment').select('*, branches(name)').eq('is_active', true).order('created_at', { ascending: false }),
+    sb.from('branches').select('*').eq('is_active', true).order('name')
+  ]);
+  const rows = equipment || [];
+  const typeKeys = ['ac','fridge','freezer','fryer','oven','generator','fire_ext','other'];
+  const locKeys = ['kitchen','hall','store','office','bathroom','outdoor','other'];
+
+  body.innerHTML = `
+    <a href="#maintenance" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للصيانة</a>
+    <div class="mt-hero-header">
+      <div><h2><span class="mt-accent"></span> <span data-lucide="package" style="width:22px;height:22px;color:#0F3D2E;"></span> سجل المعدات</h2>
+        <p>سجّل معدات كل فرع لربطها بجداول الصيانة الوقائية ومتابعة حالتها.</p></div>
+      ${canManage ? '<button class="btn" id="eqAddBtn" style="background:var(--primary);color:#fff;font-size:12.5px;align-self:center;"><span data-lucide="plus" style="width:15px;height:15px;"></span> إضافة معدة</button>' : ''}
+    </div>
+    <div class="panel"><div class="panel-body">
+      <div style="overflow-x:auto;"><table class="adv-table">
+        <thead><tr><th>المعدة</th><th>النوع</th><th>الفرع</th><th>الموقع</th><th>الرقم التسلسلي</th><th>الحالة</th><th>ملاحظات</th>${canManage?'<th></th>':''}</tr></thead>
+        <tbody>
+          ${rows.length ? rows.map(e => `
+            <tr>
+              <td style="font-weight:700;">${esc(e.equipment_name)}</td>
+              <td>${e.equipment_type ? label('equip_type', e.equipment_type) : '-'}</td>
+              <td>${esc(e.branches?.name || '-')}</td>
+              <td>${e.location ? label('maint_location', e.location) : '-'}</td>
+              <td style="font-size:11.5px;">${esc(e.serial_number || '-')}</td>
+              <td><span class="q-badge" style="background:${e.status==='working'?'rgba(31,122,58,0.12)':e.status==='needs_repair'?'rgba(214,164,55,0.16)':'rgba(211,47,47,0.12)'};color:${e.status==='working'?'#1F7A3A':e.status==='needs_repair'?'#9A6B12':'#D32F2F'};">${label('equip_status', e.status)}</span></td>
+              <td style="font-size:11.5px;color:var(--text-muted);max-width:150px;">${esc(e.notes || '-')}</td>
+              ${canManage ? `<td><button class="btn btn-outline btn-sm" data-edit-eq="${e.id}" style="padding:4px 8px;"><span data-lucide="pencil" style="width:12px;height:12px;"></span></button></td>` : ''}
+            </tr>
+          `).join('') : `<tr><td colspan="${canManage?8:7}" style="text-align:center;padding:30px;color:var(--text-muted);">لا توجد معدات مسجلة</td></tr>`}
+        </tbody>
+      </table></div>
+    </div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (!canManage) return;
+
+  function openEqModal(existing) {
+    const host = document.createElement('div');
+    host.className = 'modal-overlay';
+    host.innerHTML = `
+      <div class="panel modal-box" style="width:500px;max-width:95%;">
+        <div class="panel-header"><h3 class="panel-title">${existing?'تعديل المعدة':'إضافة معدة جديدة'}</h3></div>
+        <div class="panel-body">
+          <form id="eqForm" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-field" style="grid-column:1/-1;"><label>اسم المعدة *</label><input name="equipment_name" class="form-input" required value="${esc(existing?.equipment_name||'')}"></div>
+            <div class="form-field"><label>النوع</label><select name="equipment_type" class="form-select"><option value="">اختر</option>${typeKeys.map(t=>`<option value="${t}" ${existing?.equipment_type===t?'selected':''}>${label('equip_type',t)}</option>`).join('')}</select></div>
+            <div class="form-field"><label>الفرع *</label><select name="branch_id" required class="form-select"><option value="">اختر الفرع</option>${(branches||[]).map(b=>`<option value="${b.id}" ${existing?.branch_id==b.id?'selected':''}>${esc(b.name)}</option>`).join('')}</select></div>
+            <div class="form-field"><label>الموقع</label><select name="location" class="form-select"><option value="">اختر</option>${locKeys.map(l=>`<option value="${l}" ${existing?.location===l?'selected':''}>${label('maint_location',l)}</option>`).join('')}</select></div>
+            <div class="form-field"><label>الرقم التسلسلي</label><input name="serial_number" class="form-input" value="${esc(existing?.serial_number||'')}"></div>
+            <div class="form-field"><label>الحالة</label><select name="status" class="form-select"><option value="working" ${existing?.status==='working'||!existing?'selected':''}>تعمل</option><option value="needs_repair" ${existing?.status==='needs_repair'?'selected':''}>تحتاج إصلاح</option><option value="out_of_service" ${existing?.status==='out_of_service'?'selected':''}>خارج الخدمة</option></select></div>
+            <div class="form-field" style="grid-column:1/-1;"><label>ملاحظات</label><textarea name="notes" rows="2" class="form-input">${esc(existing?.notes||'')}</textarea></div>
+            <div style="grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;">
+              <button type="button" class="btn btn-outline" id="eqCancel">إلغاء</button>
+              <button type="submit" class="btn" style="background:var(--primary);color:#fff;">حفظ</button>
+            </div>
+          </form>
+        </div>
+      </div>`;
+    document.body.appendChild(host);
+    host.querySelector('#eqCancel').addEventListener('click', () => host.remove());
+    host.querySelector('#eqForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const payload = { equipment_name: fd.get('equipment_name'), equipment_type: fd.get('equipment_type')||null, branch_id: Number(fd.get('branch_id')), location: fd.get('location')||null, serial_number: fd.get('serial_number')||null, status: fd.get('status'), notes: fd.get('notes')||null };
+      const q = existing ? sb.from('maintenance_equipment').update(payload).eq('id', existing.id) : sb.from('maintenance_equipment').insert(payload);
+      const { error } = await q;
+      if (error) { toast(error.message, 'error'); return; }
+      toast('تم الحفظ', 'success');
+      host.remove();
+      pageMaintenanceEquipment(document.getElementById('pageBody'));
+    });
+  }
+  document.getElementById('eqAddBtn')?.addEventListener('click', () => openEqModal(null));
+  document.querySelectorAll('[data-edit-eq]').forEach(b => b.addEventListener('click', () => {
+    const eq = rows.find(x => x.id === Number(b.dataset.editEq));
+    openEqModal(eq);
+  }));
+}
+
+/* ============ الصيانة الوقائية ============ */
+async function pageMaintenancePreventive(body, query) {
+  const canManage = ['admin','company_manager','operations_manager','maintenance_officer'].includes(CURRENT_USER.role);
+  const [{ data: schedule }, { data: branches }, { data: equipment }, { data: users }] = await Promise.all([
+    sb.from('maintenance_preventive_schedule').select('*, branches(name), maintenance_equipment(equipment_name), users!maintenance_preventive_schedule_assigned_to_fkey(full_name)').order('scheduled_date', { ascending: true }),
+    sb.from('branches').select('*').eq('is_active', true).order('name'),
+    sb.from('maintenance_equipment').select('id, equipment_name, branch_id').eq('is_active', true).order('equipment_name'),
+    sb.from('users').select('id, full_name').eq('is_active', true).order('full_name')
+  ]);
+  const rows = schedule || [];
+  const today = new Date().toISOString().slice(0, 10);
+  // تحديث تلقائي لحالة "متأخرة"
+  const toMarkOverdue = rows.filter(r => r.status === 'scheduled' && r.scheduled_date < today);
+  for (const r of toMarkOverdue) { await sb.from('maintenance_preventive_schedule').update({ status: 'overdue' }).eq('id', r.id); r.status = 'overdue'; }
+
+  const scheduledCount = rows.filter(r => r.status === 'scheduled').length;
+  const completedCount = rows.filter(r => r.status === 'completed').length;
+  const overdueCount = rows.filter(r => r.status === 'overdue').length;
+  const nextMonthEnd = new Date(); nextMonthEnd.setMonth(nextMonthEnd.getMonth() + 1);
+  const uninspectedEquipment = (equipment || []).filter(e => !rows.some(r => r.equipment_id === e.id && r.status !== 'cancelled'));
+
+  body.innerHTML = `
+    <a href="#maintenance" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للصيانة</a>
+    <div class="mt-hero-header">
+      <div><h2><span class="mt-accent"></span> <span data-lucide="calendar-check-2" style="width:22px;height:22px;color:#0F3D2E;"></span> الصيانة الوقائية</h2>
+        <p>جدولة زيارات صيانة دورية للمعدات ومتابعة تنفيذها قبل حدوث الأعطال.</p></div>
+      ${canManage ? '<button class="btn" id="pmAddBtn" style="background:var(--primary);color:#fff;font-size:12.5px;align-self:center;"><span data-lucide="plus" style="width:15px;height:15px;"></span> جدولة زيارة</button>' : ''}
+    </div>
+
+    <div class="rep-mini-grid">
+      <div class="rep-mini"><div class="rm-lbl">زيارات مجدولة</div><div class="rm-val" style="color:#2F80C9;">${scheduledCount}</div></div>
+      <div class="rep-mini"><div class="rm-lbl">زيارات منفّذة</div><div class="rm-val" style="color:#1F7A3A;">${completedCount}</div></div>
+      <div class="rep-mini"><div class="rm-lbl">زيارات متأخرة</div><div class="rm-val" style="color:#D32F2F;">${overdueCount}</div></div>
+      <div class="rep-mini"><div class="rm-lbl">معدات لم تُفحص بعد</div><div class="rm-val">${uninspectedEquipment.length}</div></div>
+    </div>
+
+    <div class="panel"><div class="panel-header"><h3 class="panel-title"><span data-lucide="list-checks" style="width:16px;height:16px;"></span> جدول الزيارات</h3></div>
+    <div class="panel-body">
+      <div style="overflow-x:auto;"><table class="adv-table">
+        <thead><tr><th>المهمة</th><th>الفرع</th><th>المعدة</th><th>التكرار</th><th>تاريخ الجدولة</th><th>المسؤول</th><th>الحالة</th>${canManage?'<th></th>':''}</tr></thead>
+        <tbody>
+          ${rows.length ? rows.map(r => `
+            <tr>
+              <td style="font-weight:700;">${esc(r.task_title)}</td>
+              <td>${esc(r.branches?.name || '-')}</td>
+              <td>${esc(r.maintenance_equipment?.equipment_name || '-')}</td>
+              <td>${label('pm_freq', r.frequency)}</td>
+              <td style="font-size:11.5px;">${r.scheduled_date}</td>
+              <td>${esc(r.users?.full_name || '-')}</td>
+              <td><span class="q-badge" style="background:${r.status==='completed'?'rgba(31,122,58,0.12)':r.status==='overdue'?'rgba(211,47,47,0.12)':r.status==='cancelled'?'rgba(107,117,111,0.14)':'rgba(47,128,201,0.12)'};color:${r.status==='completed'?'#1F7A3A':r.status==='overdue'?'#D32F2F':r.status==='cancelled'?'#6B756F':'#2F80C9'};">${label('pm_status', r.status)}</span></td>
+              ${canManage ? `<td>${r.status!=='completed'&&r.status!=='cancelled'?`<button class="btn btn-outline btn-sm" data-pm-complete="${r.id}" style="padding:4px 8px;color:#1F7A3A;border-color:#1F7A3A;"><span data-lucide="check" style="width:12px;height:12px;"></span></button>`:''}</td>` : ''}
+            </tr>
+          `).join('') : `<tr><td colspan="${canManage?8:7}" style="text-align:center;padding:30px;color:var(--text-muted);">لا توجد زيارات مجدولة</td></tr>`}
+        </tbody>
+      </table></div>
+    </div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  document.querySelectorAll('[data-pm-complete]').forEach(b => b.addEventListener('click', async () => {
+    const id = Number(b.dataset.pmComplete);
+    const { error } = await sb.from('maintenance_preventive_schedule').update({ status: 'completed', completed_date: today }).eq('id', id);
+    if (error) { toast(error.message, 'error'); return; }
+    toast('تم تسجيل تنفيذ الزيارة', 'success');
+    pageMaintenancePreventive(document.getElementById('pageBody'), query);
+  }));
+
+  if (!canManage) return;
+
+  document.getElementById('pmAddBtn')?.addEventListener('click', () => {
+    const host = document.createElement('div');
+    host.className = 'modal-overlay';
+    host.innerHTML = `
+      <div class="panel modal-box" style="width:520px;max-width:95%;">
+        <div class="panel-header"><h3 class="panel-title">جدولة زيارة صيانة وقائية</h3></div>
+        <div class="panel-body">
+          <form id="pmForm" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-field" style="grid-column:1/-1;"><label>عنوان المهمة *</label><input name="task_title" class="form-input" required placeholder="مثال: صيانة دورية للمكيفات"></div>
+            <div class="form-field"><label>الفرع *</label><select name="branch_id" required class="form-select" id="pmBranchSel"><option value="">اختر الفرع</option>${(branches||[]).map(b=>`<option value="${b.id}">${esc(b.name)}</option>`).join('')}</select></div>
+            <div class="form-field"><label>المعدة (اختياري)</label><select name="equipment_id" class="form-select" id="pmEquipSel"><option value="">بدون معدة محددة</option></select></div>
+            <div class="form-field"><label>التكرار</label><select name="frequency" class="form-select">${['weekly','monthly','quarterly','yearly'].map(f=>`<option value="${f}" ${f==='monthly'?'selected':''}>${label('pm_freq',f)}</option>`).join('')}</select></div>
+            <div class="form-field"><label>تاريخ الجدولة *</label><input type="date" name="scheduled_date" required class="form-input" value="${today}"></div>
+            <div class="form-field"><label>المسؤول</label><select name="assigned_to" class="form-select"><option value="">بدون تحديد</option>${(users||[]).map(u=>`<option value="${u.id}">${esc(u.full_name)}</option>`).join('')}</select></div>
+            <div class="form-field" style="grid-column:1/-1;"><label>ملاحظات</label><textarea name="notes" rows="2" class="form-input"></textarea></div>
+            <div style="grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;">
+              <button type="button" class="btn btn-outline" id="pmCancel">إلغاء</button>
+              <button type="submit" class="btn" style="background:var(--primary);color:#fff;">جدولة</button>
+            </div>
+          </form>
+        </div>
+      </div>`;
+    document.body.appendChild(host);
+    const branchSel = host.querySelector('#pmBranchSel');
+    const equipSel = host.querySelector('#pmEquipSel');
+    branchSel.addEventListener('change', () => {
+      const bid = Number(branchSel.value);
+      equipSel.innerHTML = '<option value="">بدون معدة محددة</option>' + (equipment||[]).filter(e => e.branch_id === bid).map(e => `<option value="${e.id}">${esc(e.equipment_name)}</option>`).join('');
+    });
+    host.querySelector('#pmCancel').addEventListener('click', () => host.remove());
+    host.querySelector('#pmForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const payload = {
+        task_title: fd.get('task_title'), branch_id: Number(fd.get('branch_id')),
+        equipment_id: fd.get('equipment_id') ? Number(fd.get('equipment_id')) : null,
+        frequency: fd.get('frequency'), scheduled_date: fd.get('scheduled_date'),
+        assigned_to: fd.get('assigned_to') ? Number(fd.get('assigned_to')) : null,
+        notes: fd.get('notes') || null, status: 'scheduled', created_by: CURRENT_USER.id
+      };
+      const { data: created, error } = await sb.from('maintenance_preventive_schedule').insert(payload).select().single();
+      if (error) { toast(error.message, 'error'); return; }
+      if (payload.assigned_to) {
+        await sb.from('notifications').insert({ user_id: payload.assigned_to, title: '🔧 تكليف صيانة وقائية', body: `${payload.task_title} — بتاريخ ${payload.scheduled_date}`, link: '#maintenance_preventive' });
+      }
+      toast('تمت الجدولة بنجاح', 'success');
+      host.remove();
+      pageMaintenancePreventive(document.getElementById('pageBody'), query);
+    });
+  });
+}
+
 async function pageMaintenanceSuppliers(body) {
   const canManage = ['admin','company_manager','maintenance_officer','operations_manager'].includes(CURRENT_USER.role);
   const { data: suppliers } = await sb.from('maintenance_suppliers').select('*').order('name');
