@@ -2352,7 +2352,6 @@ function makeMobilePanelsCollapsible(root) {
     scope.querySelectorAll('.panel, .meeting-form-card').forEach(p => sections.push(p));
   }
 
-  const containerFirstMap = new WeakMap();
   sections.forEach(section => {
     if (section.dataset.collapsibleInit) return;
     const header = section.querySelector(':scope > .panel-header, :scope > .meeting-section-title');
@@ -2360,10 +2359,8 @@ function makeMobilePanelsCollapsible(root) {
     section.dataset.collapsibleInit = '1';
     if (section.closest('.modal-overlay, .modal-box, .drawer, .drawer-overlay')) return;
 
-    // أول قسم في كل حاوية يبقى مفتوح، الباقي مقفول
-    const parent = section.parentElement || document.body;
-    if (!containerFirstMap.has(parent)) { containerFirstMap.set(parent, true); }
-    else { section.classList.add('collapsed'); }
+    // كل الأقسام تبدأ مقفولة تلقائيًا — الوضع الافتراضي للنظام
+    section.classList.add('collapsed');
 
     header.addEventListener('click', (e) => {
       if (e.target.closest('button, a, input, select, textarea')) return;
@@ -2372,10 +2369,27 @@ function makeMobilePanelsCollapsible(root) {
   });
 }
 
+// إعادة الجميع لحالة الطي — تُستدعى عند مغادرة الصفحة الحالية
+// حتى لو المستخدم فتح قسمًا وسابه مفتوح، أي انتقال يرجّعه مقفول
+function resetAllFoldsToCollapsed(root) {
+  const scope = root && root.nodeType === 1 ? root : document;
+  if (!scope.querySelectorAll) return;
+  scope.querySelectorAll('.panel, .meeting-form-card').forEach(section => {
+    if (section.dataset.collapsibleInit && section.querySelector(':scope > .panel-header, :scope > .meeting-section-title')) {
+      section.classList.add('collapsed');
+    }
+  });
+}
+
 // أعد تطبيق «طيّ الأقسام» عند تغيير الصفحة (hashchange) — يضمن الوضع للمحتوى الجديد
+// وترجع أي قسم كان مفتوحًا في الصفحة السابقة إلى حالة الطي
 window.addEventListener('hashchange', () => {
+  if (window.innerWidth <= 768) resetAllFoldsToCollapsed(document);
   setTimeout(() => {
-    if (window.innerWidth <= 768) makeMobilePanelsCollapsible(document);
+    if (window.innerWidth <= 768) {
+      makeMobilePanelsCollapsible(document);
+      resetAllFoldsToCollapsed(document);
+    }
   }, 500); // انتظر renderApp يخلص
 });
 window.addEventListener('resize', () => {
