@@ -859,6 +859,39 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
 .mab-cancel:hover { background: #F1EEE2; }
 .modal-close-x { width: 30px; height: 30px; border-radius: 50%; border: 1px solid #E8E3D6; background: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #6B756F; flex-shrink: 0; transition: all .15s ease; }
 .modal-close-x:hover { background: #F1EEE2; color: #0F3D2E; border-color: #D8C27A; }
+
+/* ============ مساعد كتابة الاجتماع ============ */
+.magenda-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.magenda-header .mst-lead { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800; color: #24352E; }
+.magenda-header .mst-sub { font-size: 11.5px; color: #6B756F; font-weight: 600; margin-top: 4px; margin-right: 12px; }
+.magenda-template { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #9A6B12; background: rgba(214,164,55,0.14); border: 1.5px solid #D6A437; border-radius: 999px; padding: 7px 13px; cursor: pointer; font-family: inherit; }
+.magenda-template:hover { background: rgba(214,164,55,0.22); }
+.magenda-block { margin-bottom: 16px; }
+.magenda-block-label { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 800; color: #24352E; margin-bottom: 6px; }
+.magenda-block-help { font-size: 11px; color: #6B756F; margin-bottom: 7px; }
+.magenda-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.agenda-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; padding: 5px 11px; border-radius: 999px; border: 1px solid #E8E3D6; background: #FFFDF7; color: #6B756F; cursor: pointer; font-family: inherit; transition: all .12s ease; }
+.agenda-chip:hover { border-color: #D6A437; color: #0F3D2E; background: rgba(214,164,55,0.06); }
+.agenda-chip::before { content: '+'; font-weight: 800; color: #D6A437; }
+.agenda-add-row { display: flex; gap: 8px; align-items: stretch; }
+.agenda-add-row input { flex: 1; }
+.agenda-add-row button { flex-shrink: 0; padding: 0 14px; font-size: 12.5px; font-weight: 700; border-radius: 10px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.agenda-list { list-style: none; padding: 0; margin: 10px 0 0; }
+.agenda-item { display: flex; align-items: center; gap: 10px; background: #FFFDF7; border: 1px solid #E8E3D6; border-radius: 10px; padding: 8px 12px; margin-bottom: 6px; }
+.agenda-item:hover { border-color: #D8C27A; }
+.agenda-item .ai-num { width: 26px; height: 26px; border-radius: 50%; background: #0F3D2E; color: #FFFDF7; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; flex-shrink: 0; }
+.agenda-item .ai-text { flex: 1; font-size: 12.5px; color: #24352E; }
+.agenda-item .ai-text[contenteditable="true"] { background: #FFF8E1; border-radius: 6px; padding: 3px 6px; outline: none; }
+.agenda-item .ai-btn { width: 26px; height: 26px; border-radius: 8px; border: 1px solid #E8E3D6; background: #fff; color: #6B756F; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.agenda-item .ai-btn:hover { background: #F1EEE2; color: #0F3D2E; }
+.agenda-item .ai-btn.danger:hover { color: #D32F2F; border-color: #D32F2F; background: rgba(211,47,47,0.06); }
+.agenda-empty { font-size: 12px; color: #9aa39c; text-align: center; padding: 14px; background: #FBFAF4; border: 1px dashed #E8E3D6; border-radius: 10px; margin-top: 8px; }
+.magenda-preview { margin-top: 16px; background: linear-gradient(135deg, #F9F6EC, #FFFDF7); border: 1.5px solid #D8C27A; border-radius: 14px; padding: 14px 16px; }
+.magenda-preview .mp-title { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 800; color: #0F3D2E; margin-bottom: 8px; }
+.magenda-preview .mp-row { font-size: 12px; color: #24352E; margin-bottom: 5px; line-height: 1.6; }
+.magenda-preview .mp-row .k { color: #6B756F; font-weight: 700; margin-left: 4px; }
+.magenda-preview .mp-empty { font-size: 12px; color: #9aa39c; font-style: italic; }
+
 /* ============ صفحة مهام وتكليفات الفاخرة ============ */
 .task-page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; flex-wrap: wrap; gap: 12px; }
 .task-page-header h2 { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 800; color: #24352E; }
@@ -2340,10 +2373,79 @@ function renderMeetingCreatePanel(departments, allUsersForMeeting) {
             </div>
 
             <div class="meeting-form-card">
-              <div class="meeting-section-title"><span class="mst-accent"></span> جدول الأعمال والملاحظات</div>
-              <div class="mform-field" style="margin-bottom:12px;"><label>هدف الاجتماع</label><textarea class="meeting-input" id="mGoal" rows="2" placeholder="مثال: مراجعة أرقام المبيعات ومناقشة خطة التحسين"></textarea></div>
-              <div class="mform-field" style="margin-bottom:12px;"><label>جدول الأعمال</label><textarea class="meeting-input" id="mAgenda" rows="2" placeholder="نقطة في كل سطر..."></textarea></div>
-              <div class="mform-field"><label>ملاحظات إضافية</label><textarea class="meeting-input" id="mNotes" rows="2" placeholder="اكتب أي ملاحظات أو تعليمات خاصة بالاجتماع (اختياري)"></textarea></div>
+              <div class="magenda-header">
+                <div>
+                  <div class="mst-lead"><span class="mst-accent"></span> <span data-lucide="clipboard-list" style="width:17px;height:17px;color:#0F3D2E;"></span> جدول الأعمال والملاحظات</div>
+                  <div class="mst-sub">حدد هدف الاجتماع ونقاط النقاش والملاحظات التي تساعد الحضور على الاستعداد.</div>
+                </div>
+                <select id="mTemplateSelect" class="magenda-template">
+                  <option value="">✨ استخدام قالب جاهز</option>
+                  <option value="sales">اجتماع مبيعات</option>
+                  <option value="operations">اجتماع تشغيل</option>
+                  <option value="quality">اجتماع جودة</option>
+                  <option value="financial">اجتماع مالي</option>
+                  <option value="emergency">اجتماع طارئ</option>
+                  <option value="weekly">اجتماع متابعة أسبوعية</option>
+                  <option value="decision">اجتماع اعتماد قرار</option>
+                </select>
+              </div>
+
+              <!-- 1) هدف الاجتماع -->
+              <div class="magenda-block">
+                <div class="magenda-block-label"><span data-lucide="target" style="width:14px;height:14px;color:#D6A437;"></span> هدف الاجتماع</div>
+                <div class="magenda-block-help">اكتب الهدف الرئيسي من الاجتماع في جملة واضحة.</div>
+                <textarea class="meeting-input" id="mGoal" rows="2" placeholder="مثال: مراجعة أرقام المبيعات ومناقشة خطة التحسين"></textarea>
+                <div class="magenda-chips" data-chip-target="mGoal">
+                  <button type="button" class="agenda-chip" data-text="مراجعة أداء الأسبوع">مراجعة أداء الأسبوع</button>
+                  <button type="button" class="agenda-chip" data-text="متابعة قرارات الاجتماع السابق">متابعة قرارات سابقة</button>
+                  <button type="button" class="agenda-chip" data-text="مناقشة مشكلة تشغيلية">مناقشة مشكلة تشغيلية</button>
+                  <button type="button" class="agenda-chip" data-text="اعتماد خطة تنفيذ">اعتماد خطة تنفيذ</button>
+                  <button type="button" class="agenda-chip" data-text="حل مشكلة عاجلة">حل مشكلة عاجلة</button>
+                  <button type="button" class="agenda-chip" data-text="مراجعة أداء القسم">مراجعة أداء القسم</button>
+                </div>
+              </div>
+
+              <!-- 2) جدول الأعمال -->
+              <div class="magenda-block">
+                <div class="magenda-block-label"><span data-lucide="list-checks" style="width:14px;height:14px;color:#D6A437;"></span> جدول الأعمال</div>
+                <div class="magenda-block-help">أضف نقاط النقاش واحدة تلو الأخرى — تظهر مرقّمة تلقائيًا.</div>
+                <div class="agenda-add-row">
+                  <input type="text" class="meeting-input" id="mAgendaInput" placeholder="اكتب نقطة في جدول الأعمال ثم اضغط إضافة...">
+                  <button type="button" id="mAgendaAdd" style="background:var(--primary);color:#fff;">+ إضافة نقطة</button>
+                </div>
+                <ul class="agenda-list" id="mAgendaList"></ul>
+                <div class="agenda-empty" id="mAgendaEmpty">لم يتم إضافة نقاط بعد. استخدم الاقتراحات بالأسفل أو اكتب نقطتك.</div>
+                <textarea id="mAgenda" style="display:none;"></textarea>
+                <div class="magenda-chips" data-quick-agenda>
+                  <button type="button" class="agenda-chip" data-text="مراجعة النتائج">مراجعة النتائج</button>
+                  <button type="button" class="agenda-chip" data-text="مناقشة التحديات">مناقشة التحديات</button>
+                  <button type="button" class="agenda-chip" data-text="تحديد المسؤوليات">تحديد المسؤوليات</button>
+                  <button type="button" class="agenda-chip" data-text="اتخاذ القرارات">اتخاذ القرارات</button>
+                  <button type="button" class="agenda-chip" data-text="توزيع المهام">توزيع المهام</button>
+                  <button type="button" class="agenda-chip" data-text="تحديد موعد المتابعة">تحديد موعد المتابعة</button>
+                </div>
+              </div>
+
+              <!-- 3) ملاحظات إضافية -->
+              <div class="magenda-block">
+                <div class="magenda-block-label"><span data-lucide="sticky-note" style="width:14px;height:14px;color:#D6A437;"></span> ملاحظات إضافية</div>
+                <div class="magenda-block-help">تعليمات أو تجهيزات مطلوبة قبل الاجتماع (اختياري).</div>
+                <textarea class="meeting-input" id="mNotes" rows="2" placeholder="مثال: تجهيز تقرير المبيعات وإرفاق عروض الأسعار قبل الاجتماع"></textarea>
+                <div class="magenda-chips" data-chip-target="mNotes">
+                  <button type="button" class="agenda-chip" data-text="تجهيز تقرير قبل الاجتماع">تجهيز تقرير قبل الاجتماع</button>
+                  <button type="button" class="agenda-chip" data-text="مراجعة محضر الاجتماع السابق">مراجعة محضر سابق</button>
+                  <button type="button" class="agenda-chip" data-text="إحضار عروض الأسعار">إحضار عروض الأسعار</button>
+                  <button type="button" class="agenda-chip" data-text="حضور مدير القسم إلزامي">حضور مدير القسم إلزامي</button>
+                  <button type="button" class="agenda-chip" data-text="إرفاق الملفات المطلوبة">إرفاق الملفات المطلوبة</button>
+                  <button type="button" class="agenda-chip" data-text="إرسال البيانات قبل الاجتماع">إرسال البيانات قبل الاجتماع</button>
+                </div>
+              </div>
+
+              <!-- 4) معاينة -->
+              <div class="magenda-preview" id="mAgendaPreview">
+                <div class="mp-title"><span data-lucide="eye" style="width:14px;height:14px;"></span> معاينة جدول الاجتماع</div>
+                <div id="mAgendaPreviewBody"><div class="mp-empty">لم يتم إدخال جدول الأعمال بعد.</div></div>
+              </div>
             </div>
           </div>
 
@@ -2684,6 +2786,112 @@ function wireMeetingCreateForm(departments, allUsersForMeeting) {
   }
   renderPrimaryAttendees();
   document.getElementById('mDept').addEventListener('change', renderPrimaryAttendees);
+
+  // ============ مساعد جدول الأعمال ============
+  const AGENDA_TEMPLATES = {
+    sales: { goal: 'مراجعة أرقام المبيعات وتحليل الأداء وتحديد خطة التحسين.', items: ['مراجعة أرقام المبيعات', 'مقارنة الأداء بالمستهدف', 'مناقشة أسباب الانخفاض أو النمو', 'تحديد فرص التحسين', 'توزيع المهام والمتابعة'], notes: 'يرجى تجهيز تقرير المبيعات قبل الاجتماع.' },
+    operations: { goal: 'متابعة سير التشغيل ومعالجة التحديات اليومية.', items: ['مراجعة أداء التشغيل', 'مناقشة المشاكل الحالية', 'تحديد أسباب التعطيل', 'توزيع المهام على المسؤولين', 'تحديد موعد المتابعة'], notes: 'يرجى تجهيز تقرير التشغيل قبل الاجتماع.' },
+    quality: { goal: 'مراجعة ملاحظات الجودة والإجراءات التصحيحية المطلوبة.', items: ['عرض نتائج زيارة الجودة', 'مراجعة البنود غير المطابقة', 'تحديد الإجراءات التصحيحية', 'تحديد المسؤوليات', 'تحديد موعد المتابعة'], notes: 'يرجى إرفاق صور الملاحظات وتقارير الزيارة.' },
+    financial: { goal: 'مراجعة الوضع المالي واعتماد الصرف والخطة القادمة.', items: ['مراجعة التقرير المالي', 'مناقشة المصروفات والإيرادات', 'اعتماد الطلبات المالية المعلّقة', 'مراجعة خطة الميزانية', 'تحديد الأولويات المالية'], notes: 'يرجى تجهيز التقارير المالية والفواتير قبل الاجتماع.' },
+    emergency: { goal: 'معالجة مشكلة عاجلة تؤثر على التشغيل واتخاذ قرارات فورية.', items: ['وصف المشكلة والوضع الحالي', 'تحليل الأسباب', 'اقتراح الحلول الفورية', 'تحديد المسؤول والمهلة', 'خطة المتابعة'], notes: 'حضور المسؤولين المعنيين إلزامي.' },
+    weekly: { goal: 'متابعة أداء الأسبوع الماضي وتحديد أولويات الأسبوع الجاي.', items: ['مراجعة ما تم إنجازه', 'مناقشة العقبات', 'استعراض المهام المتأخرة', 'تحديد أولويات الأسبوع القادم', 'توزيع المسؤوليات'], notes: 'يرجى تحديث المهام في النظام قبل الاجتماع.' },
+    decision: { goal: 'دراسة موضوع محدد واعتماد قرار رسمي بشأنه.', items: ['عرض الموضوع والخلفية', 'استعراض البدائل المتاحة', 'مناقشة المخاطر والفوائد', 'التصويت على القرار', 'توثيق القرار وتوزيع المهام'], notes: 'إرفاق كل المستندات المتعلقة بالموضوع.' }
+  };
+  const agendaItems = [];
+  const mGoal = document.getElementById('mGoal');
+  const mNotes = document.getElementById('mNotes');
+  const mAgendaHidden = document.getElementById('mAgenda');
+  const mAgendaList = document.getElementById('mAgendaList');
+  const mAgendaInput = document.getElementById('mAgendaInput');
+  const mAgendaEmpty = document.getElementById('mAgendaEmpty');
+  const mAgendaPreviewBody = document.getElementById('mAgendaPreviewBody');
+
+  function syncAgendaHidden() {
+    mAgendaHidden.value = agendaItems.join('\n');
+    mAgendaEmpty.style.display = agendaItems.length ? 'none' : 'block';
+    renderAgendaPreview();
+  }
+  function renderAgendaList() {
+    mAgendaList.innerHTML = agendaItems.map((t, i) => `
+      <li class="agenda-item">
+        <span class="ai-num">${i+1}</span>
+        <span class="ai-text" data-i="${i}">${esc(t)}</span>
+        <button type="button" class="ai-btn" data-edit="${i}" title="تعديل"><span data-lucide="pencil" style="width:13px;height:13px;"></span></button>
+        <button type="button" class="ai-btn" data-up="${i}" title="لأعلى" ${i===0?'disabled':''}><span data-lucide="arrow-up" style="width:13px;height:13px;"></span></button>
+        <button type="button" class="ai-btn" data-down="${i}" title="لأسفل" ${i===agendaItems.length-1?'disabled':''}><span data-lucide="arrow-down" style="width:13px;height:13px;"></span></button>
+        <button type="button" class="ai-btn danger" data-del="${i}" title="حذف"><span data-lucide="trash-2" style="width:13px;height:13px;"></span></button>
+      </li>
+    `).join('');
+    if (window.lucide) lucide.createIcons();
+    mAgendaList.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => { agendaItems.splice(Number(b.dataset.del), 1); renderAgendaList(); syncAgendaHidden(); }));
+    mAgendaList.querySelectorAll('[data-up]').forEach(b => b.addEventListener('click', () => { const i = Number(b.dataset.up); if (i>0) { [agendaItems[i-1], agendaItems[i]] = [agendaItems[i], agendaItems[i-1]]; renderAgendaList(); syncAgendaHidden(); } }));
+    mAgendaList.querySelectorAll('[data-down]').forEach(b => b.addEventListener('click', () => { const i = Number(b.dataset.down); if (i<agendaItems.length-1) { [agendaItems[i+1], agendaItems[i]] = [agendaItems[i], agendaItems[i+1]]; renderAgendaList(); syncAgendaHidden(); } }));
+    mAgendaList.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => {
+      const i = Number(b.dataset.edit);
+      const span = mAgendaList.querySelector(`.ai-text[data-i="${i}"]`);
+      if (!span) return;
+      span.setAttribute('contenteditable', 'true');
+      span.focus();
+      const range = document.createRange(); range.selectNodeContents(span);
+      const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+      const commit = () => { agendaItems[i] = span.textContent.trim() || agendaItems[i]; span.removeAttribute('contenteditable'); span.textContent = agendaItems[i]; syncAgendaHidden(); };
+      span.addEventListener('blur', commit, { once: true });
+      span.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); span.blur(); } });
+    }));
+  }
+  function addAgendaItem(text) {
+    const t = String(text || '').trim(); if (!t) return;
+    agendaItems.push(t); renderAgendaList(); syncAgendaHidden();
+  }
+  function renderAgendaPreview() {
+    const goal = mGoal.value.trim();
+    const notes = mNotes.value.trim();
+    if (!goal && !agendaItems.length && !notes) { mAgendaPreviewBody.innerHTML = '<div class="mp-empty">لم يتم إدخال جدول الأعمال بعد.</div>'; return; }
+    const first3 = agendaItems.slice(0, 3).map((t, i) => `${i+1}. ${esc(t)}`).join('<br>');
+    mAgendaPreviewBody.innerHTML = `
+      ${goal ? `<div class="mp-row"><span class="k">الهدف:</span>${esc(goal)}</div>` : ''}
+      <div class="mp-row"><span class="k">عدد النقاط:</span>${agendaItems.length}</div>
+      ${first3 ? `<div class="mp-row" style="margin-right:8px;">${first3}${agendaItems.length>3?`<br><span style="color:#6B756F;">... و${agendaItems.length-3} نقطة أخرى</span>`:''}</div>` : ''}
+      ${notes ? `<div class="mp-row"><span class="k">ملاحظات:</span>${esc(notes.length>90?notes.slice(0,90)+'…':notes)}</div>` : ''}
+    `;
+  }
+
+  // إضافة نقطة
+  document.getElementById('mAgendaAdd').addEventListener('click', () => { addAgendaItem(mAgendaInput.value); mAgendaInput.value = ''; mAgendaInput.focus(); });
+  mAgendaInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addAgendaItem(mAgendaInput.value); mAgendaInput.value = ''; } });
+
+  // Chips: إضافة للـ textarea
+  document.querySelectorAll('[data-chip-target] .agenda-chip').forEach(btn => btn.addEventListener('click', () => {
+    const target = btn.closest('[data-chip-target]').dataset.chipTarget;
+    const el = document.getElementById(target);
+    const txt = btn.dataset.text;
+    el.value = el.value.trim() ? el.value.trim() + '\n' + txt : txt;
+    renderAgendaPreview();
+  }));
+
+  // Chips جدول الأعمال (يضاف كنقطة)
+  document.querySelectorAll('[data-quick-agenda] .agenda-chip').forEach(btn => btn.addEventListener('click', () => addAgendaItem(btn.dataset.text)));
+
+  // القوالب الجاهزة
+  document.getElementById('mTemplateSelect').addEventListener('change', (e) => {
+    const key = e.target.value;
+    if (!key) return;
+    const t = AGENDA_TEMPLATES[key]; if (!t) return;
+    if ((mGoal.value.trim() || agendaItems.length || mNotes.value.trim()) && !confirm('سيتم استبدال الهدف وجدول الأعمال والملاحظات بمحتوى القالب. متابعة؟')) {
+      e.target.value = ''; return;
+    }
+    mGoal.value = t.goal;
+    agendaItems.length = 0; t.items.forEach(x => agendaItems.push(x));
+    mNotes.value = t.notes || '';
+    renderAgendaList(); syncAgendaHidden();
+    e.target.value = '';
+    toast('تم تحميل القالب', 'success');
+  });
+
+  // تحديث المعاينة عند تغيير الهدف/الملاحظات
+  mGoal.addEventListener('input', renderAgendaPreview);
+  mNotes.addEventListener('input', renderAgendaPreview);
+  if (window.lucide) lucide.createIcons();
 
   document.getElementById('mSelectAllAttBtn').addEventListener('click', () => {
     document.querySelectorAll('#attendeesPicker .attendeeCheck').forEach(cb => cb.checked = true);
