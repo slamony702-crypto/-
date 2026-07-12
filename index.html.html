@@ -2249,9 +2249,12 @@ async function authLogin(username, password) {
     options: { data: { app_user_id: legacy.id, username: legacy.username } }
   });
   if (signUpErr) {
-    // لو Auth مش مضبوط، لا نكسر الدخول — نكمّل بالطريقة القديمة
-    console.warn('Auth signup failed, continuing with legacy session:', signUpErr.message);
-    return legacy;
+    // بعد تفعيل قفل قاعدة البيانات (RLS)، جلسة بدون Auth حقيقية لن تقدر تقرأ أي بيانات.
+    // لو الحساب مسجّل بالفعل في Auth بكلمة سر مختلفة (غالبًا اتغيّرت لاحقًا)، وضّح المشكلة بدل الدخول الصامت المكسور.
+    if (/already registered|already exists/i.test(signUpErr.message || '')) {
+      throw new Error('كلمة المرور غير محدّثة في نظام الدخول. تواصل مع مدير النظام لإعادة ضبط كلمة المرور من لوحة Supabase (Authentication → Users).');
+    }
+    throw new Error('تعذّر تسجيل الدخول حاليًا (' + signUpErr.message + '). تواصل مع مدير النظام.');
   }
   if (signUpData && signUpData.user) {
     await sb.from('users').update({ auth_id: signUpData.user.id, email }).eq('id', legacy.id);
