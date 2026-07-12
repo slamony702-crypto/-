@@ -449,6 +449,37 @@ tr:hover td { background: var(--primary-light); }
 .mobile-menu-btn { display: none; background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text); padding: 4px; }
 
 @media (max-width: 768px) {
+  /* ============ الوضع المضغوط للموبايل: خطوط أصغر + مسافات أقل ============ */
+  body { font-size: 12.5px; line-height: 1.55; }
+  h1 { font-size: 18px; } h2 { font-size: 16px; } h3 { font-size: 14px; } h4 { font-size: 13px; }
+  .panel-header h3, .panel-title { font-size: 13.5px !important; }
+  .panel-header { padding: 10px 14px !important; }
+  .panel-body { padding: 10px !important; }
+  .kpi-value { font-size: 18px !important; }
+  .kpi-label { font-size: 11px !important; }
+  .btn, .btn-outline, .btn-primary { font-size: 12.5px; padding: 8px 14px; }
+  .btn-sm { font-size: 11.5px; padding: 5px 10px; }
+  label { font-size: 12px !important; }
+  input, textarea, select, .form-input, .form-select, .meeting-input, .meeting-select { font-size: 13px !important; padding: 9px 12px !important; }
+  textarea { min-height: 44px; }
+  .mt-hero-header h2 { font-size: 16px !important; }
+  .mt-hero-header p { font-size: 11.5px !important; }
+  .badge-status, .q-badge, .status-pill, .stat-badge { font-size: 10px !important; padding: 2px 7px !important; }
+
+  /* ============ Accordion: كل قسم قابل للطي على الموبايل ============ */
+  .panel { position: relative; }
+  .panel > .panel-header { cursor: pointer; user-select: none; padding-left: 40px !important; }
+  .panel > .panel-header::after {
+    content: ''; position: absolute; left: 14px; top: 50%;
+    width: 10px; height: 10px;
+    border-right: 2px solid var(--text-muted); border-bottom: 2px solid var(--text-muted);
+    transform: translateY(-70%) rotate(45deg); transition: transform .2s ease;
+  }
+  .panel.collapsed > .panel-header::after { transform: translateY(-20%) rotate(-45deg); }
+  .panel.collapsed > .panel-body,
+  .panel.collapsed > .drawer-body { display: none !important; }
+  .panel.collapsed { padding-bottom: 0; }
+
   .dash-two-col { grid-template-columns: 1fr !important; }
   .quick-actions-bar { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
   .app-layout { flex-direction: column; }
@@ -2203,15 +2234,57 @@ function attachVoiceButtons(root) {
 (function initVoiceObserver() {
   const observer = new MutationObserver((mutations) => {
     for (const m of mutations) {
-      m.addedNodes.forEach(node => { if (node.nodeType === 1) attachVoiceButtons(node); });
+      m.addedNodes.forEach(node => { if (node.nodeType === 1) { attachVoiceButtons(node); makeMobilePanelsCollapsible(node); } });
     }
   });
   document.addEventListener('DOMContentLoaded', () => {
     observer.observe(document.body, { childList: true, subtree: true });
     attachVoiceButtons(document);
+    makeMobilePanelsCollapsible(document);
   });
-  if (document.readyState !== 'loading') { observer.observe(document.body, { childList: true, subtree: true }); attachVoiceButtons(document); }
+  if (document.readyState !== 'loading') { observer.observe(document.body, { childList: true, subtree: true }); attachVoiceButtons(document); makeMobilePanelsCollapsible(document); }
 })();
+
+// ============ Accordion: طيّ الأقسام على الموبايل ============
+function makeMobilePanelsCollapsible(root) {
+  if (window.innerWidth > 768) return; // موبايل فقط
+  const scope = root && root.nodeType === 1 ? root : document;
+  const panels = [];
+  if (scope.matches && scope.matches('.panel')) panels.push(scope);
+  if (scope.querySelectorAll) scope.querySelectorAll('.panel').forEach(p => panels.push(p));
+
+  // اطوي الكل من الأساس ما عدا أول واحد في كل حاوية أب (page-body أو parent مماثل)
+  const containerFirstMap = new WeakMap();
+  panels.forEach(panel => {
+    if (panel.dataset.collapsibleInit) return;
+    const header = panel.querySelector(':scope > .panel-header');
+    if (!header) { panel.dataset.collapsibleInit = '1'; return; }
+    panel.dataset.collapsibleInit = '1';
+
+    // تخطي الـ modal والـ drawer لأنها overlays
+    if (panel.closest('.modal-overlay, .modal-box, .drawer, .drawer-overlay')) return;
+
+    // اطوي كل الأقسام مبدئيًا، وسيب أول قسم في كل حاوية مفتوح
+    const parent = panel.parentElement || document.body;
+    if (!containerFirstMap.has(parent)) { containerFirstMap.set(parent, true); }
+    else { panel.classList.add('collapsed'); }
+
+    // اضغط على الهيدر يوسّع/يطوي
+    header.addEventListener('click', (e) => {
+      // ماتشتغلش لو الضغط على زر داخل الهيدر (زي «+ إضافة» أو أزرار أخرى)
+      if (e.target.closest('button, a, input, select, textarea')) return;
+      panel.classList.toggle('collapsed');
+    });
+  });
+}
+// عند تدوير الشاشة أو تغيير الحجم، أعد الفحص
+window.addEventListener('resize', () => {
+  if (window.innerWidth > 768) {
+    document.querySelectorAll('.panel.collapsed').forEach(p => p.classList.remove('collapsed'));
+  } else {
+    makeMobilePanelsCollapsible(document);
+  }
+});
 
 // ============ فهم أوامر البحث الصوتية (بحث ذكي بسيط) ============
 const VOICE_COMMANDS = [
