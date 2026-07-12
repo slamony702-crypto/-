@@ -1274,6 +1274,26 @@ textarea.form-input { resize: vertical; min-height: 44px; line-height: 1.6; }
 .qtbl.compact input.qt-resp, .qtbl.compact select.qt-resp { min-width: 100px; }
 .qtbl.compact .qt-prev { min-width: 110px; font-size: 10.5px; }
 .qt-expand-btn.active { background: #0F3D2E !important; color: #fff !important; border-color: #0F3D2E !important; }
+
+/* ============ مراكز التقارير (Reports Center) ============ */
+.rep-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 14px; -webkit-overflow-scrolling: touch; }
+.rep-tab { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; padding: 9px 15px; border-radius: 999px; border: 1.5px solid #E8E3D6; background: #FFFDF7; color: #6B756F; cursor: pointer; white-space: nowrap; font-family: inherit; }
+.rep-tab:hover { border-color: #D8C27A; }
+.rep-tab.active { background: #0F3D2E; color: #fff; border-color: #0F3D2E; }
+.rep-export-bar { display: flex; gap: 8px; flex-wrap: wrap; }
+.rep-mini-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.rep-mini { background: #FFFDF7; border: 1px solid #E8E3D6; border-radius: 14px; padding: 14px; }
+.rep-mini .rm-lbl { font-size: 11.5px; color: #6B756F; }
+.rep-mini .rm-val { font-size: 22px; font-weight: 800; color: #24352E; margin-top: 4px; }
+.rep-bar-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
+.rep-bar-row .rb-name { min-width: 120px; font-size: 12.5px; color: #24352E; }
+.rep-bar-track { flex: 1; height: 10px; background: #ECEFE9; border-radius: 999px; overflow: hidden; }
+.rep-bar-fill { height: 100%; border-radius: 999px; }
+.rep-bar-row .rb-val { min-width: 40px; text-align: left; font-weight: 700; font-size: 12.5px; }
+.risk-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+.risk-stable { background: rgba(31,122,58,0.12); color: #1F7A3A; }
+.risk-watch { background: rgba(214,164,55,0.16); color: #9A6B12; }
+.risk-high { background: rgba(211,47,47,0.12); color: #D32F2F; }
 </style>
 </head>
 <body>
@@ -2041,7 +2061,7 @@ const MENU_ITEMS = [
   { key: 'install_app', label: 'تحميل التطبيق', icon: 'download' },
   { key: 'settings', label: 'الإعدادات', icon: 'settings' },
 ];
-const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'المهام', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات' };
+const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'المهام', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -5393,6 +5413,8 @@ async function route() {
     else if (page === 'quality') await pageQuality(body, query);
     else if (page === 'quality_new') await pageQualityVisitNew(body, param);
     else if (page === 'quality_detail') await pageQualityVisitDetail(body, param);
+    else if (page === 'quality_reports') await pageQualityReports(body, query);
+    else if (page === 'maintenance_reports') await pageMaintenanceReports(body, query);
     else if (page === 'install_app') await pageInstallApp(body);
     else if (page === 'reports') await pageReports(body);
     else if (page === 'users') await pageUsers(body);
@@ -7868,7 +7890,10 @@ async function pageQuality(body, query) {
         <h2><span class="mt-accent"></span> <span data-lucide="shield-check" style="width:22px;height:22px;color:#0F3D2E;"></span> إدارة الجودة</h2>
         <p>نفّذ زيارات تدقيق الجودة على الفروع، قيّم المعايير التشغيلية، وتابع نسب الالتزام والمخالفات.</p>
       </div>
-      ${canCreate ? '<a href="#quality_new" class="btn" style="background:var(--primary);color:#fff;font-size:12.5px;align-self:center;"><span data-lucide="plus" style="width:15px;height:15px;"></span> زيارة جودة جديدة</a>' : ''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-self:center;">
+        <a href="#quality_reports" class="btn btn-outline" style="font-size:12.5px;border-color:#D6A437;color:#9A6B12;"><span data-lucide="bar-chart-3" style="width:15px;height:15px;"></span> تقارير الجودة</a>
+        ${canCreate ? '<a href="#quality_new" class="btn" style="background:var(--primary);color:#fff;font-size:12.5px;"><span data-lucide="plus" style="width:15px;height:15px;"></span> زيارة جودة جديدة</a>' : ''}
+      </div>
     </div>
     <div class="kpi-grid" id="qKpi">${[1,2,3,4].map(()=>'<div class="kpi-card"><div class="skeleton skeleton-row" style="width:42px;height:42px;border-radius:8px;"></div><div class="skeleton skeleton-row" style="width:60%;margin-top:12px;"></div></div>').join('')}</div>
     <div class="panel" id="qSkeleton"><div class="panel-body"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
@@ -8304,6 +8329,452 @@ async function pageQualityVisitDetail(body, id) {
 }
 
 /* ============================================================
+   ============  مراكز التقارير (Reports Centers)  =============
+   ============================================================ */
+
+function repDownloadCSV(name, header, rows) {
+  const esc2 = c => '"' + String(c == null ? '' : c).replace(/"/g, '""') + '"';
+  const csv = [header, ...rows].map(r => r.map(esc2).join(',')).join('\r\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  toast('تم تصدير الملف (Excel)', 'success');
+}
+function repAgeDays(dateStr) { if (!dateStr) return 0; return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000); }
+function repDurDays(a, b) { if (!a || !b) return null; return Math.max(0, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000)); }
+function repPct(n, t) { return t ? Math.round(n / t * 100) : 0; }
+
+/* ---------- مركز تقارير الصيانة ---------- */
+async function pageMaintenanceReports(body, query) {
+  body.innerHTML = '<p class="empty-state">جاري تحميل التقارير...</p>';
+  const [{ data: requests }, { data: branches }, { data: quotes }] = await Promise.all([
+    sb.from('maintenance_requests').select('*, branches(name), owner:users!maintenance_requests_current_owner_id_fkey(full_name), requester:users!maintenance_requests_requester_id_fkey(full_name)').order('created_at', { ascending: false }),
+    sb.from('branches').select('*').order('name'),
+    sb.from('maintenance_quotes').select('*')
+  ]);
+  const ALL = requests || [];
+  const quotesByReq = {};
+  (quotes || []).forEach(q => { (quotesByReq[q.request_id] = quotesByReq[q.request_id] || []).push(q); });
+
+  const OPEN = r => !['closed', 'rejected'].includes(r.status);
+  const CRIT = r => ['high', 'critical', 'emergency'].includes(r.severity) || r.impact_on_operation === 'full';
+  const DELAYED = r => OPEN(r) && repAgeDays(r.reported_at || r.created_at) > 7;
+
+  const state = { tab: query?.tab || 'overview', period: 'all', branch: '', type: '', severity: '', status: '' };
+
+  const statusKeys = ['new','under_review','awaiting_inspection','inspection_reported','awaiting_approval','awaiting_quotes','awaiting_finance','in_progress','awaiting_receipt','closed','rejected'];
+  const typeKeys = ['electric','plumbing','ac','equipment','furniture','network','other'];
+  const areaKeys = ['kitchen','hall','cashier','ac','electric','plumbing','equipment','other'];
+  const sevKeys = ['critical','high','medium','low'];
+
+  const tabs = [
+    ['overview','نظرة عامة','layout-dashboard'],['status','حسب الحالة','activity'],['branch','حسب الفرع','building-2'],
+    ['area','حسب القسم','grid-3x3'],['type','أنواع الصيانة','wrench'],['critical','الأعطال الحرجة','siren'],
+    ['delayed','المتأخرة','clock'],['repair_time','وقت الإصلاح','timer'],['staff','أداء المسؤولين','users'],
+    ['costs','التكاليف','banknote'],['quotes','عروض الأسعار','file-text'],['recurring','الأعطال المتكررة','repeat'],
+    ['export','التصدير','download']
+  ];
+
+  body.innerHTML = `
+    <a href="#maintenance" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للصيانة</a>
+    <div class="mt-hero-header">
+      <div><h2><span class="mt-accent"></span> <span data-lucide="bar-chart-3" style="width:22px;height:22px;color:#0F3D2E;"></span> تقارير الصيانة</h2>
+        <p>تابع طلبات الصيانة حسب الفروع والحالات والتكاليف والأعطال المتكررة من مكان واحد.</p></div>
+      <div class="rep-export-bar" style="align-self:center;">
+        <button class="btn btn-outline" id="repPrint" style="font-size:12px;"><span data-lucide="printer" style="width:14px;height:14px;"></span> طباعة</button>
+      </div>
+    </div>
+
+    <div class="meeting-form-card" style="margin-bottom:14px;">
+      <div class="meeting-section-title"><span class="mst-accent"></span><span data-lucide="filter" style="width:16px;height:16px;"></span> تصفية التقارير</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <select id="fPeriod" class="form-select"><option value="all">كل الفترات</option><option value="month">هذا الشهر</option><option value="quarter">هذا الربع</option><option value="year">هذه السنة</option></select>
+        <select id="fBranch" class="form-select"><option value="">كل الفروع</option>${(branches||[]).map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}</select>
+        <select id="fType" class="form-select"><option value="">كل الأنواع</option>${typeKeys.map(t => `<option value="${t}">${label('maint_type', t)}</option>`).join('')}</select>
+        <select id="fSeverity" class="form-select"><option value="">كل الخطورة</option>${sevKeys.map(s => `<option value="${s}">${label('maint_priority', s)}</option>`).join('')}</select>
+        <select id="fStatus" class="form-select"><option value="">كل الحالات</option>${statusKeys.map(s => `<option value="${s}">${label('maint_status', s)}</option>`).join('')}</select>
+      </div>
+    </div>
+
+    <div class="rep-tabs" id="repTabs">${tabs.map(t => `<button class="rep-tab ${t[0]===state.tab?'active':''}" data-tab="${t[0]}"><span data-lucide="${t[2]}" style="width:14px;height:14px;"></span> ${t[1]}</button>`).join('')}</div>
+    <div id="repContent"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  document.getElementById('repPrint').addEventListener('click', () => window.print());
+
+  function getRows() {
+    let rows = [...ALL];
+    if (state.period !== 'all') {
+      const now = new Date();
+      rows = rows.filter(r => {
+        const d = new Date(r.reported_at || r.created_at);
+        if (state.period === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        if (state.period === 'year') return d.getFullYear() === now.getFullYear();
+        if (state.period === 'quarter') return Math.floor(d.getMonth()/3) === Math.floor(now.getMonth()/3) && d.getFullYear() === now.getFullYear();
+        return true;
+      });
+    }
+    if (state.branch) rows = rows.filter(r => String(r.branch_id) === state.branch);
+    if (state.type) rows = rows.filter(r => r.maintenance_type === state.type);
+    if (state.severity) rows = rows.filter(r => r.severity === state.severity);
+    if (state.status) rows = rows.filter(r => r.status === state.status);
+    return rows;
+  }
+
+  const tbl = (header, bodyRows) => `<div style="overflow-x:auto;"><table class="adv-table"><thead><tr>${header.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${bodyRows || '<tr><td colspan="'+header.length+'" style="text-align:center;padding:24px;color:var(--text-muted);">لا توجد بيانات</td></tr>'}</tbody></table></div>`;
+  const cost = r => Number(r.final_cost || r.estimated_cost || 0);
+
+  function renderTab() {
+    const rows = getRows();
+    const el = document.getElementById('repContent');
+    let html = '';
+
+    if (state.tab === 'overview') {
+      const open = rows.filter(OPEN).length, delayed = rows.filter(DELAYED).length, crit = rows.filter(CRIT).length, closed = rows.filter(r => r.status === 'closed').length;
+      const closedR = rows.filter(r => r.status === 'closed');
+      const avgFix = closedR.length ? Math.round(closedR.reduce((s, r) => s + (repDurDays(r.created_at, r.updated_at) || 0), 0) / closedR.length) : 0;
+      const totalCost = rows.reduce((s, r) => s + cost(r), 0);
+      const bCount = {}; rows.forEach(r => { const n = r.branches?.name || '—'; bCount[n] = (bCount[n] || 0) + 1; });
+      const topB = Object.entries(bCount).sort((a,b) => b[1]-a[1]).slice(0, 5);
+      const tCount = {}; rows.forEach(r => { if (r.maintenance_type) tCount[r.maintenance_type] = (tCount[r.maintenance_type] || 0) + 1; });
+      const topT = Object.entries(tCount).sort((a,b) => b[1]-a[1]).slice(0, 5);
+      const maxB = topB[0] ? topB[0][1] : 1, maxT = topT[0] ? topT[0][1] : 1;
+      html = `
+        <div class="rep-mini-grid">
+          <div class="rep-mini"><div class="rm-lbl">إجمالي الطلبات</div><div class="rm-val">${rows.length}</div></div>
+          <div class="rep-mini"><div class="rm-lbl">مفتوحة</div><div class="rm-val" style="color:#2F80C9;">${open}</div></div>
+          <div class="rep-mini"><div class="rm-lbl">متأخرة (>7 أيام)</div><div class="rm-val" style="color:#F2994A;">${delayed}</div></div>
+          <div class="rep-mini"><div class="rm-lbl">حرجة</div><div class="rm-val" style="color:#D32F2F;">${crit}</div></div>
+          <div class="rep-mini"><div class="rm-lbl">مغلقة</div><div class="rm-val" style="color:#1F7A3A;">${closed}</div></div>
+          <div class="rep-mini"><div class="rm-lbl">متوسط وقت الإصلاح</div><div class="rm-val">${avgFix} يوم</div></div>
+          <div class="rep-mini"><div class="rm-lbl">إجمالي التكلفة</div><div class="rm-val">${totalCost.toLocaleString()} <span style="font-size:12px;">ر.س</span></div></div>
+          <div class="rep-mini"><div class="rm-lbl">أكثر فرع أعطالًا</div><div class="rm-val" style="font-size:15px;">${topB[0] ? esc(topB[0][0]) : '—'}</div></div>
+        </div>
+        <div class="mt-detail-grid">
+          <div class="panel"><div class="panel-header"><h3 class="panel-title">أكثر 5 فروع أعطالًا</h3></div><div class="panel-body">
+            ${topB.length ? topB.map(([n,c]) => `<div class="rep-bar-row"><span class="rb-name">${esc(n)}</span><span class="rep-bar-track"><span class="rep-bar-fill" style="width:${repPct(c,maxB)}%;background:#0F3D2E;"></span></span><span class="rb-val">${c}</span></div>`).join('') : '<p style="color:var(--text-muted);font-size:12.5px;">لا توجد بيانات</p>'}
+          </div></div>
+          <div class="panel"><div class="panel-header"><h3 class="panel-title">أكثر أنواع الصيانة تكرارًا</h3></div><div class="panel-body">
+            ${topT.length ? topT.map(([n,c]) => `<div class="rep-bar-row"><span class="rb-name">${label('maint_type', n)}</span><span class="rep-bar-track"><span class="rep-bar-fill" style="width:${repPct(c,maxT)}%;background:#D6A437;"></span></span><span class="rb-val">${c}</span></div>`).join('') : '<p style="color:var(--text-muted);font-size:12.5px;">لا توجد بيانات</p>'}
+          </div></div>
+        </div>`;
+    }
+
+    else if (state.tab === 'status') {
+      const rowsHtml = statusKeys.map(s => {
+        const list = rows.filter(r => r.status === s); if (!list.length) return '';
+        const dl = list.filter(DELAYED).length;
+        return `<tr><td>${maintStatusBadge(s)}</td><td style="font-weight:700;">${list.length}</td><td>${repPct(list.length, rows.length)}%</td><td style="color:${dl?'#F2994A':'inherit'};">${dl}</td></tr>`;
+      }).join('');
+      html = tbl(['الحالة','عدد الطلبات','النسبة','المتأخرة'], rowsHtml);
+    }
+
+    else if (state.tab === 'branch') {
+      const byB = {}; rows.forEach(r => { const k = r.branch_id || 0; (byB[k] = byB[k] || { name: r.branches?.name || '—', list: [] }).list.push(r); });
+      const rowsHtml = Object.values(byB).sort((a,b) => b.list.length - a.list.length).map(g => {
+        const open = g.list.filter(OPEN).length, dl = g.list.filter(DELAYED).length, cr = g.list.filter(CRIT).length, cl = g.list.filter(r => r.status === 'closed').length;
+        const tc = {}; g.list.forEach(r => { if (r.maintenance_type) tc[r.maintenance_type] = (tc[r.maintenance_type]||0)+1; });
+        const topT = Object.entries(tc).sort((a,b) => b[1]-a[1])[0];
+        const risk = cr > 0 ? ['risk-high','خطر عالي'] : (dl > 0 ? ['risk-watch','يحتاج متابعة'] : ['risk-stable','مستقر']);
+        return `<tr><td style="font-weight:700;">${esc(g.name)}</td><td>${g.list.length}</td><td style="color:#2F80C9;">${open}</td><td style="color:${dl?'#F2994A':'inherit'};">${dl}</td><td style="color:${cr?'#D32F2F':'inherit'};">${cr}</td><td style="color:#1F7A3A;">${cl}</td><td>${topT ? label('maint_type', topT[0]) : '—'}</td><td><span class="risk-badge ${risk[0]}">${risk[1]}</span></td></tr>`;
+      }).join('');
+      html = tbl(['الفرع','الإجمالي','مفتوحة','متأخرة','حرجة','مغلقة','أكثر نوع','المؤشر'], rowsHtml);
+    }
+
+    else if (state.tab === 'area') {
+      const rowsHtml = areaKeys.map(a => {
+        const list = rows.filter(r => r.affected_area === a); if (!list.length) return '';
+        const open = list.filter(OPEN).length, dl = list.filter(DELAYED).length, cr = list.filter(CRIT).length;
+        return `<tr><td style="font-weight:700;">${label('maint_area', a)}</td><td>${list.length}</td><td style="color:#2F80C9;">${open}</td><td style="color:${dl?'#F2994A':'inherit'};">${dl}</td><td style="color:${cr?'#D32F2F':'inherit'};">${cr}</td></tr>`;
+      }).join('');
+      html = tbl(['القسم المتضرر','عدد الطلبات','مفتوحة','متأخرة','حرجة'], rowsHtml);
+    }
+
+    else if (state.tab === 'type') {
+      const rowsHtml = typeKeys.map(t => {
+        const list = rows.filter(r => r.maintenance_type === t); if (!list.length) return '';
+        const closedR = list.filter(r => r.status === 'closed');
+        const avg = closedR.length ? Math.round(closedR.reduce((s, r) => s + (repDurDays(r.created_at, r.updated_at) || 0), 0) / closedR.length) : 0;
+        const tot = list.reduce((s, r) => s + cost(r), 0);
+        const bc = {}; list.forEach(r => { const n = r.branches?.name || '—'; bc[n] = (bc[n]||0)+1; });
+        const topB = Object.entries(bc).sort((a,b) => b[1]-a[1])[0];
+        return `<tr><td style="font-weight:700;">${label('maint_type', t)}</td><td>${list.length}</td><td>${repPct(list.length, rows.length)}%</td><td>${avg} يوم</td><td>${tot.toLocaleString()} ر.س</td><td>${topB ? esc(topB[0]) : '—'}</td></tr>`;
+      }).join('');
+      html = tbl(['نوع الصيانة','عدد الطلبات','نسبة التكرار','متوسط الإصلاح','إجمالي التكلفة','أكثر فرع'], rowsHtml);
+    }
+
+    else if (state.tab === 'critical') {
+      const list = rows.filter(CRIT);
+      const rowsHtml = list.map(r => `<tr style="cursor:pointer;" onclick="location.hash='#maintenance_detail/${r.id}'"><td style="font-weight:700;color:var(--primary);">${esc(r.request_no||r.id)}</td><td>${esc(r.branches?.name||'-')}</td><td>${label('maint_area', r.affected_area)}</td><td>${r.maintenance_type?label('maint_type',r.maintenance_type):'-'}</td><td>${maintSevBadge(r.severity)}</td><td>${label('maint_impact', r.impact_on_operation||'none')}</td><td>${maintStatusBadge(r.status)}</td><td style="font-size:11.5px;color:var(--text-muted);">${fmtDate(r.reported_at)}</td></tr>`).join('');
+      html = tbl(['#','الفرع','القسم','النوع','الخطورة','التأثير','الحالة','البلاغ'], rowsHtml);
+    }
+
+    else if (state.tab === 'delayed') {
+      const list = rows.filter(DELAYED).sort((a,b) => repAgeDays(b.reported_at||b.created_at) - repAgeDays(a.reported_at||a.created_at));
+      const rowsHtml = list.map(r => `<tr style="cursor:pointer;" onclick="location.hash='#maintenance_detail/${r.id}'"><td style="font-weight:700;color:var(--primary);">${esc(r.request_no||r.id)}</td><td>${esc((r.issue_title||r.description||'').slice(0,40))}</td><td>${esc(r.branches?.name||'-')}</td><td>${r.maintenance_type?label('maint_type',r.maintenance_type):'-'}</td><td>${esc(r.owner?.full_name||r.requester?.full_name||'-')}</td><td style="color:#F2994A;font-weight:700;">${repAgeDays(r.reported_at||r.created_at)} يوم</td><td>${maintStatusBadge(r.status)}</td></tr>`).join('');
+      html = tbl(['#','عنوان المشكلة','الفرع','النوع','المسؤول','أيام التأخير','الحالة'], rowsHtml);
+    }
+
+    else if (state.tab === 'repair_time') {
+      const closedR = rows.filter(r => r.status === 'closed' && repDurDays(r.created_at, r.updated_at) != null);
+      const byB = {}; closedR.forEach(r => { const n = r.branches?.name || '—'; (byB[n] = byB[n] || []).push(repDurDays(r.created_at, r.updated_at)); });
+      const branchAvg = Object.entries(byB).map(([n, arr]) => [n, Math.round(arr.reduce((a,b)=>a+b,0)/arr.length)]).sort((a,b) => a[1]-b[1]);
+      const overall = closedR.length ? Math.round(closedR.reduce((s,r)=>s+repDurDays(r.created_at,r.updated_at),0)/closedR.length) : 0;
+      const byT = {}; closedR.forEach(r => { if (r.maintenance_type) (byT[r.maintenance_type] = byT[r.maintenance_type] || []).push(repDurDays(r.created_at, r.updated_at)); });
+      html = `
+        <div class="rep-mini-grid">
+          <div class="rep-mini"><div class="rm-lbl">متوسط مدة الإغلاق</div><div class="rm-val">${overall} يوم</div></div>
+          <div class="rep-mini"><div class="rm-lbl">أسرع فرع</div><div class="rm-val" style="font-size:15px;color:#1F7A3A;">${branchAvg[0] ? esc(branchAvg[0][0]) + ' (' + branchAvg[0][1] + 'ي)' : '—'}</div></div>
+          <div class="rep-mini"><div class="rm-lbl">أبطأ فرع</div><div class="rm-val" style="font-size:15px;color:#D32F2F;">${branchAvg.length ? esc(branchAvg[branchAvg.length-1][0]) + ' (' + branchAvg[branchAvg.length-1][1] + 'ي)' : '—'}</div></div>
+          <div class="rep-mini"><div class="rm-lbl">طلبات مغلقة</div><div class="rm-val">${closedR.length}</div></div>
+        </div>
+        ${tbl(['نوع الصيانة','عدد المغلقة','متوسط الإصلاح','أسرع','أطول'], typeKeys.map(t => { const arr = byT[t]; if (!arr||!arr.length) return ''; return `<tr><td style="font-weight:700;">${label('maint_type', t)}</td><td>${arr.length}</td><td>${Math.round(arr.reduce((a,b)=>a+b,0)/arr.length)} يوم</td><td>${Math.min(...arr)} يوم</td><td>${Math.max(...arr)} يوم</td></tr>`; }).join(''))}`;
+    }
+
+    else if (state.tab === 'staff') {
+      const byU = {}; rows.forEach(r => { const n = r.owner?.full_name || r.requester?.full_name || 'غير مُسند'; (byU[n] = byU[n] || []).push(r); });
+      const rowsHtml = Object.entries(byU).sort((a,b) => b[1].length - a[1].length).map(([n, list]) => {
+        const cl = list.filter(r => r.status === 'closed').length, dl = list.filter(DELAYED).length, ip = list.filter(r => r.status === 'in_progress').length;
+        const closedR = list.filter(r => r.status === 'closed' && repDurDays(r.created_at, r.updated_at) != null);
+        const avg = closedR.length ? Math.round(closedR.reduce((s,r)=>s+repDurDays(r.created_at,r.updated_at),0)/closedR.length) : 0;
+        const rate = repPct(cl, list.length);
+        const perf = rate >= 80 ? ['risk-stable','ممتاز'] : (rate >= 50 ? ['risk-watch','جيد'] : ['risk-high','يحتاج متابعة']);
+        return `<tr><td style="font-weight:700;">${esc(n)}</td><td>${list.length}</td><td style="color:#1F7A3A;">${cl}</td><td style="color:${dl?'#D32F2F':'inherit'};">${dl}</td><td>${ip}</td><td>${avg} يوم</td><td><div class="rep-bar-track" style="width:70px;display:inline-block;vertical-align:middle;"><span class="rep-bar-fill" style="width:${rate}%;background:${rate>=80?'#1F7A3A':rate>=50?'#D6A437':'#D32F2F'};"></span></div> ${rate}%</td><td><span class="risk-badge ${perf[0]}">${perf[1]}</span></td></tr>`;
+      }).join('');
+      html = tbl(['المسؤول','المسندة','مغلقة','متأخرة','قيد التنفيذ','متوسط الإغلاق','نسبة الإنجاز','التقييم'], rowsHtml);
+    }
+
+    else if (state.tab === 'costs') {
+      const byB = {}; rows.forEach(r => { const n = r.branches?.name || '—'; byB[n] = (byB[n]||0) + cost(r); });
+      const byT = {}; rows.forEach(r => { if (r.maintenance_type) byT[r.maintenance_type] = (byT[r.maintenance_type]||0) + cost(r); });
+      const total = rows.reduce((s,r) => s + cost(r), 0);
+      const topCost = [...rows].filter(r => cost(r) > 0).sort((a,b) => cost(b) - cost(a)).slice(0, 10);
+      const maxB = Math.max(1, ...Object.values(byB));
+      html = `
+        <div class="rep-mini-grid"><div class="rep-mini"><div class="rm-lbl">إجمالي تكلفة الصيانة</div><div class="rm-val">${total.toLocaleString()} <span style="font-size:12px;">ر.س</span></div></div></div>
+        <div class="mt-detail-grid">
+          <div class="panel"><div class="panel-header"><h3 class="panel-title">التكلفة حسب الفرع</h3></div><div class="panel-body">
+            ${Object.entries(byB).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).map(([n,v]) => `<div class="rep-bar-row"><span class="rb-name">${esc(n)}</span><span class="rep-bar-track"><span class="rep-bar-fill" style="width:${repPct(v,maxB)}%;background:#0F3D2E;"></span></span><span class="rb-val">${v.toLocaleString()}</span></div>`).join('') || '<p style="color:var(--text-muted);font-size:12.5px;">لا توجد تكاليف مسجلة</p>'}
+          </div></div>
+          <div class="panel"><div class="panel-header"><h3 class="panel-title">التكلفة حسب النوع</h3></div><div class="panel-body">
+            ${Object.entries(byT).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).map(([n,v]) => `<div class="rep-bar-row"><span class="rb-name">${label('maint_type', n)}</span><span class="rep-bar-track"><span class="rep-bar-fill" style="width:${repPct(v,Math.max(1,...Object.values(byT)))}%;background:#D6A437;"></span></span><span class="rb-val">${v.toLocaleString()}</span></div>`).join('') || '<p style="color:var(--text-muted);font-size:12.5px;">لا توجد تكاليف</p>'}
+          </div></div>
+        </div>
+        <div class="panel" style="margin-top:14px;"><div class="panel-header"><h3 class="panel-title">أعلى الطلبات تكلفة</h3></div><div class="panel-body">
+          ${tbl(['#','الفرع','النوع','التكلفة','الحالة'], topCost.map(r => `<tr style="cursor:pointer;" onclick="location.hash='#maintenance_detail/${r.id}'"><td style="font-weight:700;color:var(--primary);">${esc(r.request_no||r.id)}</td><td>${esc(r.branches?.name||'-')}</td><td>${r.maintenance_type?label('maint_type',r.maintenance_type):'-'}</td><td style="font-weight:700;">${cost(r).toLocaleString()} ر.س</td><td>${maintStatusBadge(r.status)}</td></tr>`).join(''))}
+        </div></div>`;
+    }
+
+    else if (state.tab === 'quotes') {
+      const withQuotes = rows.filter(r => (quotesByReq[r.id] || []).length);
+      const rowsHtml = withQuotes.map(r => {
+        const qs = quotesByReq[r.id] || [];
+        const prices = qs.filter(q => q.price).map(q => Number(q.price));
+        const sel = qs.find(q => q.is_selected);
+        return `<tr style="cursor:pointer;" onclick="location.hash='#maintenance_detail/${r.id}'"><td style="font-weight:700;color:var(--primary);">${esc(r.request_no||r.id)}</td><td>${esc(r.branches?.name||'-')}</td><td>${r.maintenance_type?label('maint_type',r.maintenance_type):'-'}</td><td>${qs.length}</td><td>${prices.length?Math.min(...prices).toLocaleString():'-'}</td><td>${prices.length?Math.max(...prices).toLocaleString():'-'}</td><td>${sel?esc(sel.supplier_name||'مختار'):'<span style="color:#F2994A;">لم يُختر</span>'}</td><td>${maintStatusBadge(r.status)}</td></tr>`;
+      }).join('');
+      html = tbl(['#','الفرع','النوع','عدد العروض','أقل سعر','أعلى سعر','المورد المختار','الحالة'], rowsHtml);
+    }
+
+    else if (state.tab === 'recurring') {
+      const groups = {};
+      rows.forEach(r => { const k = (r.branch_id||0) + '|' + (r.maintenance_type||'') + '|' + (r.affected_area||''); (groups[k] = groups[k] || []).push(r); });
+      const rec = Object.values(groups).filter(g => g.length > 1).sort((a,b) => b.length - a.length);
+      const rowsHtml = rec.map(g => {
+        const r0 = g[0]; const tot = g.reduce((s,r) => s + cost(r), 0);
+        const last = g.map(r => r.reported_at || r.created_at).sort().reverse()[0];
+        const rec2 = g.length >= 3 ? 'استبدال' : (g.length >= 2 ? 'متابعة' : 'إصلاح');
+        const rc = g.length >= 3 ? 'risk-high' : 'risk-watch';
+        return `<tr><td style="font-weight:700;">${esc(r0.branches?.name||'-')}</td><td>${r0.maintenance_type?label('maint_type',r0.maintenance_type):label('maint_area',r0.affected_area)}</td><td>${r0.branch_location?label('maint_location',r0.branch_location):label('maint_area',r0.affected_area)}</td><td style="font-weight:700;color:#D32F2F;">${g.length}×</td><td style="font-size:11.5px;">${(last||'').slice(0,10)}</td><td>${tot.toLocaleString()} ر.س</td><td><span class="risk-badge ${rc}">${rec2}</span></td></tr>`;
+      }).join('');
+      html = tbl(['الفرع','نوع العطل','الموقع','عدد التكرار','آخر ظهور','إجمالي التكلفة','التوصية'], rowsHtml);
+    }
+
+    else if (state.tab === 'export') {
+      html = `
+        <div class="panel"><div class="panel-body">
+          <p style="font-size:13px;color:#6B756F;margin-bottom:14px;">صدّر التقارير إلى ملف Excel (CSV بترميز عربي) أو اطبعها.</p>
+          <div class="rep-export-bar">
+            <button class="btn btn-outline" data-exp="all"><span data-lucide="download" style="width:14px;height:14px;"></span> كل طلبات الصيانة</button>
+            <button class="btn btn-outline" data-exp="delayed"><span data-lucide="download" style="width:14px;height:14px;"></span> الطلبات المتأخرة</button>
+            <button class="btn btn-outline" data-exp="critical"><span data-lucide="download" style="width:14px;height:14px;"></span> الأعطال الحرجة</button>
+            <button class="btn btn-outline" data-exp="costs"><span data-lucide="download" style="width:14px;height:14px;"></span> التكاليف</button>
+            <button class="btn btn-outline" onclick="window.print()"><span data-lucide="printer" style="width:14px;height:14px;"></span> طباعة الصفحة</button>
+          </div>
+        </div></div>`;
+    }
+
+    el.innerHTML = html;
+    if (window.lucide) lucide.createIcons();
+
+    el.querySelectorAll('[data-exp]').forEach(b => b.addEventListener('click', () => {
+      const rows2 = getRows();
+      const t = b.dataset.exp;
+      const H = ['رقم الطلب','الفرع','القسم','نوع الصيانة','عنوان المشكلة','الخطورة','التأثير','الحالة','التكلفة','تاريخ البلاغ','أيام منذ البلاغ'];
+      const toRow = r => [r.request_no||r.id, r.branches?.name||'', label('maint_area',r.affected_area), r.maintenance_type?label('maint_type',r.maintenance_type):'', r.issue_title||r.description||'', label('maint_priority',r.severity)||r.severity, label('maint_impact',r.impact_on_operation||'none'), label('maint_status',r.status), cost(r), (r.reported_at||'').slice(0,10), repAgeDays(r.reported_at||r.created_at)];
+      let data = rows2;
+      if (t === 'delayed') data = rows2.filter(DELAYED);
+      if (t === 'critical') data = rows2.filter(CRIT);
+      if (t === 'costs') data = rows2.filter(r => cost(r) > 0).sort((a,b)=>cost(b)-cost(a));
+      repDownloadCSV('تقرير_الصيانة_' + t, H, data.map(toRow));
+    }));
+  }
+
+  document.getElementById('repTabs').querySelectorAll('.rep-tab').forEach(b => b.addEventListener('click', () => {
+    state.tab = b.dataset.tab;
+    document.querySelectorAll('.rep-tab').forEach(x => x.classList.toggle('active', x === b));
+    renderTab();
+  }));
+  ['fPeriod','fBranch','fType','fSeverity','fStatus'].forEach(id => document.getElementById(id).addEventListener('change', e => {
+    state[id.replace('f','').toLowerCase()] = e.target.value; renderTab();
+  }));
+  renderTab();
+}
+
+/* ---------- مركز تقارير الجودة ---------- */
+async function pageQualityReports(body, query) {
+  body.innerHTML = '<p class="empty-state">جاري تحميل التقارير...</p>';
+  const [{ data: visits }, { data: vitems }, { data: sections }] = await Promise.all([
+    sb.from('quality_visits').select('*, branches(name), users(full_name)').order('created_at', { ascending: false }),
+    sb.from('quality_visit_items').select('*'),
+    sb.from('quality_sections').select('id, title, sort_order').order('sort_order')
+  ]);
+  const V = (visits || []).filter(v => v.status === 'completed');
+  const allV = visits || [];
+  const items = vitems || [];
+  const secTitle = {}; (sections || []).forEach(s => secTitle[s.id] = s.title);
+  const visitById = {}; allV.forEach(v => visitById[v.id] = v);
+  const completedIds = new Set(V.map(v => v.id));
+  const compItems = items.filter(it => completedIds.has(it.visit_id));
+
+  const state = { tab: query?.tab || 'overview' };
+  const tabs = [['overview','نظرة عامة','layout-dashboard'],['branch','مقارنة الفروع','building-2'],['violations','المخالفات','alert-triangle'],['corrective','الإجراءات التصحيحية','wrench'],['visits','الزيارات','clipboard-check'],['sections','محاور الجودة','list-checks'],['inspectors','المفتشون','users'],['export','التصدير','download']];
+
+  body.innerHTML = `
+    <a href="#quality" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للجودة</a>
+    <div class="mt-hero-header">
+      <div><h2><span class="mt-accent"></span> <span data-lucide="bar-chart-3" style="width:22px;height:22px;color:#0F3D2E;"></span> تقارير الجودة</h2>
+        <p>متابعة أداء الجودة والمخالفات والإجراءات التصحيحية ومقارنة الفروع من مكان واحد.</p></div>
+      <button class="btn btn-outline" onclick="window.print()" style="align-self:center;font-size:12px;"><span data-lucide="printer" style="width:14px;height:14px;"></span> طباعة</button>
+    </div>
+    <div class="rep-tabs" id="qrepTabs">${tabs.map(t => `<button class="rep-tab ${t[0]===state.tab?'active':''}" data-tab="${t[0]}"><span data-lucide="${t[2]}" style="width:14px;height:14px;"></span> ${t[1]}</button>`).join('')}</div>
+    <div id="qrepContent"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  const tbl = (header, bodyRows) => `<div style="overflow-x:auto;"><table class="adv-table"><thead><tr>${header.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${bodyRows || '<tr><td colspan="'+header.length+'" style="text-align:center;padding:24px;color:var(--text-muted);">لا توجد بيانات</td></tr>'}</tbody></table></div>`;
+
+  function renderTab() {
+    const el = document.getElementById('qrepContent');
+    let html = '';
+
+    if (state.tab === 'overview') {
+      const avg = V.length ? Math.round(V.reduce((s,v)=>s+Number(v.compliance_pct||0),0)/V.length) : 0;
+      const nonConform = compItems.filter(it => it.status === 'non_conform').length;
+      const branchesAudited = new Set(V.map(v => v.branch_id)).size;
+      const bScore = {}; V.forEach(v => { const n = v.branches?.name || '—'; (bScore[n] = bScore[n] || []).push(Number(v.compliance_pct||0)); });
+      const low = Object.entries(bScore).map(([n,a]) => [n, Math.round(a.reduce((x,y)=>x+y,0)/a.length)]).sort((a,b)=>a[1]-b[1]).slice(0,5);
+      html = `
+        <div class="rep-mini-grid">
+          <div class="rep-mini"><div class="rm-lbl">زيارات مكتملة</div><div class="rm-val">${V.length}</div></div>
+          <div class="rep-mini"><div class="rm-lbl">متوسط الالتزام</div><div class="rm-val" style="color:${qScoreColor(avg)};">${avg}%</div></div>
+          <div class="rep-mini"><div class="rm-lbl">بنود غير مطابقة</div><div class="rm-val" style="color:#D32F2F;">${nonConform}</div></div>
+          <div class="rep-mini"><div class="rm-lbl">فروع تم تدقيقها</div><div class="rm-val">${branchesAudited}</div></div>
+        </div>
+        <div class="panel"><div class="panel-header"><h3 class="panel-title">أقل الفروع التزامًا</h3></div><div class="panel-body">
+          ${low.length ? low.map(([n,p]) => `<div class="rep-bar-row"><span class="rb-name">${esc(n)}</span><span class="rep-bar-track"><span class="rep-bar-fill" style="width:${p}%;background:${qScoreColor(p)};"></span></span><span class="rb-val">${p}%</span></div>`).join('') : '<p style="color:var(--text-muted);font-size:12.5px;">لا توجد بيانات</p>'}
+        </div></div>`;
+    }
+
+    else if (state.tab === 'branch') {
+      const byB = {}; V.forEach(v => { const k = v.branch_id || 0; (byB[k] = byB[k] || { name: v.branches?.name || '—', visits: [] }).visits.push(v); });
+      const rowsHtml = Object.values(byB).map(g => {
+        const avg = Math.round(g.visits.reduce((s,v)=>s+Number(v.compliance_pct||0),0)/g.visits.length);
+        const nc = g.visits.reduce((s,v)=>s+Number(v.non_conform_count||0),0);
+        const last = g.visits.map(v => v.visit_date || v.created_at).sort().reverse()[0];
+        const risk = avg >= 90 ? ['risk-stable','مستقر'] : (avg >= 70 ? ['risk-watch','يحتاج متابعة'] : ['risk-high','خطر عالي']);
+        return `<tr><td style="font-weight:700;">${esc(g.name)}</td><td>${g.visits.length}</td><td style="font-weight:800;color:${qScoreColor(avg)};">${avg}%</td><td style="color:${nc?'#D32F2F':'inherit'};">${nc}</td><td style="font-size:11.5px;">${(last||'').slice(0,10)}</td><td><span class="risk-badge ${risk[0]}">${risk[1]}</span></td></tr>`;
+      }).sort((a,b) => 0).join('');
+      html = tbl(['الفرع','عدد الزيارات','متوسط الالتزام','بنود غير مطابقة','آخر زيارة','المؤشر'], rowsHtml);
+    }
+
+    else if (state.tab === 'violations') {
+      const nc = compItems.filter(it => it.status === 'non_conform' || it.status === 'follow_up');
+      const rowsHtml = nc.map(it => { const v = visitById[it.visit_id] || {}; const corr = it.corrective_action ? (it.corrective_action==='custom'?(it.custom_corrective_action||'مخصص'):label('quality_corrective',it.corrective_action)) : '—'; return `<tr><td>${esc(it.item_text)}</td><td>${esc(secTitle[it.section_id]||'')}</td><td>${esc(v.branches?.name||'-')}</td><td><span style="color:${Q_STATUS_COLOR[it.status]};font-weight:700;font-size:11.5px;">${label('quality_status',it.status)}</span></td><td>${corr}</td><td style="font-size:11.5px;">${esc(it.notes||'—')}</td><td style="font-size:11.5px;">${((v.visit_date)||'').slice(0,10)}</td></tr>`; }).join('');
+      html = tbl(['البند','القسم','الفرع','الحالة','الإجراء التصحيحي','ملاحظات','تاريخ الزيارة'], rowsHtml);
+    }
+
+    else if (state.tab === 'corrective') {
+      const cc = {}; compItems.forEach(it => { if (it.corrective_action) cc[it.corrective_action] = (cc[it.corrective_action]||0)+1; });
+      const max = Math.max(1, ...Object.values(cc));
+      html = `<div class="panel"><div class="panel-header"><h3 class="panel-title">توزيع الإجراءات التصحيحية</h3></div><div class="panel-body">
+        ${Object.entries(cc).sort((a,b)=>b[1]-a[1]).map(([k,v]) => `<div class="rep-bar-row"><span class="rb-name" style="min-width:160px;">${k==='custom'?'إجراء مخصص':label('quality_corrective',k)}</span><span class="rep-bar-track"><span class="rep-bar-fill" style="width:${repPct(v,max)}%;background:#2F80C9;"></span></span><span class="rb-val">${v}</span></div>`).join('') || '<p style="color:var(--text-muted);font-size:12.5px;">لا توجد إجراءات مسجلة</p>'}
+      </div></div>`;
+    }
+
+    else if (state.tab === 'visits') {
+      const rowsHtml = allV.map(v => { const pct = Math.round(Number(v.compliance_pct||0)); const href = v.status==='draft'?'#quality_new/'+v.id:'#quality_detail/'+v.id; return `<tr style="cursor:pointer;" onclick="location.hash='${href}'"><td style="font-weight:700;color:var(--primary);">${esc(v.visit_no||v.id)}</td><td>${esc(v.branches?.name||'-')}</td><td>${esc(v.inspector_name||v.users?.full_name||'-')}</td><td>${label('quality_visit_type',v.visit_type)}</td><td style="font-size:11.5px;">${(v.visit_date||'').slice(0,10)}</td><td>${v.status==='completed'?`<span style="font-weight:800;color:${qScoreColor(pct)};">${pct}%</span>`:'-'}</td><td>${v.status==='completed'?'<span class="badge-status badge-done">مكتملة</span>':'<span class="badge-status badge-closed">مسودة</span>'}</td></tr>`; }).join('');
+      html = tbl(['#','الفرع','المفتش','النوع','التاريخ','الالتزام','الحالة'], rowsHtml);
+    }
+
+    else if (state.tab === 'sections') {
+      const rowsHtml = (sections||[]).map(s => {
+        const list = compItems.filter(it => it.section_id === s.id);
+        const evaln = list.filter(it => ['conform','non_conform','follow_up','fixed_on_site'].includes(it.status));
+        const conf = list.filter(it => it.status === 'conform' || it.status === 'fixed_on_site').length;
+        const rate = evaln.length ? Math.round(conf / evaln.length * 100) : 0;
+        const nc = list.filter(it => it.status === 'non_conform').length;
+        if (!list.length) return '';
+        return `<tr><td style="font-weight:700;">${esc(s.title)}</td><td>${evaln.length}</td><td style="font-weight:800;color:${qScoreColor(rate)};">${rate}%</td><td style="color:${nc?'#D32F2F':'inherit'};">${nc}</td><td><div class="rep-bar-track" style="width:90px;display:inline-block;vertical-align:middle;"><span class="rep-bar-fill" style="width:${rate}%;background:${qScoreColor(rate)};"></span></div></td></tr>`;
+      }).join('');
+      html = tbl(['المحور / القسم','بنود مُقيّمة','نسبة الالتزام','غير مطابق','—'], rowsHtml);
+    }
+
+    else if (state.tab === 'inspectors') {
+      const byI = {}; V.forEach(v => { const n = v.inspector_name || v.users?.full_name || '—'; (byI[n] = byI[n] || []).push(v); });
+      const rowsHtml = Object.entries(byI).sort((a,b)=>b[1].length-a[1].length).map(([n,list]) => {
+        const avg = Math.round(list.reduce((s,v)=>s+Number(v.compliance_pct||0),0)/list.length);
+        const nc = list.reduce((s,v)=>s+Number(v.non_conform_count||0),0);
+        return `<tr><td style="font-weight:700;">${esc(n)}</td><td>${list.length}</td><td style="font-weight:800;color:${qScoreColor(avg)};">${avg}%</td><td>${nc}</td></tr>`;
+      }).join('');
+      html = tbl(['المفتش','عدد الزيارات','متوسط الالتزام','بنود غير مطابقة'], rowsHtml);
+    }
+
+    else if (state.tab === 'export') {
+      html = `<div class="panel"><div class="panel-body">
+        <p style="font-size:13px;color:#6B756F;margin-bottom:14px;">صدّر تقارير الجودة إلى Excel أو اطبعها.</p>
+        <div class="rep-export-bar">
+          <button class="btn btn-outline" data-qexp="visits"><span data-lucide="download" style="width:14px;height:14px;"></span> كل الزيارات</button>
+          <button class="btn btn-outline" data-qexp="violations"><span data-lucide="download" style="width:14px;height:14px;"></span> المخالفات</button>
+          <button class="btn btn-outline" onclick="window.print()"><span data-lucide="printer" style="width:14px;height:14px;"></span> طباعة الصفحة</button>
+        </div>
+      </div></div>`;
+    }
+
+    el.innerHTML = html;
+    if (window.lucide) lucide.createIcons();
+
+    el.querySelectorAll('[data-qexp]').forEach(b => b.addEventListener('click', () => {
+      if (b.dataset.qexp === 'visits') {
+        repDownloadCSV('تقرير_زيارات_الجودة', ['رقم الزيارة','الفرع','المفتش','النوع','التاريخ','الالتزام','الحالة'], allV.map(v => [v.visit_no||v.id, v.branches?.name||'', v.inspector_name||v.users?.full_name||'', label('quality_visit_type',v.visit_type), (v.visit_date||'').slice(0,10), Math.round(Number(v.compliance_pct||0))+'%', v.status==='completed'?'مكتملة':'مسودة']));
+      } else {
+        const nc = compItems.filter(it => it.status === 'non_conform' || it.status === 'follow_up');
+        repDownloadCSV('تقرير_مخالفات_الجودة', ['البند','القسم','الفرع','الحالة','الإجراء التصحيحي','ملاحظات','التاريخ'], nc.map(it => { const v = visitById[it.visit_id]||{}; return [it.item_text, secTitle[it.section_id]||'', v.branches?.name||'', label('quality_status',it.status), it.corrective_action?(it.corrective_action==='custom'?(it.custom_corrective_action||'مخصص'):label('quality_corrective',it.corrective_action)):'', it.notes||'', (v.visit_date||'').slice(0,10)]; }));
+      }
+    }));
+  }
+
+  document.getElementById('qrepTabs').querySelectorAll('.rep-tab').forEach(b => b.addEventListener('click', () => {
+    state.tab = b.dataset.tab;
+    document.querySelectorAll('#qrepTabs .rep-tab').forEach(x => x.classList.toggle('active', x === b));
+    renderTab();
+  }));
+  renderTab();
+}
+
+/* ============================================================
    ============  قسم الصيانة (Maintenance Module)  =============
    ============================================================ */
 
@@ -8362,6 +8833,7 @@ async function pageMaintenance(body, urlQuery) {
         <p>ارفع طلبات الصيانة، تابع مراحلها من الفحص حتى الإغلاق، وراقب التكاليف والأعطال المتكررة.</p>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a href="#maintenance_reports" class="btn btn-outline" style="font-size:12.5px;border-color:#D6A437;color:#9A6B12;"><span data-lucide="bar-chart-3" style="width:15px;height:15px;"></span> تقارير الصيانة</a>
         <a href="#maintenance_suppliers" class="btn btn-outline" style="font-size:12.5px;"><span data-lucide="briefcase" style="width:15px;height:15px;"></span> الموردون</a>
         ${canManageBranches ? '<button class="btn btn-outline" id="mtBranchesBtn" style="font-size:12.5px;"><span data-lucide="building-2" style="width:15px;height:15px;"></span> الفروع</button>' : ''}
         ${canCreate ? '<a href="#maintenance_new" class="btn" style="background:var(--primary);color:#fff;font-size:12.5px;"><span data-lucide="plus" style="width:15px;height:15px;"></span> طلب صيانة جديد</a>' : ''}
