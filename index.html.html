@@ -4045,13 +4045,18 @@ window.openTaskModal = function(id) {
           <div class="field"><label>سبب التأخير (إن وجد)</label><input type="text" id="tmDelay" value="${esc(t.delay_reason || '')}"></div>
           <button class="btn btn-primary" id="tmSaveBtn">حفظ</button>
           <div style="margin-top:14px; border-top:1px solid var(--border); padding-top:14px;">
-            <button class="btn btn-outline btn-sm" id="tmProjectBtn"><span data-lucide="folder-kanban" style="width:13px;height:13px;"></span> مشروع المهمة</button>
+            <button class="btn btn-outline btn-sm" id="tmProjectBtn"><span data-lucide="folder-kanban" style="width:13px;height:13px;"></span> <span id="tmProjectBtnLabel">مشروع تنفيذ المهمة</span></button>
           </div>
         </div>
       </div>
     </div>
   `;
   document.getElementById('tmProjectBtn').addEventListener('click', () => openTaskProject(id, t));
+  (async () => {
+    const { data: existingProj } = await sb.from('task_projects').select('id').eq('task_id', id).maybeSingle();
+    const lbl = document.getElementById('tmProjectBtnLabel');
+    if (lbl) lbl.textContent = existingProj ? 'فتح مشروع التنفيذ' : 'إنشاء مشروع تنفيذ';
+  })();
   document.getElementById('tmSaveBtn').addEventListener('click', async () => {
     const errBox = document.getElementById('taskModalError');
     try {
@@ -4089,7 +4094,7 @@ window.openTaskProject = async function(taskId, task) {
           <div class="panel-header"><h3>فتح مشروع للمهمة: ${esc(task.title)}</h3><button class="modal-close-x" onclick="document.getElementById('projOverlay').remove()"><span data-lucide="x" style="width:14px;height:14px;"></span></button></div>
           <div class="panel-body">
             <div class="error-msg" id="newProjError"></div>
-            <div class="field"><label>اسم المشروع</label><input type="text" id="npName" required></div>
+            <div class="field"><label>اسم المشروع</label><input type="text" id="npName" required value="${esc('مشروع تنفيذ: ' + task.title)}"></div>
             <div class="field"><label>أعضاء المشروع</label>
               <select id="npMembers" multiple size="6" style="width:100%; padding:8px;">
                 ${(allUsers||[]).filter(u => u.id !== CURRENT_USER.id).map(u => `<option value="${u.id}">${esc(u.full_name)}</option>`).join('')}
@@ -4243,6 +4248,13 @@ window.openTaskProject = async function(taskId, task) {
         });
         if (error) throw error;
         if (projConv) await sb.from('conversation_members').insert({ conversation_id: projConv.id, user_id: uid });
+        const subtaskTitle = document.getElementById('amTitle').value || 'مهمة فرعية';
+        await sb.from('notifications').insert({
+          user_id: uid,
+          title: 'تم إسناد مهمة فرعية لك',
+          body: `ضمن مشروع تنفيذ المهمة: "${task.title}" — المهمة الفرعية: "${subtaskTitle}"`,
+          link: '#tasks'
+        });
         toast('تمت إضافة العضو والمهمة الفرعية', 'success');
         document.getElementById('projOverlay').remove();
         openTaskProject(taskId, task);
@@ -4299,10 +4311,26 @@ window.openTaskProject = async function(taskId, task) {
           status: isDelayed ? 'delayed' : (progress >= 100 ? 'completed' : 'in_progress')
         }).eq('task_project_id', project.id).eq('user_id', CURRENT_USER.id);
 
-        // تحديث نسبة إنجاز المشروع الكلية = متوسط تقدم الأعضاء
+        // تحديث نسبة إنجاز المشروع الكلية = متوسط تقدم الأعضاء (باستثناء المسؤول الرئيسي لو ماعندوش مهمة فرعية فعلية)
         const { data: allMembers } = await sb.from('task_project_members').select('progress_percent').eq('task_project_id', project.id);
         const avg = allMembers.length ? Math.round(allMembers.reduce((s, x) => s + x.progress_percent, 0) / allMembers.length) : 0;
         await sb.from('task_projects').update({ progress_percent: avg, updated_at: new Date().toISOString() }).eq('id', project.id);
+
+        // تحديث نسبة إنجاز المهمة الرئيسية تلقائيًا لتساوي نسبة إنجاز المشروع
+        await sb.from('action_items').update({
+          progress_percent: avg,
+          status: avg >= 100 ? 'completed' : 'in_progress'
+        }).eq('id', project.task_id);
+
+        // إشعار المسؤول الرئيسي بالتحديث (لو المحدِّث مش هو نفسه)
+        if (project.lead_user_id && project.lead_user_id !== CURRENT_USER.id) {
+          await sb.from('notifications').insert({
+            user_id: project.lead_user_id,
+            title: isDelayed ? '⚠️ تأخر في مشروع التنفيذ' : 'تحديث إنجاز في مشروع التنفيذ',
+            body: `${CURRENT_USER.full_name} حدّث نسبة إنجازه إلى ${progress}% في مشروع "${project.project_name}"${isDelayed ? ' — يوجد تأخير' : ''}`,
+            link: '#tasks'
+          });
+        }
 
         document.getElementById('projOverlay').remove();
         openTaskProject(taskId, task);
