@@ -2014,19 +2014,11 @@ function renderLogin() {
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<span class="login-spinner"></span><span>جارٍ تسجيل الدخول...</span>';
     try {
-      const { data, error } = await sb.from('users')
-        .select('*, departments(name)')
-        .eq('username', username)
-        .eq('is_active', true)
-        .maybeSingle();
-      if (error) throw error;
-      if (!data || data.password_plain !== password) {
-        throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة');
-      }
+      const user = await authLogin(username, password);
       CURRENT_USER = {
-        id: data.id, username: data.username, full_name: data.full_name,
-        role: data.role, department_id: data.department_id,
-        department_name: data.departments ? data.departments.name : null
+        id: user.id, username: user.username, full_name: user.full_name,
+        role: user.role, department_id: user.department_id,
+        department_name: user.departments ? user.departments.name : null
       };
       localStorage.setItem('food_affairs_user', JSON.stringify(CURRENT_USER));
       await loadPermissions();
@@ -2044,7 +2036,55 @@ function renderLogin() {
   });
 }
 
-function logout() {
+// ============ Supabase Auth: تسجيل دخول + ترحيل تلقائي ============
+function deriveAuthEmail(username) {
+  const norm = String(username || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  return (norm || 'user') + '@shouon.internal';
+}
+
+async function authLogin(username, password) {
+  const email = deriveAuthEmail(username);
+
+  // 1) جرب تسجيل الدخول عبر Supabase Auth
+  const { data: signInData } = await sb.auth.signInWithPassword({ email, password }).catch(() => ({ data: null }));
+  if (signInData && signInData.user) {
+    // ابحث عن ملف الموظف المرتبط
+    const { data: byAuth } = await sb.from('users').select('*, departments(name)').eq('auth_id', signInData.user.id).eq('is_active', true).maybeSingle();
+    if (byAuth) return byAuth;
+    // لو مفيش رابط: ابحث بالـ email وابنِ الرابط
+    const { data: byEmail } = await sb.from('users').select('*, departments(name)').eq('email', email).eq('is_active', true).maybeSingle();
+    if (byEmail) {
+      await sb.from('users').update({ auth_id: signInData.user.id }).eq('id', byEmail.id);
+      return byEmail;
+    }
+    await sb.auth.signOut();
+    throw new Error('لا يوجد ملف موظف مرتبط بهذا الحساب');
+  }
+
+  // 2) Fallback: طريقة قديمة (password_plain) — تُستخدم مرة واحدة لكل مستخدم للترحيل
+  const { data: legacy } = await sb.from('users').select('*, departments(name)').eq('username', username).eq('is_active', true).maybeSingle();
+  if (!legacy || legacy.password_plain !== password) {
+    throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة');
+  }
+
+  // 3) ترحيل: أنشئ حساب Auth بنفس كلمة المرور
+  const { data: signUpData, error: signUpErr } = await sb.auth.signUp({
+    email, password,
+    options: { data: { app_user_id: legacy.id, username: legacy.username } }
+  });
+  if (signUpErr) {
+    // لو Auth مش مضبوط، لا نكسر الدخول — نكمّل بالطريقة القديمة
+    console.warn('Auth signup failed, continuing with legacy session:', signUpErr.message);
+    return legacy;
+  }
+  if (signUpData && signUpData.user) {
+    await sb.from('users').update({ auth_id: signUpData.user.id, email }).eq('id', legacy.id);
+  }
+  return legacy;
+}
+
+async function logout() {
+  try { await sb.auth.signOut(); } catch (e) {}
   localStorage.removeItem('food_affairs_user');
   CURRENT_USER = null;
   renderLogin();
