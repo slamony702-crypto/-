@@ -249,6 +249,14 @@ tr:hover td { background: var(--primary-light); }
   padding: 10px 16px; font-size: 13.5px; color: #5C6F64;
 }
 .topbar-search input::placeholder { color: #8a9a90; }
+.topbar-voice-btn {
+  order: 1; flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; border: none;
+  background: rgba(214,164,55,0.14); color: #9A6B12; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; margin-left: 6px;
+}
+.topbar-voice-btn:hover { background: rgba(214,164,55,0.24); }
+.topbar-voice-btn.recording { background: #D32F2F; color: #fff; animation: voiceMicPulse 1.1s infinite; }
+:root[data-theme="dark"] .topbar-voice-btn { background: rgba(214,164,55,0.14); color: #E8B85A; }
 .icon-btn { position: relative; width: 38px; height: 38px; border-radius: 50%; background: var(--bg); border: none; display: flex; align-items: center; justify-content: center; font-size: 17px; cursor: pointer; }
 .icon-btn:hover { background: var(--primary-light); }
 .notif-badge { position: absolute; top: -2px; left: -2px; background: var(--danger); color: #fff; font-size: 10px; font-weight: 700; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 3px; }
@@ -2031,6 +2039,78 @@ function attachVoiceButtons(root) {
   });
   if (document.readyState !== 'loading') { observer.observe(document.body, { childList: true, subtree: true }); attachVoiceButtons(document); }
 })();
+
+// ============ فهم أوامر البحث الصوتية (بحث ذكي بسيط) ============
+const VOICE_COMMANDS = [
+  { keys: ['اسناد مهمة','إسناد مهمة','اعطاء مهمة','أعطي مهمة','اعطي مهمة','كلف','حط مهمة','ضيف مهمة','إنشاء مهمة'], action: 'assign' },
+  { keys: ['متابعة مهام','مهامه','مهام'], action: 'tasks' },
+  { keys: ['اجتماعات','اجتماع'], action: 'meetings' },
+  { keys: ['رسالة','تواصل مع','كلم','راسل'], action: 'message' }
+];
+function stripVoiceCommandPreposition(s) {
+  s = (s || '').trim();
+  s = s.replace(/^(الى|إلى|مع|ل)\s+/, '');
+  if (/^ل[؀-ۿ]/.test(s) && s.length > 2) s = s.slice(1);
+  return s.trim();
+}
+async function tryVoiceCommand(rawText) {
+  const text = (rawText || '').trim();
+  if (!text) return false;
+  let matched = null, rest = text;
+  for (const cmd of VOICE_COMMANDS) {
+    for (const k of cmd.keys) {
+      const idx = text.indexOf(k);
+      if (idx !== -1) {
+        matched = cmd.action;
+        rest = (text.slice(0, idx) + ' ' + text.slice(idx + k.length)).trim();
+        break;
+      }
+    }
+    if (matched) break;
+  }
+  if (!matched) return false;
+  const name = stripVoiceCommandPreposition(rest);
+  if (name.length < 2) return false;
+
+  let { data: users } = await sb.from('users').select('id, full_name').eq('is_active', true).ilike('full_name', `%${name}%`).limit(5);
+  if (!users || !users.length) {
+    const firstWord = name.split(/\s+/)[0];
+    const res2 = await sb.from('users').select('id, full_name').eq('is_active', true).ilike('full_name', `%${firstWord}%`).limit(5);
+    users = res2.data;
+  }
+  const target = users && users[0];
+  if (!target) { toast(`لم يتم العثور على موظف باسم "${name}"`, 'warning'); return true; }
+
+  if (matched === 'assign') { openQuickAddTaskModal(target.id, target.full_name); }
+  else if (matched === 'tasks') { location.hash = '#tasks?search=' + encodeURIComponent(target.full_name); }
+  else if (matched === 'meetings') { location.hash = '#meetings?search=' + encodeURIComponent(target.full_name); }
+  else if (matched === 'message') { openDirectChatFromDirectory(target.id, target.full_name); }
+  return true;
+}
+function wireGlobalVoiceButton(onTranscribed) {
+  const btn = document.getElementById('globalVoiceBtn');
+  const input = document.getElementById('globalSearchInput');
+  if (!btn || !input || btn.dataset.wired) return;
+  btn.dataset.wired = '1';
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { btn.addEventListener('click', () => toast('البحث الصوتي يعمل على متصفح Chrome فقط حاليًا', 'warning')); return; }
+  let recognizing = false, recognition = null;
+  btn.addEventListener('click', () => {
+    if (recognizing) { recognition && recognition.stop(); return; }
+    recognition = new SR();
+    recognition.lang = 'ar-SA';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (e) => {
+      input.value = e.results[0][0].transcript;
+      if (onTranscribed) onTranscribed();
+    };
+    recognition.onerror = () => toast('تعذّر التعرف على الصوت، حاول مرة أخرى', 'error');
+    recognition.onend = () => { recognizing = false; btn.classList.remove('recording'); };
+    try { recognition.start(); recognizing = true; btn.classList.add('recording'); }
+    catch (e) { recognizing = false; }
+  });
+}
 
 function wireSearchIcons() {
   document.querySelectorAll('.search-wrap .search-icon').forEach(icon => {
@@ -6077,7 +6157,8 @@ async function renderApp() {
           <div class="topbar-search">
             <span class="search-icon"></span>
             <span class="search-divider"></span>
-            <input type="text" id="globalSearchInput" placeholder="ابحث بالاسم أو أول حرف...">
+            <input type="text" id="globalSearchInput" placeholder="ابحث، أو 🎤 قل: إسناد مهمة لعمر صبري...">
+            <button type="button" id="globalVoiceBtn" class="topbar-voice-btn" title="بحث أو أمر بالصوت"><span data-lucide="mic" style="width:15px;height:15px;"></span></button>
           </div>
           <div class="user-info user-topbar-card" style="gap:0;">
             <div class="user-menu">
@@ -6264,6 +6345,8 @@ async function renderApp() {
     const input = document.getElementById('globalSearchInput');
     const q = input.value.trim();
     if (!q) { input.focus(); return; }
+    const handled = await tryVoiceCommand(q);
+    if (handled) { input.value = ''; return; }
     location.hash = '#search?q=' + encodeURIComponent(q);
   }
   document.getElementById('globalSearchInput').addEventListener('keydown', async (e) => {
@@ -6271,6 +6354,7 @@ async function renderApp() {
     runGlobalSearch();
   });
   document.querySelector('.topbar-search .search-icon')?.addEventListener('click', runGlobalSearch);
+  wireGlobalVoiceButton(runGlobalSearch);
 
   await route();
 }
