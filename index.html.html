@@ -1558,6 +1558,9 @@ textarea.form-input { resize: vertical; min-height: 44px; line-height: 1.6; }
 .voice-mic-btn:hover { background: rgba(214,164,55,0.2); color: #0F3D2E; }
 .voice-mic-btn.recording { background: #D32F2F; color: #fff; animation: voiceMicPulse 1.1s infinite; }
 @keyframes voiceMicPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(211,47,47,0.5); } 50% { box-shadow: 0 0 0 7px rgba(211,47,47,0); } }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.chat-ai-btn:hover { filter: brightness(1.1); }
+.chat-ai-btn:disabled { opacity: 0.6; cursor: wait; }
 :root[data-theme="dark"] .voice-mic-btn { background: #232F29; color: var(--text-muted); }
 :root[data-theme="dark"] .voice-mic-btn:hover { background: rgba(214,164,55,0.18); color: #E8ECEA; }
 
@@ -1787,9 +1790,22 @@ function chatInputBarHtml() {
     </div>
     <div class="chat-input-row">
       <textarea id="chatInput" placeholder="اكتب رسالة..." rows="1"></textarea>
+      <button type="button" class="chat-ai-btn" id="chatAiRewriteBtn" title="حسّن الصياغة بالذكاء الاصطناعي" style="background:linear-gradient(135deg,#D6A437,#B8860B);color:#fff;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-left:6px;flex-shrink:0;"><span data-lucide="sparkles" style="width:15px;height:15px;"></span></button>
       <button type="button" class="chat-send-btn" id="sendBtn" title="إرسال"><span data-lucide="send" style="width:15px;height:15px;"></span></button>
     </div>
   `;
+}
+
+// إعادة صياغة الرسالة عبر Gemini (يستدعي Vercel serverless function)
+async function rewriteMessageWithAI(text, mode) {
+  const res = await fetch('/api/rewrite', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, mode: mode || 'default' })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'فشل تحسين الصياغة');
+  return data.text;
 }
 
 function wireChatInputBar(onSend, conversationId) {
@@ -1812,6 +1828,36 @@ function wireChatInputBar(onSend, conversationId) {
   const customColorInput = document.getElementById('customColorInput');
   const alignBtn = document.getElementById('chatAlignBtn');
   const alignPicker = document.getElementById('alignPicker');
+  const aiRewriteBtn = document.getElementById('chatAiRewriteBtn');
+
+  // زر تحسين الصياغة بالذكاء الاصطناعي
+  if (aiRewriteBtn) {
+    aiRewriteBtn.addEventListener('click', async () => {
+      const original = (textarea.value || '').trim();
+      if (!original) { toast('اكتب رسالة أولًا لتحسين صياغتها', 'warning'); return; }
+      if (original.length < 3) { toast('النص قصير جدًا', 'warning'); return; }
+      const originalHtml = aiRewriteBtn.innerHTML;
+      aiRewriteBtn.disabled = true;
+      aiRewriteBtn.innerHTML = '<span data-lucide="loader" style="width:15px;height:15px;animation:spin 1s linear infinite;"></span>';
+      if (window.lucide) lucide.createIcons();
+      try {
+        const improved = await rewriteMessageWithAI(original, 'default');
+        if (improved && improved !== original) {
+          textarea.value = improved;
+          textarea.dispatchEvent(new Event('input', { bubbles: true }));
+          toast('تم تحسين الصياغة ✨', 'success');
+        } else {
+          toast('الصياغة الأصلية جيدة بالفعل', 'success');
+        }
+      } catch (err) {
+        toast(err.message || 'فشل تحسين الصياغة', 'error');
+      } finally {
+        aiRewriteBtn.disabled = false;
+        aiRewriteBtn.innerHTML = originalHtml;
+        if (window.lucide) lucide.createIcons();
+      }
+    });
+  }
 
   textarea.addEventListener('input', () => {
     textarea.style.height = 'auto';
@@ -2472,7 +2518,19 @@ async function voiceOpenChatAndPrefill(userId, userName, prefillMessage) {
   try { chatInput.setSelectionRange(prefillMessage.length, prefillMessage.length); } catch (e) {}
   chatInput.dispatchEvent(new Event('input', { bubbles: true }));
   chatInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  toast('كلامك جاهز في مربع الرسالة — راجعه واضغط إرسال', 'success');
+  toast('كلامك جاهز — جاري تحسين الصياغة تلقائيًا ✨', 'success');
+  // تحسين الصياغة تلقائيًا بالذكاء الاصطناعي
+  try {
+    const improved = await rewriteMessageWithAI(prefillMessage, 'default');
+    if (improved && improved !== prefillMessage) {
+      chatInput.value = improved;
+      chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+      toast('تم تحسين الصياغة — راجعها واضغط إرسال', 'success');
+    }
+  } catch (err) {
+    // فشل الـ AI — النص الأصلي جاهز، مش لازم نزعج المستخدم برسالة خطأ
+    console.warn('AI rewrite skipped:', err.message);
+  }
 }
 // ============ لوحة أمثلة الأوامر الصوتية ============
 function openVoiceHelpModal() {
