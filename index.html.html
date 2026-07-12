@@ -2817,7 +2817,7 @@ function openVoiceHelpModal() {
         <button class="modal-close-x" id="vhClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
       </div>
       <div class="panel-body">
-        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px;line-height:1.7;">اضغط أيقونة 🎤 في شريط البحث فوق، ثم قل أي جملة من الأمثلة دي أو أي صيغة قريبة منها. النظام بيفهم لهجات مصرية، سعودية، ويمنية.</p>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px;line-height:1.7;">اضغط على أيقونة المايكروفون 🎤 في شريط البحث أعلاه، ثم انطق أي جملة من الأمثلة التالية أو ما يقاربها. يفهم النظام اللهجات المصرية والسعودية واليمنية.</p>
         ${sections.map(s => `
           <div style="margin-bottom:18px;">
             <h4 style="font-size:13.5px;font-weight:800;color:${s.color};margin-bottom:8px;display:flex;align-items:center;gap:6px;">${esc(s.title)}</h4>
@@ -2831,7 +2831,7 @@ function openVoiceHelpModal() {
           </div>
         `).join('')}
         <div style="background:rgba(47,128,201,0.08);border:1px solid rgba(47,128,201,0.25);border-radius:10px;padding:10px 14px;margin-top:8px;font-size:12px;color:var(--text-muted);line-height:1.7;">
-          <b style="color:#2F80C9;">💡 نصيحة:</b> اضغط على أي مثال فوق عشان يتنسخ في شريط البحث ويُنفَّذ فورًا. تقدر تعدّل الاسم أو الكلام قبل ما تشغّله.
+          <b style="color:#2F80C9;">💡 نصيحة:</b> اضغط على أي مثال أعلاه ليُنسخ إلى شريط البحث ويُنفَّذ فورًا. يمكنك تعديل الاسم أو النص قبل تشغيله.
         </div>
       </div>
     </div>
@@ -2897,7 +2897,7 @@ window.openMeetingRequestModal = function(inviteeId, inviteeName) {
       <div class="panel modal-box">
         <div class="panel-header"><h3><span data-lucide="calendar-plus" style="width:15px;height:15px;vertical-align:-2px;"></span> طلب اجتماع مع ${esc(inviteeName)}</h3><button class="modal-close-x" onclick="document.getElementById('meetingReqOverlay').remove()"><span data-lucide="x" style="width:14px;height:14px;"></span></button></div>
         <div class="panel-body">
-          <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">اقترح موعدًا، وهيوصل لـ${esc(inviteeName)} إشعار يقدر يقبله أو يرفضه. لو حابين تتفقوا على موعد تاني، ابعتوا رسائل عادية في الشات بينكم.</p>
+          <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">اقترح موعدًا، وسيصل إلى ${esc(inviteeName)} إشعار يمكنه من خلاله القبول أو الرفض. وفي حال الرغبة في الاتفاق على موعد آخر، يمكن تبادل الرسائل عبر المحادثة بينكما.</p>
           <div class="error-msg" id="mrError"></div>
           <div class="field"><label>سبب الاجتماع (اختياري)</label><textarea id="mrReason" rows="2"></textarea></div>
           <div class="field"><label>الموعد المقترح</label><input type="datetime-local" id="mrDatetime" required></div>
@@ -4503,7 +4503,7 @@ async function pageMeetingDetail(body, meetingId) {
     <div class="panel">
       <div class="panel-header"><h3><span data-lucide="clipboard-check" style="width:15px;height:15px;vertical-align:-2px;margin-left:4px;"></span>تقارير التحضير قبل الاجتماع</h3></div>
       <div class="panel-body">
-        <p style="font-size:12px; color:var(--text-muted); margin-bottom:14px;">كل حاضر مطلوب منه يرفع تقرير أو ملف تحضيري عن موضوع الاجتماع قبل الموعد، عشان النقاش وقت الاجتماع يبقى مثمر أكتر.</p>
+        <p style="font-size:12px; color:var(--text-muted); margin-bottom:14px;">يُطلب من كل حاضر رفع تقرير أو ملف تحضيري عن موضوع الاجتماع قبل الموعد، ليكون النقاش أثناء الاجتماع أكثر إنتاجية.</p>
         <div class="error-msg" id="prepReportError"></div>
         <div class="field"><label>ملاحظات / وصف مختصر</label><textarea id="prepReportNotes" rows="2" placeholder="مثال: تحليل أرقام المبيعات لشهر يونيو..."></textarea></div>
         <div class="field"><label>إرفاق ملف (اختياري)</label><input type="file" id="prepReportFile"></div>
