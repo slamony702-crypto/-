@@ -102,10 +102,12 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 }
 .login-input-wrap .login-eye-toggle:hover { color: #14431a; }
 .login-input-wrap input {
-  width: 100%; box-sizing: border-box; height: 56px; padding: 0 46px; border: 1.5px solid #E3E7E2;
+  width: 100%; box-sizing: border-box; height: 56px; padding: 0 52px; border: 1.5px solid #E3E7E2;
   border-radius: 14px; outline: none; font-size: 14px; background: #F9FAF8; color: var(--text);
   transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+  text-align: right;
 }
+.login-input-wrap input::placeholder { text-align: right; }
 .login-input-wrap input:focus { border-color: #2E7D32; background: #fff; box-shadow: 0 0 0 4px rgba(46,125,50,0.1); }
 .login-input-wrap input:focus ~ .login-input-icon { color: #2E7D32; }
 .login-options-row { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 22px; font-size: 12.5px; }
@@ -663,7 +665,9 @@ tr:hover td { background: var(--primary-light); }
   .login-box { padding: 28px 18px 22px; border-radius: 22px; }
   .login-logo-wrap img { max-width: 160px; }
   .login-box h1 { font-size: 19px; }
-  .login-input-wrap input { height: 52px; }
+  .login-input-wrap input { height: 52px; padding: 0 48px; font-size: 13.5px; }
+  .login-input-wrap .login-input-icon { right: 14px; width: 16px; height: 16px; }
+  .login-input-wrap .login-eye-toggle { left: 12px; width: 20px; height: 20px; }
   .login-submit-btn { height: 54px; }
   .row-actions { opacity: 1; }
   .premium-date-wrapper { width: 100%; }
@@ -2368,7 +2372,7 @@ function initPremiumDateFields() {
 }
 
 // ============ الكتابة الصوتية العامة (Voice-to-text) ============
-const VOICE_EXCLUDE_SELECTOR = 'table, .qtbl-scroll, .search-wrap, .topbar-search, .filter-select-wrap, #loginForm, .mt-upload, .premium-date-wrapper';
+const VOICE_EXCLUDE_SELECTOR = 'table, .qtbl-scroll, .search-wrap, .topbar-search, .filter-select-wrap, #loginForm, #signupRequestForm, .login-input-wrap, .mt-upload, .premium-date-wrapper';
 function shouldSkipVoiceInput(el) {
   if (el.dataset.voiceSkip) return true;
   if (el.closest(VOICE_EXCLUDE_SELECTOR)) return true;
