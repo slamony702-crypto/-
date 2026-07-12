@@ -155,9 +155,28 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 .app-layout { display: flex; min-height: 100vh; }
 .sidebar { width: 230px; background: var(--primary-dark); color: #fff; padding: 20px 0; flex-shrink: 0; }
 .sidebar .brand { padding: 0 20px 20px; font-size: 16px; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,0.12); margin-bottom: 14px; }
-.sidebar nav a { display: flex; align-items: center; gap: 10px; padding: 11px 20px; color: rgba(255,255,255,0.85); font-size: 14px; border-right: 3px solid transparent; cursor: pointer; }
+.sidebar nav a { display: flex; align-items: center; gap: 10px; padding: 10px 20px 10px 34px; color: rgba(255,255,255,0.85); font-size: 13.5px; border-right: 3px solid transparent; cursor: pointer; }
 .sidebar nav a:hover { background: rgba(255,255,255,0.06); }
 .sidebar nav a.active { background: rgba(255,255,255,0.1); border-right-color: var(--accent); color: #fff; font-weight: 600; }
+/* ============ مجموعات القائمة الجانبية القابلة للطي ============ */
+.nav-group { display: flex; flex-direction: column; }
+.nav-group-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 20px; margin: 4px 8px 2px;
+  background: transparent; border: none; cursor: pointer;
+  color: rgba(255,255,255,0.55); font-size: 11.5px; font-weight: 700;
+  letter-spacing: .3px; text-transform: none;
+  border-radius: 8px; font-family: inherit; text-align: right;
+}
+.nav-group-header:hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.85); }
+.nav-group-header .label { flex: 1; text-align: right; }
+.nav-group-header .nav-group-chev { transition: transform .2s ease; opacity: .5; }
+.nav-group.open .nav-group-header .nav-group-chev { transform: rotate(180deg); opacity: .8; }
+.nav-group-items { display: none; }
+.nav-group.open .nav-group-items { display: flex; flex-direction: column; }
+.sidebar.collapsed .nav-group-header .label,
+.sidebar.collapsed .nav-group-header .nav-group-chev { display: none; }
+.sidebar.collapsed .nav-group-items { display: flex; flex-direction: column; }
 .main-content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
 .topbar h2 { font-size: 18px; color: var(--primary-dark); }
@@ -2971,22 +2990,34 @@ async function logout() {
 }
 
 // ============ هيكل التطبيق (Sidebar + Router) ============
-const MENU_ITEMS = [
-  { key: 'vision', label: 'رؤية الشركة', icon: 'compass' },
-  { key: 'dashboard', label: 'لوحة التحكم', icon: 'layout-dashboard' },
-  { key: 'meetings', label: 'الاجتماعات', icon: 'calendar' },
-  { key: 'tasks', label: 'مخرجات الاجتماعات', icon: 'check-square' },
-  { key: 'department_tasks', label: 'مهام وتكليفات', icon: 'clipboard-list' },
-  { key: 'decisions', label: 'القرارات', icon: 'pin' },
-  { key: 'conversations', label: 'تواصل داخلي', icon: 'message-circle' },
-  { key: 'emergency', label: 'تواصل طارئ', icon: 'siren' },
-  { key: 'maintenance', label: 'الصيانة', icon: 'wrench' },
-  { key: 'quality', label: 'الجودة', icon: 'shield-check' },
-  { key: 'reports', label: 'التقارير', icon: 'bar-chart-3' },
-  { key: 'users', label: 'المستخدمون', icon: 'users', roles: ['admin', 'company_manager', 'department_manager'] },
-  { key: 'install_app', label: 'تحميل التطبيق', icon: 'download' },
-  { key: 'settings', label: 'الإعدادات', icon: 'settings' },
+// عناصر القائمة الجانبية — منظمة في مجموعات قابلة للطي
+const MENU_GROUPS = [
+  { key: '__main', label: 'الأساسيات', icon: 'home', defaultOpen: true, items: [
+    { key: 'dashboard', label: 'لوحة التحكم', icon: 'layout-dashboard' },
+    { key: 'vision', label: 'رؤية الشركة', icon: 'compass' },
+  ]},
+  { key: '__exec', label: 'التنفيذ والمتابعة', icon: 'clipboard-check', defaultOpen: true, items: [
+    { key: 'meetings', label: 'الاجتماعات', icon: 'calendar' },
+    { key: 'tasks', label: 'مخرجات الاجتماعات', icon: 'check-square' },
+    { key: 'department_tasks', label: 'مهام وتكليفات', icon: 'clipboard-list' },
+    { key: 'decisions', label: 'القرارات', icon: 'pin' },
+  ]},
+  { key: '__ops', label: 'العمليات والجودة', icon: 'wrench', defaultOpen: false, items: [
+    { key: 'maintenance', label: 'الصيانة', icon: 'wrench' },
+    { key: 'quality', label: 'الجودة', icon: 'shield-check' },
+  ]},
+  { key: '__comm', label: 'التواصل', icon: 'message-circle', defaultOpen: false, items: [
+    { key: 'conversations', label: 'تواصل داخلي', icon: 'message-circle' },
+    { key: 'emergency', label: 'تواصل طارئ', icon: 'siren' },
+  ]},
+  { key: '__admin', label: 'التقارير والإدارة', icon: 'bar-chart-3', defaultOpen: false, items: [
+    { key: 'reports', label: 'التقارير', icon: 'bar-chart-3' },
+    { key: 'users', label: 'المستخدمون', icon: 'users', roles: ['admin', 'company_manager', 'department_manager'] },
+    { key: 'settings', label: 'الإعدادات', icon: 'settings' },
+  ]},
 ];
+// للتوافق مع الكود القديم اللي بيستخدم MENU_ITEMS
+const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
 const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات' };
 
 // ============ الاجتماعات ============
@@ -6657,14 +6688,31 @@ async function renderApp() {
     }
   } catch (e) { /* تجاهل بصمت لو فشل الحساب */ }
 
-  const ALWAYS_VISIBLE = ['install_app'];
-  const menuHtml = MENU_ITEMS
-    .filter(item => ALWAYS_VISIBLE.includes(item.key) || can(item.key, 'view'))
-    .map(item => {
+  const ALWAYS_VISIBLE = []; // install_app انتقلت لقائمة ⋯ في التوب بار
+  const openGroupsRaw = localStorage.getItem('sidebar_open_groups');
+  const openGroups = openGroupsRaw ? JSON.parse(openGroupsRaw) : null;
+  function isGroupOpen(g) { return openGroups ? openGroups.includes(g.key) : g.defaultOpen; }
+  // اجعل المجموعة اللي فيها الصفحة الحالية مفتوحة تلقائيًا
+  const groupContainingCurrent = MENU_GROUPS.find(g => g.items.some(it => it.key === page));
+  const menuHtml = MENU_GROUPS.map(group => {
+    const visibleItems = group.items.filter(item => ALWAYS_VISIBLE.includes(item.key) || can(item.key, 'view'));
+    if (!visibleItems.length) return '';
+    const isOpen = isGroupOpen(group) || (groupContainingCurrent && groupContainingCurrent.key === group.key);
+    const itemsHtml = visibleItems.map(item => {
       const badge = (item.key === 'conversations' && unreadMsgCount > 0) ? `<span class="nav-badge">${unreadMsgCount > 9 ? '9+' : unreadMsgCount}</span>` : '';
       return `<a href="#${item.key}" class="${item.key === page ? 'active' : ''}" data-tooltip="${item.label}"><span data-lucide="${item.icon}" style="width:18px;height:18px;flex-shrink:0;"></span><span class="label">${item.label}</span>${badge}</a>`;
-    })
-    .join('');
+    }).join('');
+    return `
+      <div class="nav-group ${isOpen ? 'open' : ''}" data-group="${group.key}">
+        <button type="button" class="nav-group-header" data-group-toggle="${group.key}">
+          <span data-lucide="${group.icon}" style="width:15px;height:15px;flex-shrink:0;opacity:.65;"></span>
+          <span class="label">${group.label}</span>
+          <span class="nav-group-chev" data-lucide="chevron-down" style="width:14px;height:14px;flex-shrink:0;"></span>
+        </button>
+        <div class="nav-group-items">${itemsHtml}</div>
+      </div>
+    `;
+  }).filter(Boolean).join('');
 
   const initials = (CURRENT_USER.full_name || '').trim().split(' ').filter(Boolean).slice(0,2).map(w => w[0]).join('');
 
@@ -6691,7 +6739,6 @@ async function renderApp() {
             <span class="search-icon"></span>
             <span class="search-divider"></span>
             <input type="text" id="globalSearchInput" placeholder="ابحث، أو 🎤 قل: إسناد مهمة لعمر صبري...">
-            <button type="button" id="globalVoiceHelpBtn" class="topbar-voice-btn" title="أمثلة الأوامر الصوتية" style="margin-left:0;background:rgba(47,128,201,0.14);color:#2F80C9;"><span data-lucide="help-circle" style="width:14px;height:14px;"></span></button>
             <button type="button" id="globalVoiceBtn" class="topbar-voice-btn" title="بحث أو أمر بالصوت"><span data-lucide="mic" style="width:15px;height:15px;"></span></button>
           </div>
           <div class="user-info user-topbar-card" style="gap:0;">
@@ -6733,10 +6780,16 @@ async function renderApp() {
                 <span data-lucide="list-plus" style="width:17px;height:17px;"></span>
               </button>
             </div>
-            <div style="position:relative;">
-              <button class="icon-btn utc-icon-btn" id="themeToggleBtn" title="تبديل الوضع الليلي">
-                <span data-lucide="moon" id="themeToggleIcon" style="width:17px;height:17px;"></span>
+            <!-- قائمة الأدوات المضغوطة: الوضع الليلي + المساعدة + التطبيق -->
+            <div style="position:relative;" id="utilsMenuWrap">
+              <button class="icon-btn utc-icon-btn" id="utilsMenuBtn" title="أدوات إضافية">
+                <span data-lucide="more-vertical" style="width:17px;height:17px;"></span>
               </button>
+              <div class="user-menu-dropdown" id="utilsMenuDropdown" style="left:0;top:46px;min-width:220px;">
+                <button id="utilThemeToggle"><span data-lucide="moon" id="utilThemeIcon" style="width:14px;height:14px;"></span> <span id="utilThemeLabel">الوضع الليلي</span></button>
+                <button id="utilVoiceHelp"><span data-lucide="help-circle" style="width:14px;height:14px;"></span> أمثلة الأوامر الصوتية</button>
+                <button onclick="location.hash='#install_app'"><span data-lucide="download" style="width:14px;height:14px;"></span> تحميل التطبيق</button>
+              </div>
             </div>
           </div>
 
@@ -6775,6 +6828,18 @@ async function renderApp() {
       mobileOverlay.classList.remove('show');
     });
   });
+  // طيّ/فتح مجموعات القائمة الجانبية
+  mobileSidebar.querySelectorAll('[data-group-toggle]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const groupEl = btn.closest('.nav-group');
+      if (!groupEl) return;
+      groupEl.classList.toggle('open');
+      // احفظ حالة المجموعات المفتوحة
+      const openKeys = [...mobileSidebar.querySelectorAll('.nav-group.open')].map(g => g.dataset.group);
+      localStorage.setItem('sidebar_open_groups', JSON.stringify(openKeys));
+    });
+  });
 
   document.getElementById('userMenuTrigger').addEventListener('click', (e) => {
     e.stopPropagation();
@@ -6784,14 +6849,23 @@ async function renderApp() {
 
   document.getElementById('quickAddTaskBtn')?.addEventListener('click', () => openQuickAddTaskModal(null, null));
 
-  // زر تبديل الوضع الليلي — تحديث الأيقونة عند تحميل الصفحة
-  const themeBtn = document.getElementById('themeToggleBtn');
-  if (themeBtn) {
-    const curTheme = localStorage.getItem('shouon_theme') || 'light';
-    const icon = document.getElementById('themeToggleIcon');
-    if (icon) { icon.setAttribute('data-lucide', curTheme === 'dark' ? 'sun' : 'moon'); if (window.lucide) lucide.createIcons(); }
-    themeBtn.addEventListener('click', toggleTheme);
+  // قائمة الأدوات المضغوطة (⋯): الوضع الليلي + المساعدة + التطبيق
+  const utilsBtn = document.getElementById('utilsMenuBtn');
+  const utilsMenu = document.getElementById('utilsMenuDropdown');
+  const utilThemeToggle = document.getElementById('utilThemeToggle');
+  const utilThemeIcon = document.getElementById('utilThemeIcon');
+  const utilThemeLabel = document.getElementById('utilThemeLabel');
+  function syncThemeLabel() {
+    const cur = localStorage.getItem('shouon_theme') || 'light';
+    if (utilThemeIcon) utilThemeIcon.setAttribute('data-lucide', cur === 'dark' ? 'sun' : 'moon');
+    if (utilThemeLabel) utilThemeLabel.textContent = cur === 'dark' ? 'الوضع النهاري' : 'الوضع الليلي';
+    if (window.lucide) lucide.createIcons();
   }
+  syncThemeLabel();
+  utilsBtn?.addEventListener('click', (e) => { e.stopPropagation(); utilsMenu?.classList.toggle('show'); });
+  document.addEventListener('click', (e) => { if (!utilsMenu?.contains(e.target)) utilsMenu?.classList.remove('show'); });
+  utilThemeToggle?.addEventListener('click', () => { toggleTheme(); syncThemeLabel(); utilsMenu?.classList.remove('show'); });
+  document.getElementById('utilVoiceHelp')?.addEventListener('click', () => { utilsMenu?.classList.remove('show'); openVoiceHelpModal(); });
 
   // عداد ولائحة الإشعارات (دعوات اجتماعات + رسائل غير مقروءة)
   (async () => {
