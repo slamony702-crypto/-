@@ -2189,6 +2189,45 @@ function fuzzyFindVoiceCommand(normText) {
   }
   return best;
 }
+// كلمات فاصلة بين اسم الشخص ومحتوى المهمة
+const VOICE_CONTENT_SEPARATORS = [
+  'وقوله','قوله','وقول له','قول له','وقول لها','قول لها','وقولها','قولها','وقللها','قللها','وقلها','قلها','وقل له','قل له',
+  'وقوله انه','قوله انه','وقوله ان','قوله ان',
+  'وكلمه','كلمه','وكلمها','كلمها',
+  'واسنده','اسنده','واسنده مهمة',
+  'المهمة هي','المهمه هي','المهمة','المهمه','المطلوب منه','المطلوب منها','المطلوب',
+  'الموضوع هو','الموضوع','بخصوص',
+  'وبحيث','بحيث','وعلشان','علشان','وعشان','عشان',
+  'وحطله','حطله','وحط له','حط له','وضيفله','ضيفله',
+  'ومحتوى المهمة','محتوى المهمة',
+  'وقول','قول'
+];
+function splitNameAndContent(rest) {
+  const normRest = normalizeArabic(rest);
+  const sorted = [...VOICE_CONTENT_SEPARATORS].sort((a, b) => b.length - a.length);
+  let bestIdx = -1, bestSepLen = 0;
+  for (const sep of sorted) {
+    const normSep = normalizeArabic(sep);
+    // بندور على الفاصلة كـ "كلمة كاملة" (مش جزء من كلمة أطول) — بمساحة قبلها
+    const patterns = [' ' + normSep + ' ', ' ' + normSep];
+    for (const pat of patterns) {
+      const i = normRest.indexOf(pat);
+      if (i !== -1) {
+        if (bestIdx === -1 || i < bestIdx) {
+          bestIdx = i + 1; // نتخطى المسافة الأولى
+          bestSepLen = normSep.length;
+          break;
+        }
+      }
+    }
+    if (bestIdx !== -1) break;
+  }
+  if (bestIdx === -1) return { name: rest, content: '' };
+  return {
+    name: rest.substring(0, bestIdx).trim(),
+    content: rest.substring(bestIdx + bestSepLen).trim()
+  };
+}
 async function tryVoiceCommand(rawText) {
   const text = (rawText || '').trim();
   if (!text) return false;
@@ -2199,7 +2238,9 @@ async function tryVoiceCommand(rawText) {
   const matched = best.action;
   const restWords = [...origWords.slice(0, best.start), ...origWords.slice(best.start + best.wc)];
   const rest = restWords.join(' ').trim();
-  const name = stripVoiceCommandPreposition(rest);
+  const split = splitNameAndContent(rest);
+  const name = stripVoiceCommandPreposition(split.name);
+  const content = split.content;
   if (name.length < 2) return false;
 
   async function searchUsersByName(term) {
@@ -2213,7 +2254,7 @@ async function tryVoiceCommand(rawText) {
   const target = users[0];
   if (!target) { toast(`لم يتم العثور على موظف باسم "${name}"`, 'warning'); return true; }
 
-  if (matched === 'assign') { openQuickAddTaskModal(target.id, target.full_name); }
+  if (matched === 'assign') { openQuickAddTaskModal(target.id, target.full_name, content || null); }
   else if (matched === 'tasks') { location.hash = '#tasks?search=' + encodeURIComponent(target.full_name); }
   else if (matched === 'meetings') { location.hash = '#meetings?search=' + encodeURIComponent(target.full_name); }
   else if (matched === 'message') { openDirectChatFromDirectory(target.id, target.full_name); }
@@ -6859,7 +6900,7 @@ let __activeConversationId = null;
 
 let __currentTaskConvId = null;
 // ============ إسناد مهمة سريعة (من أي مكان في المنصة) ============
-window.openQuickAddTaskModal = async function(prefillUserId, prefillUserName) {
+window.openQuickAddTaskModal = async function(prefillUserId, prefillUserName, prefillTitle) {
   const { data: allUsers } = await sb.from('users').select('id, full_name, department_id').eq('is_active', true).order('full_name');
   const host = document.createElement('div');
   host.className = 'modal-overlay';
@@ -6869,7 +6910,7 @@ window.openQuickAddTaskModal = async function(prefillUserId, prefillUserName) {
       <div class="panel-body">
         <div class="error-msg" id="qatError"></div>
         <form id="qatForm" style="display:grid;gap:12px;">
-          <div class="form-field"><label>عنوان المهمة</label><input name="title" class="form-input" placeholder="مثال: إعداد تقرير المبيعات (اختياري)"></div>
+          <div class="form-field"><label>عنوان المهمة${prefillTitle ? ' <span style="font-size:10.5px;color:#1F7A3A;font-weight:600;">(معبّى تلقائيًا من كلامك)</span>' : ''}</label><input name="title" class="form-input" placeholder="مثال: إعداد تقرير المبيعات (اختياري)" value="${esc(prefillTitle || '')}"></div>
           <div class="form-field"><label>الموظف المسؤول</label>
             <select name="assigned_to" class="form-select">
               <option value="">بدون تحديد الآن</option>
