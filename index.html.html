@@ -2061,21 +2061,55 @@ function normalizeArabic(s) {
     .replace(/ة/g, 'ه')
     .replace(/ى/g, 'ي');
 }
+// مسافة ليفنشتاين (لقياس التقارب بين كلمتين حتى لو مش متطابقتين حرفيًا)
+function levenshteinDist(a, b) {
+  a = a || ''; b = b || '';
+  const m = a.length, n = b.length;
+  if (!m) return n; if (!n) return m;
+  const dp = new Array(n + 1);
+  for (let j = 0; j <= n; j++) dp[j] = j;
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0]; dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const tmp = dp[j];
+      dp[j] = a[i-1] === b[j-1] ? prev : 1 + Math.min(prev, dp[j], dp[j-1]);
+      prev = tmp;
+    }
+  }
+  return dp[n];
+}
+// بحث ذكي عن أقرب عبارة أمر داخل النص (يسمح بفروق إملائية/صيغ قريبة، مش تطابق حرفي بس)
+function fuzzyFindVoiceCommand(normText) {
+  const words = normText.split(/\s+/).filter(Boolean);
+  let best = null;
+  for (const cmd of VOICE_COMMANDS) {
+    for (const k of cmd.keys) {
+      const nk = normalizeArabic(k);
+      const keyWords = nk.split(/\s+/).filter(Boolean);
+      const wc = keyWords.length;
+      for (let start = 0; start + wc <= words.length; start++) {
+        const windowStr = words.slice(start, start + wc).join(' ');
+        const dist = levenshteinDist(windowStr, nk);
+        const allowed = Math.max(1, Math.floor(nk.length * 0.35));
+        if (dist > allowed) continue;
+        const similarity = 1 - dist / Math.max(windowStr.length, nk.length);
+        const better = !best || wc > best.wc || (wc === best.wc && similarity > best.similarity);
+        if (better) best = { action: cmd.action, start, wc, similarity };
+      }
+    }
+  }
+  return best;
+}
 async function tryVoiceCommand(rawText) {
   const text = (rawText || '').trim();
   if (!text) return false;
   const normText = normalizeArabic(text);
-  let matched = null, idx = -1, keyLen = 0;
-  for (const cmd of VOICE_COMMANDS) {
-    for (const k of cmd.keys) {
-      const nk = normalizeArabic(k);
-      const i = normText.indexOf(nk);
-      if (i !== -1) { matched = cmd.action; idx = i; keyLen = nk.length; break; }
-    }
-    if (matched) break;
-  }
-  if (!matched) return false;
-  const rest = (text.slice(0, idx) + ' ' + text.slice(idx + keyLen)).trim();
+  const origWords = text.split(/\s+/).filter(Boolean);
+  const best = fuzzyFindVoiceCommand(normText);
+  if (!best) return false;
+  const matched = best.action;
+  const restWords = [...origWords.slice(0, best.start), ...origWords.slice(best.start + best.wc)];
+  const rest = restWords.join(' ').trim();
   const name = stripVoiceCommandPreposition(rest);
   if (name.length < 2) return false;
 
@@ -6746,16 +6780,16 @@ window.openQuickAddTaskModal = async function(prefillUserId, prefillUserName) {
       <div class="panel-body">
         <div class="error-msg" id="qatError"></div>
         <form id="qatForm" style="display:grid;gap:12px;">
-          <div class="form-field"><label>عنوان المهمة *</label><input name="title" class="form-input" required placeholder="مثال: إعداد تقرير المبيعات"></div>
-          <div class="form-field"><label>الموظف المسؤول *</label>
-            <select name="assigned_to" required class="form-select">
-              <option value="">اختر الموظف</option>
+          <div class="form-field"><label>عنوان المهمة</label><input name="title" class="form-input" placeholder="مثال: إعداد تقرير المبيعات (اختياري)"></div>
+          <div class="form-field"><label>الموظف المسؤول</label>
+            <select name="assigned_to" class="form-select">
+              <option value="">بدون تحديد الآن</option>
               ${(allUsers||[]).map(u => `<option value="${u.id}" ${prefillUserId && u.id===prefillUserId?'selected':''}>${esc(u.full_name)}</option>`).join('')}
             </select>
           </div>
           <div class="form-field"><label>وصف (اختياري)</label><textarea name="description" rows="2" class="form-input"></textarea></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-            <div class="form-field"><label>الموعد النهائي *</label><input type="date" name="due_date" required class="form-input" value="${new Date(Date.now()+7*86400000).toISOString().slice(0,10)}"></div>
+            <div class="form-field"><label>الموعد النهائي</label><input type="date" name="due_date" class="form-input" value="${new Date(Date.now()+7*86400000).toISOString().slice(0,10)}"></div>
             <div class="form-field"><label>الأولوية</label><select name="priority" class="form-select"><option value="high">عالية</option><option value="medium" selected>متوسطة</option><option value="low">منخفضة</option></select></div>
           </div>
           <div style="display:flex;gap:8px;justify-content:flex-end;">
@@ -6767,6 +6801,7 @@ window.openQuickAddTaskModal = async function(prefillUserId, prefillUserName) {
     </div>`;
   document.body.appendChild(host);
   if (window.lucide) lucide.createIcons();
+  initPremiumDateFields(); // يحوّل حقل التاريخ لنفس التقويم الفاخر المستخدم في باقي المنصة (يمنع خلل عرض التاريخ الخام)
   const close = () => host.remove();
   host.querySelector('#qatClose').addEventListener('click', close);
   host.querySelector('#qatCancel').addEventListener('click', close);
@@ -6775,13 +6810,21 @@ window.openQuickAddTaskModal = async function(prefillUserId, prefillUserName) {
     const errBox = document.getElementById('qatError');
     errBox.classList.remove('show');
     const fd = new FormData(e.target);
-    const assigneeId = Number(fd.get('assigned_to'));
+    const assigneeRaw = fd.get('assigned_to');
+    if (!assigneeRaw) {
+      errBox.textContent = 'اختر الموظف المسؤول عن المهمة (الحقل الوحيد المطلوب فعليًا لربط المهمة بشخص)';
+      errBox.classList.add('show');
+      return;
+    }
+    const assigneeId = Number(assigneeRaw);
     const assignee = (allUsers||[]).find(u => u.id === assigneeId);
+    const title = (fd.get('title') || '').trim() || 'مهمة بدون عنوان';
+    const dueDate = fd.get('due_date') || new Date(Date.now()+7*86400000).toISOString().slice(0,10);
     try {
       const { data: created, error } = await sb.from('action_items').insert({
-        title: fd.get('title'), description: fd.get('description') || null,
+        title, description: fd.get('description') || null,
         assigned_to: assigneeId, department_id: assignee ? assignee.department_id : CURRENT_USER.department_id,
-        due_date: fd.get('due_date'), priority: fd.get('priority'), status: 'not_started', progress_percent: 0,
+        due_date: dueDate, priority: fd.get('priority') || 'medium', status: 'not_started', progress_percent: 0,
         meeting_id: null
       }).select().single();
       if (error) throw error;
