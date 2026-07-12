@@ -2240,7 +2240,37 @@ const VOICE_COMMANDS = [
     'ابغى تقرير','ابى تقرير','ابي تقرير','بغيت تقرير','ابغى اشوف تقرير','شوف تقرير',
     // يمني
     'ابا تقرير','بغيت اشوف تقرير','ابا اشوف تقرير'
-  ], action: 'reports' }
+  ], action: 'reports' },
+
+  // أوامر تنقل عامة — لا تحتاج اسم موظف
+  { keys: [
+    'افتح الاجتماعات','افتحلي الاجتماعات','عرض الاجتماعات','ورّيني الاجتماعات','وريني الاجتماعات',
+    'الاجتماعات','روح للاجتماعات','اذهب للاجتماعات','خذني للاجتماعات',
+    'ابغى الاجتماعات','ابا الاجتماعات','بغيت الاجتماعات','عايز الاجتماعات','عاوز الاجتماعات'
+  ], action: 'nav_meetings' },
+  { keys: [
+    'افتح الصيانة','افتحلي الصيانة','عرض الصيانة','ورّيني الصيانة',
+    'الصيانة','روح للصيانة','اذهب للصيانة','خذني للصيانة',
+    'ابغى الصيانة','ابا الصيانة','بغيت الصيانة','عايز الصيانة','عاوز الصيانة'
+  ], action: 'nav_maintenance' },
+  { keys: [
+    'افتح الجودة','افتحلي الجودة','عرض الجودة','ورّيني الجودة',
+    'الجودة','روح للجودة','اذهب للجودة','خذني للجودة',
+    'ابغى الجودة','ابا الجودة','بغيت الجودة','عايز الجودة','عاوز الجودة',
+    'زيارة جودة','زيارة جوده'
+  ], action: 'nav_quality' },
+  { keys: [
+    'الداشبورد','لوحة التحكم','الرئيسية','الصفحة الرئيسية','روح للرئيسية','اذهب للرئيسية',
+    'افتح الداشبورد','ورّيني الرئيسية'
+  ], action: 'nav_dashboard' },
+  { keys: [
+    'الإشعارات','افتح الإشعارات','ورّيني الإشعارات','الاشعارات','افتح الاشعارات',
+    'روح للإشعارات','عايز اشوف الإشعارات','ابغى الإشعارات','ابا الاشعارات'
+  ], action: 'nav_notifications' },
+  { keys: [
+    'رفع طلب صيانة','طلب صيانة جديد','بلاغ صيانة','بلاغ عطل','ابغى ارفع طلب صيانة',
+    'عايز ارفع طلب صيانة','عاوز اعمل بلاغ','سوي طلب صيانة'
+  ], action: 'nav_maint_new' }
 ];
 function stripVoiceCommandPreposition(s) {
   s = (s || '').trim();
@@ -2365,8 +2395,15 @@ async function tryVoiceCommand(rawText) {
     if (/صيانه|صيانة/.test(hint)) location.hash = '#maintenance_reports';
     else if (/جوده|جودة/.test(hint)) location.hash = '#quality_reports';
     else location.hash = '#reports';
+    toast('فتح التقارير', 'success');
     return true;
   }
+  if (matched === 'nav_meetings') { location.hash = '#meetings'; toast('فتح الاجتماعات', 'success'); return true; }
+  if (matched === 'nav_maintenance') { location.hash = '#maintenance'; toast('فتح الصيانة', 'success'); return true; }
+  if (matched === 'nav_quality') { location.hash = '#quality'; toast('فتح الجودة', 'success'); return true; }
+  if (matched === 'nav_dashboard') { location.hash = '#dashboard'; toast('لوحة التحكم', 'success'); return true; }
+  if (matched === 'nav_notifications') { location.hash = '#notifications'; toast('فتح الإشعارات', 'success'); return true; }
+  if (matched === 'nav_maint_new') { location.hash = '#maintenance_new'; toast('نموذج طلب صيانة جديد', 'success'); return true; }
 
   const split = splitNameAndContent(rest);
   const name = stripVoiceCommandPreposition(split.name);
@@ -2384,10 +2421,22 @@ async function tryVoiceCommand(rawText) {
   const target = users[0];
   if (!target) { toast(`لم يتم العثور على موظف باسم "${name}"`, 'warning'); return true; }
 
-  if (matched === 'assign') { openQuickAddTaskModal(target.id, target.full_name, content || null); }
-  else if (matched === 'tasks') { location.hash = '#tasks?search=' + encodeURIComponent(target.full_name); }
-  else if (matched === 'meetings') { location.hash = '#meetings?search=' + encodeURIComponent(target.full_name); }
-  else if (matched === 'message') { voiceOpenChatAndPrefill(target.id, target.full_name, content || null); }
+  if (matched === 'assign') {
+    openQuickAddTaskModal(target.id, target.full_name, content || null);
+    toast(`فتح إسناد مهمة لـ ${target.full_name}`, 'success');
+  }
+  else if (matched === 'tasks') {
+    location.hash = '#tasks?search=' + encodeURIComponent(target.full_name);
+    toast(`عرض مهام ${target.full_name}`, 'success');
+  }
+  else if (matched === 'meetings') {
+    location.hash = '#meetings?search=' + encodeURIComponent(target.full_name);
+    toast(`عرض اجتماعات ${target.full_name}`, 'success');
+  }
+  else if (matched === 'message') {
+    voiceOpenChatAndPrefill(target.id, target.full_name, content || null);
+    if (!content) toast(`فتح محادثة مع ${target.full_name}`, 'success');
+  }
   return true;
 }
 
