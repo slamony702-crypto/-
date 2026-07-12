@@ -7085,7 +7085,28 @@ async function renderPermissionsSection() {
 }
 
 // ============ نقطة البداية ============
-if (CURRENT_USER) { loadPermissions().then(() => { renderApp(); checkTaskReminders(); startHeartbeat(); }); } else { renderLogin(); }
+async function bootApp() {
+  if (CURRENT_USER) {
+    // تحقق من جلسة Supabase Auth؛ لو غير موجودة، أعد إلى تسجيل الدخول
+    try {
+      const { data } = await sb.auth.getSession();
+      if (!data || !data.session) {
+        // لا توجد جلسة Auth — امسح CURRENT_USER القديم وأعد التسجيل
+        localStorage.removeItem('food_affairs_user');
+        CURRENT_USER = null;
+        renderLogin();
+        return;
+      }
+    } catch (e) { /* لو Auth غير متاح، استمر بالنمط القديم */ }
+    await loadPermissions();
+    renderApp();
+    checkTaskReminders();
+    startHeartbeat();
+  } else {
+    renderLogin();
+  }
+}
+bootApp();
 
 // ============ رؤية الشركة وخطط الأقسام ============
 function getPeriodBounds(periodType, refDate) {
