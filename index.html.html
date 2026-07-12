@@ -1261,6 +1261,19 @@ textarea.form-input { resize: vertical; min-height: 44px; line-height: 1.6; }
 .qtbl select.qt-status[data-v="fixed_on_site"] { color: #2F80C9; border-color: #2F80C9; }
 .qtbl tr.qt-sec-row td { background: #F1EEE2; font-weight: 800; color: #24352E; position: sticky; right: 0; }
 .q-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 10px; font-size: 10.5px; font-weight: 700; }
+
+/* ============ العرض الموسّع (compact) ============ */
+.qtbl.compact { font-size: 11px; }
+.qtbl.compact th, .qtbl.compact td { padding: 5px 6px; }
+.qtbl.compact .col-num { min-width: 32px; }
+.qtbl.compact .col-item { right: 32px; min-width: 116px; max-width: 140px; font-size: 11px; line-height: 1.4; }
+.qtbl.compact select, .qtbl.compact input, .qtbl.compact textarea { padding: 4px 6px; font-size: 10.5px; }
+.qtbl.compact select.qt-status { min-width: 96px; }
+.qtbl.compact select.qt-corr { min-width: 112px; }
+.qtbl.compact input.qt-notes, .qtbl.compact input.qt-custom { min-width: 120px; }
+.qtbl.compact input.qt-resp, .qtbl.compact select.qt-resp { min-width: 100px; }
+.qtbl.compact .qt-prev { min-width: 110px; font-size: 10.5px; }
+.qt-expand-btn.active { background: #0F3D2E !important; color: #fff !important; border-color: #0F3D2E !important; }
 </style>
 </head>
 <body>
@@ -8006,6 +8019,7 @@ async function pageQualityVisitNew(body, param) {
       <select id="qtSecFilter" class="form-select"><option value="">كل الأقسام</option>${secs.map(s => `<option value="${s.id}">${esc(s.title)}</option>`).join('')}</select>
       <select id="qtStatusFilter" class="form-select"><option value="">كل الحالات</option>${statusOpts.map(s => `<option value="${s}">${label('quality_status', s)}</option>`).join('')}</select>
       <button type="button" class="btn btn-outline" id="qtAllConform" style="font-size:12px;"><span data-lucide="check-check" style="width:14px;height:14px;"></span> تعليم الكل «مطابق»</button>
+      <button type="button" class="btn btn-outline qt-expand-btn" id="qtExpand" style="font-size:12px;"><span data-lucide="minimize-2" style="width:14px;height:14px;"></span> <span id="qtExpandLbl">العرض الموسّع</span></button>
     </div>
 
     <div class="qtbl-hint"><span data-lucide="move-horizontal" style="width:15px;height:15px;"></span> اسحب الجدول يمينًا ويسارًا لعرض الإجراء التصحيحي والملاحظات وملخص الزيارة السابقة.</div>
@@ -8102,6 +8116,17 @@ async function pageQualityVisitNew(body, param) {
     body.querySelectorAll('.qt-status').forEach(sel => { sel.value = 'conform'; sel.dataset.v = 'conform'; });
     refreshProgress();
   });
+
+  // العرض الموسّع (تصغير الخط والأعمدة المثبّتة)
+  const qtbl = body.querySelector('.qtbl'), expBtn = document.getElementById('qtExpand'), expLbl = document.getElementById('qtExpandLbl');
+  function applyExpand(on) {
+    qtbl.classList.toggle('compact', on);
+    expBtn.classList.toggle('active', on);
+    expLbl.textContent = on ? 'العرض العادي' : 'العرض الموسّع';
+    localStorage.setItem('q_expand', on ? '1' : '0');
+  }
+  expBtn.addEventListener('click', () => applyExpand(!qtbl.classList.contains('compact')));
+  if (localStorage.getItem('q_expand') === '1') applyExpand(true);
 
   // filters
   const fSearch = document.getElementById('qtSearch'), fSec = document.getElementById('qtSecFilter'), fStatus = document.getElementById('qtStatusFilter');
