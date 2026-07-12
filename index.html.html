@@ -526,6 +526,11 @@ tr:hover td { background: var(--primary-light); }
   .panel.collapsed > .panel-header { background: rgba(214,164,55,0.04) !important; }
   .meeting-form-card.collapsed { background: rgba(214,164,55,0.03) !important; }
 
+  /* الأقسام الملفوفة تلقائيًا (KPIs، إجراءات سريعة، الفروع...): تنسيق موحّد */
+  .foldable-summary { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
+  .foldable-summary > .panel-header { border-bottom: 1px solid var(--border); }
+  .foldable-summary > .panel-body { padding: 10px !important; }
+
   .dash-two-col { grid-template-columns: 1fr !important; }
   .quick-actions-bar { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
   .app-layout { flex-direction: column; }
@@ -2291,12 +2296,55 @@ function attachVoiceButtons(root) {
   if (document.readyState !== 'loading') { observer.observe(document.body, { childList: true, subtree: true }); attachVoiceButtons(document); makeMobilePanelsCollapsible(document); }
 })();
 
-// ============ Accordion: طيّ الأقسام على الموبايل (يشمل .panel و .meeting-form-card) ============
-function makeMobilePanelsCollapsible(root) {
-  if (window.innerWidth > 768) return; // موبايل فقط
-  const scope = root && root.nodeType === 1 ? root : document;
+// ============================================================
+// ============  «طيّ الأقسام» — Section Folding (Mobile) =======
+// ============================================================
+// نظام موحّد: أي قسم/كارت/شبكة إحصائيات على الموبايل يبقى قابل للطي
+// بعنوان واضح ودائرة ذهبية. يعمل تلقائيًا لأي محتوى جديد يظهر بعد
+// التنقل بين الصفحات.
 
-  // اجمع كل الأقسام القابلة للطي
+// شبكات وقوائم بدون هيدر — بيتلفوا تلقائيًا في كارت قابل للطي
+const AUTO_WRAP_TARGETS = [
+  { selector: '.kpi-grid', title: 'المؤشرات الرئيسية', icon: 'gauge' },
+  { selector: '.stats-grid', title: 'الإحصائيات السريعة', icon: 'bar-chart-3' },
+  { selector: '.quick-actions-bar', title: 'إجراءات سريعة', icon: 'zap' },
+  { selector: '.rep-mini-grid', title: 'ملخّص التقرير', icon: 'pie-chart' },
+  { selector: '.rep-tabs', title: 'تصفية التقرير', icon: 'filter' },
+  { selector: '#deptGrid', title: 'الأقسام والفروع', icon: 'building-2' },
+  { selector: '.dept-vision-grid', title: 'الأقسام والفروع', icon: 'building-2' }
+];
+
+function autoWrapAsFoldable(root) {
+  if (window.innerWidth > 768) return;
+  const scope = root && root.nodeType === 1 ? root : document;
+  AUTO_WRAP_TARGETS.forEach(({ selector, title, icon }) => {
+    const list = [];
+    if (scope.matches && scope.matches(selector)) list.push(scope);
+    if (scope.querySelectorAll) scope.querySelectorAll(selector).forEach(el => list.push(el));
+    list.forEach(el => {
+      if (el.dataset.foldWrapped) return;
+      // ماتلفش لو داخل مودال أو كارت مطويّ بالفعل
+      if (el.closest('.modal-overlay, .modal-box, .drawer, .drawer-overlay, .panel-body, .meeting-form-card, .foldable-summary')) {
+        el.dataset.foldWrapped = '1'; return;
+      }
+      el.dataset.foldWrapped = '1';
+      const wrapper = document.createElement('div');
+      wrapper.className = 'panel foldable-summary';
+      wrapper.innerHTML = `<div class="panel-header"><h3 class="panel-title"><span data-lucide="${icon}" style="width:15px;height:15px;"></span> ${title}</h3></div><div class="panel-body"></div>`;
+      el.parentNode.insertBefore(wrapper, el);
+      wrapper.querySelector('.panel-body').appendChild(el);
+      if (window.lucide) lucide.createIcons();
+    });
+  });
+}
+
+function makeMobilePanelsCollapsible(root) {
+  if (window.innerWidth > 768) return;
+  // خطوة 1: لفّ الشبكات كأقسام قابلة للطي
+  autoWrapAsFoldable(root);
+
+  // خطوة 2: فعّل الطي لكل .panel و .meeting-form-card
+  const scope = root && root.nodeType === 1 ? root : document;
   const sections = [];
   const addIfMatches = (el, selector) => { if (el.matches && el.matches(selector)) sections.push(el); };
   addIfMatches(scope, '.panel'); addIfMatches(scope, '.meeting-form-card');
@@ -2304,17 +2352,12 @@ function makeMobilePanelsCollapsible(root) {
     scope.querySelectorAll('.panel, .meeting-form-card').forEach(p => sections.push(p));
   }
 
-  // اطوي الكل ما عدا أول قسم في كل حاوية أب (page-body أو parent مماثل)
   const containerFirstMap = new WeakMap();
   sections.forEach(section => {
     if (section.dataset.collapsibleInit) return;
-
-    // ابحث عن الهيدر: panel-header أو meeting-section-title
     const header = section.querySelector(':scope > .panel-header, :scope > .meeting-section-title');
     if (!header) { section.dataset.collapsibleInit = '1'; return; }
     section.dataset.collapsibleInit = '1';
-
-    // تخطي المودالز والدروارز
     if (section.closest('.modal-overlay, .modal-box, .drawer, .drawer-overlay')) return;
 
     // أول قسم في كل حاوية يبقى مفتوح، الباقي مقفول
@@ -2323,13 +2366,18 @@ function makeMobilePanelsCollapsible(root) {
     else { section.classList.add('collapsed'); }
 
     header.addEventListener('click', (e) => {
-      // ماتقفلش لو ضغط على زر داخل الهيدر (زي "+ إضافة")
       if (e.target.closest('button, a, input, select, textarea')) return;
       section.classList.toggle('collapsed');
     });
   });
 }
-// عند تدوير الشاشة أو تغيير الحجم، أعد الفحص
+
+// أعد تطبيق «طيّ الأقسام» عند تغيير الصفحة (hashchange) — يضمن الوضع للمحتوى الجديد
+window.addEventListener('hashchange', () => {
+  setTimeout(() => {
+    if (window.innerWidth <= 768) makeMobilePanelsCollapsible(document);
+  }, 500); // انتظر renderApp يخلص
+});
 window.addEventListener('resize', () => {
   if (window.innerWidth > 768) {
     document.querySelectorAll('.panel.collapsed, .meeting-form-card.collapsed').forEach(p => p.classList.remove('collapsed'));
