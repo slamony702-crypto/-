@@ -2378,16 +2378,24 @@ function renderMeetingCreatePanel(departments, allUsersForMeeting) {
                   <div class="mst-lead"><span class="mst-accent"></span> <span data-lucide="clipboard-list" style="width:17px;height:17px;color:#0F3D2E;"></span> جدول الأعمال والملاحظات</div>
                   <div class="mst-sub">حدد هدف الاجتماع ونقاط النقاش والملاحظات التي تساعد الحضور على الاستعداد.</div>
                 </div>
-                <select id="mTemplateSelect" class="magenda-template">
-                  <option value="">✨ استخدام قالب جاهز</option>
-                  <option value="sales">اجتماع مبيعات</option>
-                  <option value="operations">اجتماع تشغيل</option>
-                  <option value="quality">اجتماع جودة</option>
-                  <option value="financial">اجتماع مالي</option>
-                  <option value="emergency">اجتماع طارئ</option>
-                  <option value="weekly">اجتماع متابعة أسبوعية</option>
-                  <option value="decision">اجتماع اعتماد قرار</option>
-                </select>
+                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                  <select id="mTemplateSelect" class="magenda-template">
+                    <option value="">✨ استخدام قالب جاهز</option>
+                    <optgroup label="—— القوالب الجاهزة ——">
+                      <option value="builtin:sales">📊 اجتماع مبيعات</option>
+                      <option value="builtin:operations">⚙️ اجتماع تشغيل</option>
+                      <option value="builtin:quality">✅ اجتماع جودة</option>
+                      <option value="builtin:financial">💰 اجتماع مالي</option>
+                      <option value="builtin:emergency">🚨 اجتماع طارئ</option>
+                      <option value="builtin:weekly">📅 اجتماع متابعة أسبوعية</option>
+                      <option value="builtin:decision">📝 اجتماع اعتماد قرار</option>
+                    </optgroup>
+                    <optgroup label="—— قوالبي المخصصة ——" id="mTplCustomGroup"></optgroup>
+                    <optgroup label="—— من اجتماعات سابقة ——" id="mTplPrevGroup"></optgroup>
+                  </select>
+                  <button type="button" id="mTplSaveBtn" class="magenda-template" style="background:rgba(15,61,46,0.06);border-color:#0F3D2E;color:#0F3D2E;" title="حفظ الاجتماع الحالي كقالب مخصص"><span data-lucide="save" style="width:13px;height:13px;"></span> حفظ كقالب</button>
+                  <button type="button" id="mTplManageBtn" class="magenda-template" style="display:none;background:rgba(211,47,47,0.06);border-color:#D32F2F;color:#D32F2F;padding:7px 10px;" title="حذف قالب مخصص"><span data-lucide="trash-2" style="width:13px;height:13px;"></span></button>
+                </div>
               </div>
 
               <!-- 1) هدف الاجتماع -->
@@ -2872,20 +2880,130 @@ function wireMeetingCreateForm(departments, allUsersForMeeting) {
   // Chips جدول الأعمال (يضاف كنقطة)
   document.querySelectorAll('[data-quick-agenda] .agenda-chip').forEach(btn => btn.addEventListener('click', () => addAgendaItem(btn.dataset.text)));
 
-  // القوالب الجاهزة
-  document.getElementById('mTemplateSelect').addEventListener('change', (e) => {
-    const key = e.target.value;
-    if (!key) return;
-    const t = AGENDA_TEMPLATES[key]; if (!t) return;
-    if ((mGoal.value.trim() || agendaItems.length || mNotes.value.trim()) && !confirm('سيتم استبدال الهدف وجدول الأعمال والملاحظات بمحتوى القالب. متابعة؟')) {
+  // ---------- إدارة القوالب المخصصة (localStorage) ----------
+  const TPL_STORE_KEY = 'shouon_meeting_tpls_v1';
+  function loadCustomTpls() {
+    try { return JSON.parse(localStorage.getItem(TPL_STORE_KEY) || '[]') || []; } catch (e) { return []; }
+  }
+  function saveCustomTpls(list) { localStorage.setItem(TPL_STORE_KEY, JSON.stringify(list)); }
+
+  function renderCustomTplGroup() {
+    const g = document.getElementById('mTplCustomGroup');
+    const list = loadCustomTpls();
+    if (!list.length) { g.style.display = 'none'; g.innerHTML = ''; }
+    else { g.style.display = ''; g.label = '—— قوالبي المخصصة ——'; g.innerHTML = list.map((t, i) => `<option value="custom:${i}">⭐ ${esc(t.name)}</option>`).join(''); }
+    const mng = document.getElementById('mTplManageBtn');
+    if (mng) mng.style.display = list.length ? '' : 'none';
+  }
+
+  // ---------- تحميل الاجتماعات السابقة كقوالب ----------
+  async function loadPreviousMeetingsAsTpls() {
+    const g = document.getElementById('mTplPrevGroup');
+    try {
+      let q = sb.from('meetings').select('id, title, meeting_type, summary, meeting_datetime, department_id, departments(name)').order('meeting_datetime', { ascending: false }).limit(15);
+      if (CURRENT_USER.role !== 'admin' && CURRENT_USER.role !== 'company_manager') {
+        q = q.or(`organizer_id.eq.${CURRENT_USER.id},department_id.eq.${CURRENT_USER.department_id}`);
+      }
+      const { data } = await q;
+      if (!data || !data.length) { g.style.display = 'none'; g.innerHTML = ''; return; }
+      g.style.display = '';
+      g.innerHTML = data.map(m => {
+        const date = (m.meeting_datetime || '').slice(0, 10);
+        const dept = m.departments ? m.departments.name : '';
+        return `<option value="prev:${m.id}">🔁 ${esc((m.title||'').slice(0,40))} — ${date}${dept?' · '+esc(dept):''}</option>`;
+      }).join('');
+    } catch (e) { g.style.display = 'none'; }
+  }
+
+  // ---------- مطابقة القالب مع القسم ----------
+  const DEPT_TO_TPL = {
+    'مبيعات': 'builtin:sales', 'التسويق': 'builtin:sales',
+    'التشغيل': 'builtin:operations', 'العمليات': 'builtin:operations',
+    'الجودة': 'builtin:quality',
+    'المالية': 'builtin:financial', 'المشتريات': 'builtin:financial',
+  };
+  function highlightMatchingTpl() {
+    const raw = document.getElementById('mDept').value;
+    const sel = document.getElementById('mTemplateSelect');
+    // امسح أي علامة قديمة
+    sel.querySelectorAll('option[data-suggested="1"]').forEach(o => { o.textContent = o.textContent.replace(/^✨ /,''); o.removeAttribute('data-suggested'); });
+    if (raw === 'heads' || !raw) return;
+    const deptName = (departments || []).find(d => String(d.id) === String(raw))?.name || '';
+    const match = Object.entries(DEPT_TO_TPL).find(([kw]) => deptName.includes(kw));
+    if (!match) return;
+    const opt = sel.querySelector(`option[value="${match[1]}"]`);
+    if (opt) { opt.textContent = '✨ ' + opt.textContent; opt.setAttribute('data-suggested', '1'); }
+  }
+
+  renderCustomTplGroup();
+  loadPreviousMeetingsAsTpls();
+  highlightMatchingTpl();
+  document.getElementById('mDept').addEventListener('change', highlightMatchingTpl);
+
+  // ---------- اختيار قالب (مدمج: built-in / custom / previous) ----------
+  document.getElementById('mTemplateSelect').addEventListener('change', async (e) => {
+    const raw = e.target.value;
+    if (!raw) return;
+    const [kind, key] = raw.split(':');
+    const hasContent = mGoal.value.trim() || agendaItems.length || mNotes.value.trim();
+    if (hasContent && !confirm('سيتم استبدال الهدف وجدول الأعمال والملاحظات بمحتوى القالب. متابعة؟')) {
       e.target.value = ''; return;
     }
-    mGoal.value = t.goal;
-    agendaItems.length = 0; t.items.forEach(x => agendaItems.push(x));
+
+    let t = null;
+    if (kind === 'builtin') {
+      t = AGENDA_TEMPLATES[key];
+    } else if (kind === 'custom') {
+      t = loadCustomTpls()[Number(key)];
+    } else if (kind === 'prev') {
+      const mid = Number(key);
+      const [{ data: m }, { data: ag }] = await Promise.all([
+        sb.from('meetings').select('summary').eq('id', mid).single(),
+        sb.from('meeting_agenda').select('item_text').eq('meeting_id', mid).order('id')
+      ]);
+      const [goalPart, notesPart] = String(m?.summary || '').split(' — ');
+      t = { goal: goalPart || '', items: (ag || []).map(a => a.item_text), notes: notesPart || '' };
+    }
+    if (!t) { e.target.value = ''; return; }
+
+    mGoal.value = t.goal || '';
+    agendaItems.length = 0; (t.items || []).forEach(x => agendaItems.push(x));
     mNotes.value = t.notes || '';
     renderAgendaList(); syncAgendaHidden();
     e.target.value = '';
-    toast('تم تحميل القالب', 'success');
+    toast(kind === 'prev' ? 'تم استيراد بيانات الاجتماع السابق' : 'تم تحميل القالب', 'success');
+  });
+
+  // ---------- زر حفظ الحالي كقالب مخصص ----------
+  document.getElementById('mTplSaveBtn').addEventListener('click', () => {
+    const goal = mGoal.value.trim();
+    const notes = mNotes.value.trim();
+    if (!goal && !agendaItems.length && !notes) { toast('اكتب هدفًا أو أضف نقطة قبل الحفظ كقالب', 'warning'); return; }
+    const name = prompt('اسم القالب:', '');
+    if (!name || !name.trim()) return;
+    const list = loadCustomTpls();
+    // منع التكرار بالاسم
+    const idx = list.findIndex(x => x.name === name.trim());
+    const rec = { name: name.trim(), goal, items: [...agendaItems], notes };
+    if (idx >= 0) list[idx] = rec; else list.push(rec);
+    saveCustomTpls(list);
+    renderCustomTplGroup();
+    toast('تم حفظ القالب المخصص', 'success');
+  });
+
+  // ---------- زر إدارة/حذف قالب مخصص ----------
+  document.getElementById('mTplManageBtn').addEventListener('click', () => {
+    const list = loadCustomTpls();
+    if (!list.length) return;
+    const names = list.map((t, i) => `${i+1}. ${t.name}`).join('\n');
+    const ans = prompt('اكتب رقم القالب لحذفه:\n\n' + names);
+    const n = parseInt(ans, 10);
+    if (!n || n < 1 || n > list.length) return;
+    if (!confirm(`حذف القالب "${list[n-1].name}"؟`)) return;
+    list.splice(n - 1, 1);
+    saveCustomTpls(list);
+    renderCustomTplGroup();
+    toast('تم حذف القالب', 'success');
   });
 
   // تحديث المعاينة عند تغيير الهدف/الملاحظات
