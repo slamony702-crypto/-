@@ -11792,7 +11792,11 @@ async function pageMaintenance(body, urlQuery) {
     sb.from('maintenance_requests').select('*, branches(name), requester:users!maintenance_requests_requester_id_fkey(full_name), owner:users!maintenance_requests_current_owner_id_fkey(full_name)').order('created_at', { ascending: false }),
     sb.from('branches').select('*').eq('is_active', true).order('name')
   ]);
-  const rows = requests || [];
+  let rows = requests || [];
+  // الموظف العادي يشوف طلباته فقط
+  const _role = CURRENT_USER.role;
+  const _canSeeAll = ['admin','company_manager','operations_manager','maintenance_officer','quality_manager','finance','department_manager'].includes(_role);
+  if (!_canSeeAll) rows = rows.filter(r => r.requester_id === CURRENT_USER.id);
 
   // KPIs
   const total = rows.length;
@@ -12416,11 +12420,16 @@ async function pageMaintenanceDetail(body, id) {
 
   const currentStatus = req.status;
   const role = CURRENT_USER.role;
-  const isMgr = ['admin','company_manager','operations_manager','maintenance_officer'].includes(role);
-  const isFinance = ['admin','company_manager','finance'].includes(role);
-  const isBranchMgr = ['admin','company_manager','department_manager'].includes(role);
+  // ═════ صلاحيات دورة الصيانة — قابلة للتعديل ═════
+  const isAdmin = ['admin','company_manager'].includes(role);
+  const isOps = ['operations_manager','maintenance_officer'].includes(role);
+  const isQuality = ['quality_manager'].includes(role);
+  const isFinance = isAdmin || role === 'finance';
+  const isMgr = isAdmin || isOps || isQuality;          // من يقدر يراجع/يعتمد/يبدأ إصلاح
+  const isBranchMgr = isAdmin || role === 'department_manager';
+  const isRequester = req.requester_id === CURRENT_USER.id;
 
-  const actionsHtml = renderMaintActions(currentStatus, req, { isMgr, isFinance, isBranchMgr });
+  const actionsHtml = renderMaintActions(currentStatus, req, { isAdmin, isMgr, isFinance, isBranchMgr, isRequester });
 
   const timelineHtml = (timeline || []).length ? timeline.map(t => {
     const c = MAINT_STATUS_COLOR[t.to_status] || '#666';
@@ -12528,7 +12537,8 @@ async function pageMaintenanceDetail(body, id) {
     ${(quotes||[]).length ? (() => {
       const prices = quotes.filter(q => q.price).map(q => Number(q.price));
       const minPrice = prices.length ? Math.min(...prices) : null;
-      const canSelectQuote = isMgr && (currentStatus === 'awaiting_quotes' || currentStatus === 'awaiting_finance');
+      // اعتماد العرض السعري = صلاحية المالية فقط (زي ما اتفقنا)
+      const canSelectQuote = isFinance && (currentStatus === 'awaiting_quotes' || currentStatus === 'awaiting_finance');
       return `
       <div class="panel" style="margin-top:14px;">
         <div class="panel-header"><h3 class="panel-title"><span data-lucide="file-text" style="width:16px;height:16px;"></span> مقارنة عروض الأسعار (${quotes.length})</h3></div>
