@@ -510,6 +510,35 @@ tr:hover td { background: var(--primary-light); }
 }
 
 /* ============ بانر تحديث النظام — ينزل من فوق ============ */
+/* أيقونة تحديث عائمة بنبضة ذهبية */
+#appUpdateFab {
+  position: fixed; bottom: 20px; left: 20px; z-index: 998;
+  width: 52px; height: 52px; border-radius: 50%;
+  background: linear-gradient(135deg, #1F7A3A, #0F3D2E);
+  color: #fff; border: 2px solid #D6A437;
+  box-shadow: 0 6px 18px rgba(15,61,46,0.25);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  animation: fabPulse 2s ease-in-out infinite;
+}
+#appUpdateFab:hover { transform: scale(1.06); }
+#appUpdateFab .afd-dot {
+  position: absolute; top: 6px; right: 6px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: #D6A437; border: 2px solid #FFFDF7;
+  animation: fabDotPulse 1.4s ease-in-out infinite;
+}
+@keyframes fabPulse {
+  0%, 100% { box-shadow: 0 6px 18px rgba(15,61,46,0.25), 0 0 0 0 rgba(214,164,55,0.5); }
+  50%      { box-shadow: 0 6px 18px rgba(15,61,46,0.25), 0 0 0 10px rgba(214,164,55,0); }
+}
+@keyframes fabDotPulse {
+  0%,100% { transform: scale(1); opacity: 1; }
+  50%     { transform: scale(1.25); opacity: 0.85; }
+}
+@media (max-width: 768px) {
+  #appUpdateFab { width: 46px; height: 46px; bottom: 16px; left: 16px; }
+}
+
 #appUpdateBanner {
   position: fixed; top: 0; right: 0; left: 0; z-index: 999;
   display: flex; align-items: center; gap: 10px;
@@ -8502,6 +8531,7 @@ async function pageCustomChat(body, convId) {
       </div>
       ${isOwner ? `
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-sm" id="cchAddMember" style="background:linear-gradient(90deg,#1F7A3A,#0F3D2E);color:#fff;"><span data-lucide="user-plus" style="width:12px;height:12px;"></span> إضافة عضو</button>
           <button class="btn btn-outline btn-sm" id="cchEditName"><span data-lucide="edit-3" style="width:12px;height:12px;"></span> تعديل الاسم</button>
           ${conv.is_archived
             ? `<button class="btn btn-sm" id="cchUnarchive" style="background:#1F7A3A;color:#fff;"><span data-lucide="archive-restore" style="width:12px;height:12px;"></span> استعادة</button>`
@@ -8564,6 +8594,75 @@ async function pageCustomChat(body, convId) {
     toast('تمت الإزالة', 'success');
     renderApp();
   }));
+
+  // زر إضافة عضو
+  document.getElementById('cchAddMember')?.addEventListener('click', () => {
+    openAddMemberModal(cid, members.map(m=>m.id), allUsers||[]);
+  });
+}
+
+function openAddMemberModal(convId, existingIds, allUsers) {
+  const existing = new Set(existingIds);
+  const candidates = (allUsers||[]).filter(u => !existing.has(u.id) && u.id !== CURRENT_USER.id);
+  const selected = new Set();
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:460px;max-width:96%;">
+      <div class="panel-header">
+        <h3 class="panel-title"><span data-lucide="user-plus" style="width:15px;height:15px;color:#1F7A3A;"></span> إضافة عضو للشات</h3>
+        <button class="modal-close-x" id="amClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body" style="display:grid;gap:12px;">
+        <div class="search-wrap"><input type="text" id="amSearch" class="search-input" placeholder="ابحث بالاسم..."></div>
+        <div id="amList" style="max-height:280px; overflow-y:auto; background:#FFFDF7; border:1px solid #E8E3D6; border-radius:10px; padding:8px;">
+          ${candidates.length ? candidates.map(u => `
+            <label class="am-row" data-name="${esc(u.full_name).toLowerCase()}" style="display:flex;align-items:center;gap:8px;padding:6px 4px;font-size:12.5px;cursor:pointer;border-radius:6px;">
+              <input type="checkbox" data-uid="${u.id}">
+              <span>${esc(u.full_name)}</span>
+            </label>`).join('') : '<p class="empty-state" style="font-size:12px;">لا يوجد موظفون إضافيون</p>'}
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button type="button" class="btn btn-outline" id="amCancel">إلغاء</button>
+          <button type="button" class="btn" id="amAdd" style="background:linear-gradient(90deg,#1F7A3A,#0F3D2E);color:#fff;"><span data-lucide="check" style="width:13px;height:13px;"></span> إضافة</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+
+  const close = () => host.remove();
+  document.getElementById('amClose').addEventListener('click', close);
+  document.getElementById('amCancel').addEventListener('click', close);
+  host.addEventListener('click', (e) => { if (e.target === host) close(); });
+
+  document.getElementById('amSearch').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    host.querySelectorAll('.am-row').forEach(r => {
+      r.style.display = (!q || r.dataset.name.includes(q)) ? '' : 'none';
+    });
+  });
+  host.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const uid = Number(cb.dataset.uid);
+      if (cb.checked) selected.add(uid); else selected.delete(uid);
+    });
+  });
+  document.getElementById('amAdd').addEventListener('click', async () => {
+    if (selected.size === 0) { toast('اختر عضوًا واحدًا على الأقل', 'error'); return; }
+    const rows = [...selected].map(uid => ({ conversation_id: convId, user_id: uid }));
+    const { error } = await sb.from('conversation_members').insert(rows);
+    if (error) { toast(error.message, 'error'); return; }
+    // إشعارات
+    const { data: convData } = await sb.from('conversations').select('title').eq('id', convId).maybeSingle();
+    await sb.from('notifications').insert(rows.map(r => ({
+      user_id: r.user_id, title: 'تمت إضافتك إلى شات مخصص',
+      body: convData?.title || 'شات مخصص', link: '#custom_chat/' + convId
+    }))).catch(()=>{});
+    close();
+    toast(`تمت إضافة ${selected.size} عضو`, 'success');
+    renderApp();
+  });
 }
 
 window.openTaskChat = async function(taskId) {
@@ -10743,8 +10842,39 @@ async function pageDashboard(body) {
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('service-worker.js').catch(() => {});
-    // بانر تحديث ينزل من فوق بدل إعادة التحميل المفاجئة — يسيب القرار للمستخدم
     let updateBannerShown = false;
+
+    // إشعار متصفح/PWA — لو المستخدم قافل التطبيق ونزل تحديث
+    function tryPushNotification(title, body) {
+      try {
+        if (!('Notification' in window)) return;
+        if (Notification.permission !== 'granted') return;
+        // نستخدم SW registration لعرض الإشعار على الموبايل
+        if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+          navigator.serviceWorker.ready.then(reg => {
+            reg.showNotification(title, {
+              body, icon: '/icon-192.png', badge: '/icon-192.png',
+              tag: 'app-update', renotify: true, requireInteraction: false
+            });
+          }).catch(()=>{});
+        } else {
+          new Notification(title, { body });
+        }
+      } catch (e) {}
+    }
+
+    // أيقونة تحديث عائمة مع نبضة — تظهر مع البانر ومتاحة كتذكير
+    function showFloatingUpdateIcon() {
+      if (document.getElementById('appUpdateFab')) return;
+      const fab = document.createElement('button');
+      fab.id = 'appUpdateFab';
+      fab.setAttribute('title', 'يوجد تحديث جديد — اضغط للتحديث');
+      fab.innerHTML = '<span data-lucide="refresh-cw" style="width:20px;height:20px;"></span><span class="afd-dot"></span>';
+      fab.onclick = () => location.reload();
+      document.body.appendChild(fab);
+      if (window.lucide) lucide.createIcons();
+    }
+
     function showUpdateBanner() {
       if (updateBannerShown || document.getElementById('appUpdateBanner')) return;
       updateBannerShown = true;
@@ -10760,11 +10890,26 @@ async function pageDashboard(body) {
       if (window.lucide) lucide.createIcons();
       requestAnimationFrame(() => bar.classList.add('show'));
       document.getElementById('appUpdateBtn').onclick = () => location.reload();
-      document.getElementById('appUpdateDismiss').onclick = () => bar.classList.remove('show');
+      document.getElementById('appUpdateDismiss').onclick = () => {
+        bar.classList.remove('show');
+        showFloatingUpdateIcon(); // لما يقفل البانر، تفضل الأيقونة العائمة مذكّرة
+      };
+      // بانر + أيقونة عائمة + إشعار push (لو مسموح)
+      showFloatingUpdateIcon();
+      tryPushNotification('تحديث جديد جاهز', 'اضغط لتحميل آخر تحسينات نظام شؤون الغذاء');
     }
     navigator.serviceWorker.addEventListener('message', (e) => {
       if (e.data && e.data.type === 'sw-updated') showUpdateBanner();
     });
+
+    // طلب إذن الإشعارات مرة واحدة عند أول دخول للمستخدم المسجّل
+    setTimeout(() => {
+      try {
+        if ('Notification' in window && Notification.permission === 'default') {
+          Notification.requestPermission().catch(()=>{});
+        }
+      } catch (e) {}
+    }, 3000);
   }
 
   function isStandalone() {
