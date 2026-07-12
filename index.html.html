@@ -2053,32 +2053,41 @@ function stripVoiceCommandPreposition(s) {
   if (/^ل[؀-ۿ]/.test(s) && s.length > 2) s = s.slice(1);
   return s.trim();
 }
+// تطبيع النص العربي (يعتبر ة/ه وأشكال الألف المختلفة نفس الحرف) — يحل مشاكل اختلاف إملاء التعرف الصوتي
+function normalizeArabic(s) {
+  return (s || '')
+    .replace(/[ً-ٰٟ]/g, '')
+    .replace(/[إأآ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي');
+}
 async function tryVoiceCommand(rawText) {
   const text = (rawText || '').trim();
   if (!text) return false;
-  let matched = null, rest = text;
+  const normText = normalizeArabic(text);
+  let matched = null, idx = -1, keyLen = 0;
   for (const cmd of VOICE_COMMANDS) {
     for (const k of cmd.keys) {
-      const idx = text.indexOf(k);
-      if (idx !== -1) {
-        matched = cmd.action;
-        rest = (text.slice(0, idx) + ' ' + text.slice(idx + k.length)).trim();
-        break;
-      }
+      const nk = normalizeArabic(k);
+      const i = normText.indexOf(nk);
+      if (i !== -1) { matched = cmd.action; idx = i; keyLen = nk.length; break; }
     }
     if (matched) break;
   }
   if (!matched) return false;
+  const rest = (text.slice(0, idx) + ' ' + text.slice(idx + keyLen)).trim();
   const name = stripVoiceCommandPreposition(rest);
   if (name.length < 2) return false;
 
-  let { data: users } = await sb.from('users').select('id, full_name').eq('is_active', true).ilike('full_name', `%${name}%`).limit(5);
-  if (!users || !users.length) {
-    const firstWord = name.split(/\s+/)[0];
-    const res2 = await sb.from('users').select('id, full_name').eq('is_active', true).ilike('full_name', `%${firstWord}%`).limit(5);
-    users = res2.data;
+  async function searchUsersByName(term) {
+    const { data } = await sb.from('users').select('id, full_name').eq('is_active', true).ilike('full_name', `%${term}%`).limit(5);
+    return data || [];
   }
-  const target = users && users[0];
+  let users = await searchUsersByName(name);
+  if (!users.length) users = await searchUsersByName(name.replace(/ة/g, 'ه'));
+  if (!users.length) users = await searchUsersByName(name.replace(/ه/g, 'ة'));
+  if (!users.length) users = await searchUsersByName(name.split(/\s+/)[0]);
+  const target = users[0];
   if (!target) { toast(`لم يتم العثور على موظف باسم "${name}"`, 'warning'); return true; }
 
   if (matched === 'assign') { openQuickAddTaskModal(target.id, target.full_name); }
