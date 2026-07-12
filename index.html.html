@@ -2474,6 +2474,89 @@ async function voiceOpenChatAndPrefill(userId, userName, prefillMessage) {
   chatInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
   toast('كلامك جاهز في مربع الرسالة — راجعه واضغط إرسال', 'success');
 }
+// ============ لوحة أمثلة الأوامر الصوتية ============
+function openVoiceHelpModal() {
+  const existing = document.getElementById('voiceHelpOverlay');
+  if (existing) { existing.remove(); return; }
+  const sections = [
+    { title: '📝 المهام', color: '#D6A437', examples: [
+      'سوي مهمة لعمر صبري وقوله يجهز تقرير المبيعات',
+      'إسناد مهمة لسارة قناوي المطلوب متابعة الفواتير',
+      'اعمل مهمة لخالد يوسف بخصوص عرض الأسعار',
+      'حط لعمر صبري مهمة يراجع تقرير الصيانة'
+    ]},
+    { title: '💬 الرسائل', color: '#7C3AED', examples: [
+      'ابعت لعمر صبري قوله فين الرواتب',
+      'كلم سارة قناوي بخصوص الاجتماع',
+      'ابغى اكلم أحمد المدير قوله كذا كذا',
+      'راسل خالد يوسف'
+    ]},
+    { title: '👤 متابعة الموظفين', color: '#2F80C9', examples: [
+      'مهام عمر صبري',
+      'ورّيني مهام سارة',
+      'اجتماعات عمر صبري',
+      'شوف مهام أحمد'
+    ]},
+    { title: '🧭 التنقل', color: '#1F7A3A', examples: [
+      'افتح الاجتماعات',
+      'روح للصيانة',
+      'افتحلي الجودة',
+      'الداشبورد',
+      'الإشعارات',
+      'رفع طلب صيانة'
+    ]},
+    { title: '📊 التقارير', color: '#0F3D2E', examples: [
+      'افتح تقرير الصيانة',
+      'ابغى تقرير الجودة',
+      'ورّيني التقارير',
+      'شوف تقرير'
+    ]}
+  ];
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.id = 'voiceHelpOverlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:560px;max-width:95%;max-height:85vh;overflow-y:auto;">
+      <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <h3 class="panel-title" style="display:flex;align-items:center;gap:8px;"><span data-lucide="mic" style="width:18px;height:18px;color:#D32F2F;"></span> أمثلة الأوامر الصوتية</h3>
+        <button class="modal-close-x" id="vhClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px;line-height:1.7;">اضغط أيقونة 🎤 في شريط البحث فوق، ثم قل أي جملة من الأمثلة دي أو أي صيغة قريبة منها. النظام بيفهم لهجات مصرية، سعودية، ويمنية.</p>
+        ${sections.map(s => `
+          <div style="margin-bottom:18px;">
+            <h4 style="font-size:13.5px;font-weight:800;color:${s.color};margin-bottom:8px;display:flex;align-items:center;gap:6px;">${esc(s.title)}</h4>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              ${s.examples.map(ex => `
+                <div style="background:var(--card-warm);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12.5px;color:var(--text);cursor:pointer;transition:border-color .15s;" data-voice-example="${esc(ex)}">
+                  «${esc(ex)}»
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `).join('')}
+        <div style="background:rgba(47,128,201,0.08);border:1px solid rgba(47,128,201,0.25);border-radius:10px;padding:10px 14px;margin-top:8px;font-size:12px;color:var(--text-muted);line-height:1.7;">
+          <b style="color:#2F80C9;">💡 نصيحة:</b> اضغط على أي مثال فوق عشان يتنسخ في شريط البحث ويُنفَّذ فورًا. تقدر تعدّل الاسم أو الكلام قبل ما تشغّله.
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  host.querySelector('#vhClose').addEventListener('click', () => host.remove());
+  host.addEventListener('click', (e) => { if (e.target === host) host.remove(); });
+  host.querySelectorAll('[data-voice-example]').forEach(el => el.addEventListener('click', () => {
+    const input = document.getElementById('globalSearchInput');
+    if (input) { input.value = el.dataset.voiceExample; input.focus(); }
+    host.remove();
+    // نفّذ الأمر مباشرة
+    setTimeout(() => {
+      const evt = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+      input && input.dispatchEvent(evt);
+    }, 100);
+  }));
+}
+
 function wireGlobalVoiceButton(onTranscribed) {
   const btn = document.getElementById('globalVoiceBtn');
   const input = document.getElementById('globalSearchInput');
@@ -6547,6 +6630,7 @@ async function renderApp() {
             <span class="search-icon"></span>
             <span class="search-divider"></span>
             <input type="text" id="globalSearchInput" placeholder="ابحث، أو 🎤 قل: إسناد مهمة لعمر صبري...">
+            <button type="button" id="globalVoiceHelpBtn" class="topbar-voice-btn" title="أمثلة الأوامر الصوتية" style="margin-left:0;background:rgba(47,128,201,0.14);color:#2F80C9;"><span data-lucide="help-circle" style="width:14px;height:14px;"></span></button>
             <button type="button" id="globalVoiceBtn" class="topbar-voice-btn" title="بحث أو أمر بالصوت"><span data-lucide="mic" style="width:15px;height:15px;"></span></button>
           </div>
           <div class="user-info user-topbar-card" style="gap:0;">
@@ -6744,6 +6828,7 @@ async function renderApp() {
   });
   document.querySelector('.topbar-search .search-icon')?.addEventListener('click', runGlobalSearch);
   wireGlobalVoiceButton(runGlobalSearch);
+  document.getElementById('globalVoiceHelpBtn')?.addEventListener('click', openVoiceHelpModal);
 
   await route();
 }
