@@ -8324,12 +8324,15 @@ async function pageUsers(body) {
   const { data: users } = await usersQuery;
   const { data: departments } = await sb.from('departments').select('*').order('name');
   let pendingSignups = [];
+  let rejectedSignups = [];
   if (isAdmin) {
     const { data: sr } = await sb.from('signup_requests').select('*').eq('status', 'pending').order('created_at', { ascending: false });
     pendingSignups = sr || [];
+    const { data: rej } = await sb.from('signup_requests').select('*').eq('status', 'rejected').order('reviewed_at', { ascending: false }).limit(10);
+    rejectedSignups = rej || [];
   }
 
-  window.__usersPageData = { users: users||[], departments: departments||[], isAdmin, pendingSignups };
+  window.__usersPageData = { users: users||[], departments: departments||[], isAdmin, pendingSignups, rejectedSignups };
 
   function avatarInitials(name) { return (name||'').trim().split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join(''); }
   function deptColorIndex(deptId) {
@@ -8604,18 +8607,8 @@ function renderUsersTabContent() {
     });
 
   } else if (UsersPageState.activeTab === 'signup_requests') {
-    const { pendingSignups, departments } = window.__usersPageData;
-    host.innerHTML = `
-      <div class="panel">
-        <div class="panel-header"><h3><span data-lucide="inbox" style="width:15px;height:15px;vertical-align:-2px;margin-left:5px;"></span>طلبات الانضمام قيد المراجعة</h3></div>
-        <div class="panel-body" style="overflow-x:auto;">
-          ${(pendingSignups||[]).length ? `
-          <table class="adv-table">
-            <thead><tr>
-              <th>الاسم</th><th>الجوال</th><th>الإيميل</th><th>المسمى الوظيفي</th><th>المنطقة/الفرع</th><th>ملاحظات</th><th>القسم المناسب</th><th>الإجراء</th>
-            </tr></thead>
-            <tbody>
-              ${pendingSignups.map(r => `
+    const { pendingSignups, rejectedSignups, departments } = window.__usersPageData;
+    const renderRow = r => `
                 <tr data-sr-row="${r.id}">
                   <td><strong>${esc(r.full_name)}</strong><div style="font-size:10.5px;color:var(--text-muted);">استُلم ${fmtDate(r.created_at)}</div></td>
                   <td>${esc(r.mobile_number)}</td>
@@ -8633,12 +8626,54 @@ function renderUsersTabContent() {
                     <button title="قبول وإنشاء الحساب" class="chat-action-btn" style="background:rgba(31,122,58,0.12);color:#1F7A3A;" data-sr-approve="${r.id}"><span data-lucide="check" style="width:15px;height:15px;"></span></button>
                     <button title="رفض الطلب" class="chat-action-btn" style="background:rgba(211,47,47,0.1);color:#D32F2F;" data-sr-reject="${r.id}"><span data-lucide="x" style="width:15px;height:15px;"></span></button>
                   </td>
-                </tr>`).join('')}
-            </tbody>
-          </table>` : '<p class="empty-state">لا توجد طلبات انضمام جديدة حاليًا</p>'}
+                </tr>`;
+    host.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h3><span data-lucide="inbox" style="width:15px;height:15px;vertical-align:-2px;margin-left:5px;"></span>طلبات الانضمام قيد المراجعة</h3></div>
+        <div class="panel-body">
+          ${(pendingSignups||[]).length ? `
+          <div class="search-wrap" style="max-width:320px;margin-bottom:12px;"><input type="text" id="srSearchInput" class="search-input" placeholder="ابحث بالاسم، الجوال، الإيميل، المسمى، المنطقة..."></div>
+          <div style="overflow-x:auto;">
+          <table class="adv-table" id="srTable">
+            <thead><tr>
+              <th>الاسم</th><th>الجوال</th><th>الإيميل</th><th>المسمى الوظيفي</th><th>المنطقة/الفرع</th><th>ملاحظات</th><th>القسم المناسب</th><th>الإجراء</th>
+            </tr></thead>
+            <tbody>${pendingSignups.map(renderRow).join('')}</tbody>
+          </table>
+          </div>
+          <p id="srNoMatch" class="empty-state hidden">لا توجد نتائج مطابقة للبحث</p>` : '<p class="empty-state">لا توجد طلبات انضمام جديدة حاليًا</p>'}
         </div>
-      </div>`;
+      </div>
+      ${(rejectedSignups||[]).length ? `
+      <div class="panel" style="margin-top:14px;">
+        <div class="panel-header"><h3><span data-lucide="history" style="width:14px;height:14px;vertical-align:-2px;margin-left:5px;"></span>آخر الطلبات المرفوضة</h3></div>
+        <div class="panel-body">
+          ${rejectedSignups.map(r => `
+            <div class="followup-row">
+              <span data-lucide="user-x" style="width:13px;height:13px;color:#D32F2F;"></span>
+              <div class="followup-row-info">
+                <strong>${esc(r.full_name)}</strong> — ${esc(r.job_title)}
+                <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${r.rejection_reason ? 'السبب: ' + esc(r.rejection_reason) : 'بدون سبب مسجّل'} · ${fmtDate(r.reviewed_at)}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>` : ''}
+      `;
     if (window.lucide) lucide.createIcons();
+
+    const srSearchInput = document.getElementById('srSearchInput');
+    if (srSearchInput) {
+      srSearchInput.addEventListener('input', () => {
+        const q = srSearchInput.value.trim().toLowerCase();
+        let visibleCount = 0;
+        host.querySelectorAll('#srTable tbody tr').forEach(tr => {
+          const match = tr.textContent.toLowerCase().includes(q);
+          tr.classList.toggle('hidden', !match);
+          if (match) visibleCount++;
+        });
+        document.getElementById('srNoMatch').classList.toggle('hidden', visibleCount !== 0);
+      });
+    }
 
     function genUsernameBase(req) {
       const emailLocal = (req.email||'').split('@')[0] || '';
@@ -8699,9 +8734,11 @@ function renderUsersTabContent() {
     });
     host.querySelectorAll('[data-sr-reject]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (!confirm('تأكيد رفض هذا الطلب؟')) return;
+        const reason = prompt('سبب الرفض (اختياري):', '');
+        if (reason === null) return; // اتلغى
         await sb.from('signup_requests').update({
-          status: 'rejected', reviewed_by: CURRENT_USER.id, reviewed_at: new Date().toISOString()
+          status: 'rejected', reviewed_by: CURRENT_USER.id, reviewed_at: new Date().toISOString(),
+          rejection_reason: reason.trim() || null
         }).eq('id', Number(btn.dataset.srReject));
         toast('تم رفض الطلب', 'success');
         renderApp();
