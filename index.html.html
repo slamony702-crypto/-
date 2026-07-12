@@ -5363,7 +5363,7 @@ async function renderApp() {
         ${recentMsgsList.map(m => {
           const conv = m.conversations || {};
           const isMine = m.sender_id === CURRENT_USER.id;
-          let target = '#conversations';
+          let target = '#conversations?open=' + m.conversation_id;
           if (conv.conversation_type === 'meeting' && conv.meeting_id) target = '#meeting_detail/' + conv.meeting_id;
           return `
           <div style="padding:10px 14px; border-bottom:1px solid var(--border); cursor:pointer;" onclick="location.hash='${target}'; document.getElementById('msgsDropdown')?.remove();">
@@ -5410,7 +5410,7 @@ async function route() {
     else if (page === 'tasks') await pageTasks(body, query);
     else if (page === 'department_tasks') await pageDepartmentTasks(body, query);
     else if (page === 'decisions') await pageDecisions(body, query);
-    else if (page === 'conversations') await pageConversations(body);
+    else if (page === 'conversations') await pageConversations(body, query);
     else if (page === 'emergency') await pageEmergency(body);
     else if (page === 'maintenance') await pageMaintenance(body, query);
     else if (page === 'maintenance_new') await pageMaintenanceNew(body);
@@ -5450,7 +5450,7 @@ function deptScope(query, field = 'department_id') {
 // ============ تواصل داخلي (عام) ============
 let __directorySelectedDept = 'all';
 
-async function pageConversations(body) {
+async function pageConversations(body, query) {
   const { data: meetings } = await sb.from('meetings').select('id, title, meeting_datetime');
   const { data: tasks } = await sb.from('action_items').select('id, title, users(full_name), progress_percent');
   const { data: departments } = await sb.from('departments').select('*').order('name');
@@ -5722,6 +5722,34 @@ async function pageConversations(body) {
     await loadChatMessages(conversationId);
     wireChatInputBar((text, msgType, replyToId, attachment, textColor, textAlign) => sendChatMessage(conversationId, text, msgType, replyToId, attachment, textColor, textAlign), conversationId);
   };
+
+  // فتح محادثة محددة مباشرة (من قائمة الرسائل المنسدلة)
+  window.openConversationThread = async function(convId) {
+    const panel = document.getElementById('taskChatPanel');
+    if (!panel) return;
+    const { data: conv } = await sb.from('conversations').select('*').eq('id', convId).maybeSingle();
+    let title = 'المحادثة';
+    if (conv) {
+      if (conv.conversation_type === 'direct') {
+        const { data: mems } = await sb.from('conversation_members').select('user_id, users(full_name)').eq('conversation_id', convId).neq('user_id', CURRENT_USER.id);
+        title = 'محادثة مع: ' + ((mems && mems[0] && mems[0].users) ? mems[0].users.full_name : '');
+      } else if (conv.title) { title = conv.title; }
+      else if (conv.department_id) { const d = (departments || []).find(x => x.id === conv.department_id); title = 'محادثة قسم: ' + (d ? d.name : ''); }
+    }
+    panel.classList.remove('hidden');
+    document.getElementById('taskChatTitle').innerHTML = '<span data-lucide="message-circle" style="width:14px;height:14px;vertical-align:-2px;"></span> ' + esc(title);
+    if (window.lucide) lucide.createIcons();
+    panel.scrollIntoView({ behavior: 'smooth' });
+    __activeConversationId = convId;
+    await sb.from('conversation_members').upsert({ conversation_id: convId, user_id: CURRENT_USER.id }, { onConflict: 'conversation_id,user_id' });
+    await loadChatMessages(convId);
+    wireChatInputBar((text, msgType, replyToId, attachment, textColor, textAlign) => sendChatMessage(convId, text, msgType, replyToId, attachment, textColor, textAlign), convId);
+  };
+
+  if (query && query.open) {
+    const cid = Number(query.open);
+    if (cid) setTimeout(() => window.openConversationThread(cid), 150);
+  }
 }
 let __activeConversationId = null;
 
