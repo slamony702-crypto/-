@@ -2194,6 +2194,7 @@ function renderLogin() {
       localStorage.setItem('food_affairs_user', JSON.stringify(CURRENT_USER));
       await loadPermissions();
       checkTaskReminders();
+      checkMeetingReminders();
       startHeartbeat();
       location.hash = '#dashboard';
       renderApp();
@@ -3441,6 +3442,37 @@ async function pageMeetingDetail(body, meetingId) {
         </div>
       </div>
     </div>
+
+    <!-- محضر الاجتماع الرسمي -->
+    <div class="panel">
+      <div class="panel-header"><h3><span data-lucide="file-text" style="width:15px;height:15px;vertical-align:-2px;margin-left:4px;color:#0F3D2E;"></span> محضر الاجتماع الرسمي</h3></div>
+      <div class="panel-body">
+        ${m.minutes_file_url ? `
+          <div style="background:rgba(31,122,58,0.06);border:1.5px solid rgba(31,122,58,0.3);border-radius:12px;padding:14px 16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:180px;">
+                <div style="display:flex;align-items:center;gap:6px;font-weight:800;font-size:13.5px;color:#0F3D2E;"><span data-lucide="check-circle-2" style="width:16px;height:16px;"></span> تم رفع المحضر</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:5px;">${fmtDate(m.minutes_uploaded_at)}</div>
+                ${m.minutes_notes ? `<div style="font-size:12.5px;margin-top:8px;background:var(--surface);padding:8px 10px;border-radius:8px;">${esc(m.minutes_notes)}</div>` : ''}
+              </div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <a href="${esc(m.minutes_file_url)}" target="_blank" class="btn btn-primary btn-sm"><span data-lucide="download" style="width:13px;height:13px;"></span> ${esc(m.minutes_file_name || 'تنزيل المحضر')}</a>
+                ${canManage ? '<button class="btn btn-outline btn-sm" id="mMinutesRemoveBtn" style="color:var(--danger);border-color:var(--danger);"><span data-lucide="trash-2" style="width:13px;height:13px;"></span></button>' : ''}
+              </div>
+            </div>
+          </div>
+        ` : ''}
+        ${canManage && ['done','in_follow_up','closed'].includes(m.status) ? `
+          <div style="${m.minutes_file_url?'margin-top:14px;':''}">
+            <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:10px;">${m.minutes_file_url ? 'استبدل المحضر برفع نسخة جديدة:' : 'ارفع نسخة رسمية من محضر الاجتماع (PDF, Word, صورة).'}</div>
+            <div class="error-msg" id="mMinutesError"></div>
+            <div class="field"><label>ملاحظات المحضر (اختياري)</label><textarea id="mMinutesNotes" rows="2" placeholder="ملخص أهم النقاط أو ملاحظات على المحضر..."></textarea></div>
+            <div class="field"><label>ملف المحضر *</label><input type="file" id="mMinutesFile" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"></div>
+            <button class="btn btn-primary btn-sm" id="mMinutesUploadBtn"><span data-lucide="upload" style="width:13px;height:13px;"></span> ${m.minutes_file_url ? 'تحديث المحضر' : 'رفع المحضر'}</button>
+          </div>
+        ` : (!m.minutes_file_url ? `<p class="empty-state" style="font-size:12.5px;">${m.status === 'scheduled' ? 'المحضر يُرفع بعد انتهاء الاجتماع وتغيير حالته إلى «تم» أو «تحت المتابعة».' : 'لم يتم رفع محضر رسمي بعد.'}</p>` : '')}
+      </div>
+    </div>
     <div class="panel"><div class="panel-header"><h3>القرارات</h3>${canManage ? `<button class="btn btn-primary btn-sm" id="toggleDecisionFormBtn">+ قرار جديد</button>` : ''}</div><div class="panel-body">
       ${canManage ? `
       <div class="panel hidden" id="newDecisionPanel" style="box-shadow:none; border:1px dashed var(--border); margin-bottom:14px;">
@@ -3589,6 +3621,69 @@ async function pageMeetingDetail(body, meetingId) {
       errBox.textContent = err.message; errBox.classList.add('show');
     }
   });
+
+  // ============ رفع محضر الاجتماع ============
+  const minutesUploadBtn = document.getElementById('mMinutesUploadBtn');
+  if (minutesUploadBtn) {
+    minutesUploadBtn.addEventListener('click', async () => {
+      const errBox = document.getElementById('mMinutesError');
+      errBox.classList.remove('show');
+      const notes = document.getElementById('mMinutesNotes').value.trim();
+      const fileInput = document.getElementById('mMinutesFile');
+      const file = fileInput.files[0];
+      if (!file) { errBox.textContent = 'اختر ملف المحضر أولًا'; errBox.classList.add('show'); return; }
+      if (file.size > 10 * 1024 * 1024) { errBox.textContent = 'الحد الأقصى لحجم الملف 10MB'; errBox.classList.add('show'); return; }
+      minutesUploadBtn.disabled = true;
+      minutesUploadBtn.innerHTML = '<span data-lucide="loader" style="width:13px;height:13px;"></span> جاري الرفع...';
+      try {
+        const ext = (file.name.split('.').pop() || 'bin').replace(/[^a-zA-Z0-9]/g,'').slice(0,8) || 'bin';
+        const filePath = `meeting-minutes/${meetingId}/${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`;
+        const { error: upErr } = await sb.storage.from('maintenance').upload(filePath, file, { contentType: file.type || undefined });
+        if (upErr) throw upErr;
+        const { data: urlData } = sb.storage.from('maintenance').getPublicUrl(filePath);
+        const { error: updErr } = await sb.from('meetings').update({
+          minutes_file_url: urlData.publicUrl,
+          minutes_file_name: file.name,
+          minutes_uploaded_at: new Date().toISOString(),
+          minutes_uploaded_by: CURRENT_USER.id,
+          minutes_notes: notes || null
+        }).eq('id', meetingId);
+        if (updErr) throw updErr;
+        // إشعار كل الحضور
+        const attRows = (attendees || []).filter(a => a.user_id !== CURRENT_USER.id);
+        if (attRows.length) {
+          await sb.from('notifications').insert(attRows.map(a => ({
+            user_id: a.user_id,
+            title: '📄 تم رفع محضر الاجتماع',
+            body: `محضر اجتماع "${m.title}" متاح للتحميل`,
+            link: '#meeting_detail/' + meetingId
+          })));
+        }
+        toast('تم رفع المحضر بنجاح', 'success');
+        renderApp();
+      } catch (err) {
+        errBox.textContent = err.message || 'فشل رفع المحضر';
+        errBox.classList.add('show');
+        minutesUploadBtn.disabled = false;
+        minutesUploadBtn.innerHTML = '<span data-lucide="upload" style="width:13px;height:13px;"></span> رفع المحضر';
+        if (window.lucide) lucide.createIcons();
+      }
+    });
+  }
+
+  const minutesRemoveBtn = document.getElementById('mMinutesRemoveBtn');
+  if (minutesRemoveBtn) {
+    minutesRemoveBtn.addEventListener('click', async () => {
+      if (!confirm('حذف محضر الاجتماع؟')) return;
+      const { error } = await sb.from('meetings').update({
+        minutes_file_url: null, minutes_file_name: null,
+        minutes_uploaded_at: null, minutes_uploaded_by: null, minutes_notes: null
+      }).eq('id', meetingId);
+      if (error) { toast(error.message, 'error'); return; }
+      toast('تم حذف المحضر', 'success');
+      renderApp();
+    });
+  }
 
   if (canManage) {
     document.getElementById('updateStatusBtn').addEventListener('click', async () => {
@@ -5691,6 +5786,56 @@ async function checkTaskReminders() {
   }
 }
 
+// تذكير قبل الاجتماع بـ24 ساعة أو أقل — يُفحص عند تحميل التطبيق (مرة واحدة يوميًا)
+async function checkMeetingReminders() {
+  if (!CURRENT_USER) return;
+  const checkedKey = 'meeting_reminders_checked_' + new Date().toDateString();
+  if (sessionStorage.getItem(checkedKey)) return;
+  sessionStorage.setItem(checkedKey, '1');
+
+  const now = new Date();
+  const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+  // اجتماعات المستخدم اللي هيحضرها أو نظّمها
+  const { data: myAttendance } = await sb.from('meeting_attendees')
+    .select('meeting_id, meetings(id, title, meeting_datetime, status, location_type, location_detail)')
+    .eq('user_id', CURRENT_USER.id).eq('attendance_status', 'invited');
+
+  const upcoming = (myAttendance || [])
+    .map(a => a.meetings)
+    .filter(m => m && m.status === 'scheduled')
+    .filter(m => {
+      const dt = new Date(m.meeting_datetime);
+      return dt > now && dt <= in24h;
+    });
+
+  if (!upcoming.length) return;
+
+  for (const m of upcoming) {
+    // منع التكرار: لو في إشعار بنفس العنوان لنفس الاجتماع لليوم دلوقتي، تخطاه
+    const { data: existing } = await sb.from('notifications')
+      .select('id')
+      .eq('user_id', CURRENT_USER.id)
+      .eq('link', '#meeting_detail/' + m.id)
+      .ilike('title', '%تذكير%')
+      .gte('created_at', new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString())
+      .limit(1);
+    if (existing && existing.length) continue;
+
+    const dt = new Date(m.meeting_datetime);
+    const hoursTo = Math.round((dt.getTime() - now.getTime()) / (60 * 60 * 1000));
+    const timeStr = dt.toISOString().slice(11, 16);
+    const dateStr = fmtDateAr(m.meeting_datetime);
+    const locPart = m.location_type === 'online' && m.location_detail ? ` — الرابط: ${m.location_detail}` : (m.location_detail ? ` — المكان: ${m.location_detail}` : '');
+    await sb.from('notifications').insert({
+      user_id: CURRENT_USER.id,
+      title: `⏰ تذكير: اجتماع خلال ${hoursTo} ساعة`,
+      body: `"${m.title}" — ${dateStr} الساعة ${timeStr}${locPart}`,
+      link: '#meeting_detail/' + m.id
+    });
+  }
+}
+
 async function renderApp() {
   if (!CURRENT_USER) { renderLogin(); return; }
   const { page } = currentRoute();
@@ -7597,6 +7742,7 @@ async function bootApp() {
     await loadPermissions();
     renderApp();
     checkTaskReminders();
+    checkMeetingReminders();
     startHeartbeat();
   } else {
     renderLogin();
