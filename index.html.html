@@ -2278,7 +2278,7 @@ const MENU_ITEMS = [
   { key: 'install_app', label: 'تحميل التطبيق', icon: 'download' },
   { key: 'settings', label: 'الإعدادات', icon: 'settings' },
 ];
-const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'المهام', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات' };
+const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'المهام', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', notifications: 'الإشعارات', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -5851,13 +5851,20 @@ async function renderApp() {
       dd.className = 'user-menu-dropdown show';
       dd.style.cssText = 'left:44px; top:46px; width:320px; max-height:400px; overflow-y:auto;';
       if (window.innerWidth <= 768) dd.style.cssText = '';
-      dd.innerHTML = (notifs && notifs.length) ? notifs.map(n => `
+      const listHtml = (notifs && notifs.length) ? notifs.map(n => `
         <div style="padding:10px 14px; border-bottom:1px solid var(--border); ${n.is_read ? '' : 'background:var(--primary-light);'} cursor:pointer;" onclick="location.hash='${n.link || '#dashboard'}'; document.getElementById('notifDropdown')?.remove();">
           <div style="font-weight:600; font-size:13px; display:flex; align-items:center; gap:5px;"><span data-lucide="bell" style="width:12px;height:12px;"></span>${esc(n.title)}</div>
           <div style="font-size:12px; color:var(--text-muted); margin-top:3px;">${esc(n.body || '')}</div>
           <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">${fmtDate(n.created_at)}</div>
         </div>
       `).join('') : '<div style="padding:20px; text-align:center; color:var(--text-muted); font-size:13px;">لا توجد إشعارات</div>';
+      dd.innerHTML = `
+        <div style="padding:10px 14px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; background:var(--bg);">
+          <strong style="font-size:13px;">الإشعارات</strong>
+          <a href="#notifications" style="font-size:11.5px; color:var(--primary); font-weight:700;" onclick="document.getElementById('notifDropdown')?.remove();">عرض الكل ←</a>
+        </div>
+        ${listHtml}
+      `;
       document.getElementById('notifBellBtn').parentElement.appendChild(dd);
       if (unreadNotifs > 0) {
         sb.from('notifications').update({ is_read: true }).eq('user_id', CURRENT_USER.id).eq('is_read', false).then(() => badge.classList.add('hidden'));
@@ -5956,6 +5963,7 @@ async function route() {
     else if (page === 'quality_detail') await pageQualityVisitDetail(body, param);
     else if (page === 'quality_reports') await pageQualityReports(body, query);
     else if (page === 'maintenance_reports') await pageMaintenanceReports(body, query);
+    else if (page === 'notifications') await pageNotifications(body, query);
     else if (page === 'install_app') await pageInstallApp(body);
     else if (page === 'reports') await pageReports(body);
     else if (page === 'users') await pageUsers(body);
@@ -8358,6 +8366,159 @@ async function pageDashboard(body) {
 })();
 
 /* ============ صفحة تحميل التطبيق ============ */
+/* ============ صفحة الإشعارات الموسّعة ============ */
+async function pageNotifications(body, query) {
+  body.innerHTML = '<p class="empty-state">جاري تحميل الإشعارات...</p>';
+  const { data: notifs } = await sb.from('notifications')
+    .select('*').eq('user_id', CURRENT_USER.id)
+    .order('created_at', { ascending: false }).limit(200);
+  const rows = notifs || [];
+
+  const state = { tab: query?.tab || 'all', search: '' };
+
+  function classifyLink(link) {
+    if (!link) return 'other';
+    if (link.includes('meeting')) return 'meetings';
+    if (link.includes('task')) return 'tasks';
+    if (link.includes('maintenance')) return 'maintenance';
+    if (link.includes('quality')) return 'quality';
+    if (link.includes('conversation')) return 'chat';
+    if (link.includes('emergency')) return 'emergency';
+    return 'other';
+  }
+
+  function iconFor(cat) {
+    return { meetings: 'calendar', tasks: 'check-square', maintenance: 'wrench', quality: 'shield-check', chat: 'message-circle', emergency: 'siren', other: 'bell' }[cat] || 'bell';
+  }
+  function colorFor(cat) {
+    return { meetings: '#2F80C9', tasks: '#D6A437', maintenance: '#0F3D2E', quality: '#1F7A3A', chat: '#7C6BF2', emergency: '#D32F2F', other: '#6B756F' }[cat] || '#6B756F';
+  }
+
+  const unreadCount = rows.filter(n => !n.is_read).length;
+  const catCounts = { all: rows.length, unread: unreadCount, meetings: 0, tasks: 0, maintenance: 0, quality: 0, chat: 0, emergency: 0 };
+  rows.forEach(n => { const c = classifyLink(n.link); if (catCounts[c] != null) catCounts[c]++; });
+
+  const tabs = [
+    ['all','الكل','list'],['unread','غير مقروءة','bell-ring'],
+    ['meetings','اجتماعات','calendar'],['tasks','مهام','check-square'],
+    ['maintenance','صيانة','wrench'],['quality','جودة','shield-check'],
+    ['chat','رسائل','message-circle'],['emergency','طارئ','siren']
+  ];
+
+  body.innerHTML = `
+    <div class="mt-hero-header">
+      <div><h2><span class="mt-accent"></span> <span data-lucide="bell" style="width:22px;height:22px;color:#0F3D2E;"></span> الإشعارات</h2>
+        <p>راجع كل الإشعارات، صنّفها حسب النوع، وحذف القديم منها.</p></div>
+      <div style="display:flex;gap:8px;align-self:center;flex-wrap:wrap;">
+        <button class="btn btn-outline" id="notifMarkAll" style="font-size:12px;" ${unreadCount?'':'disabled'}><span data-lucide="check-check" style="width:14px;height:14px;"></span> علّم الكل كمقروء</button>
+        <button class="btn btn-outline" id="notifDeleteRead" style="font-size:12px;color:var(--danger);border-color:var(--danger);"><span data-lucide="trash-2" style="width:14px;height:14px;"></span> حذف المقروءة</button>
+      </div>
+    </div>
+
+    <div class="rep-tabs" id="notifTabs">${tabs.map(t => `<button class="rep-tab ${t[0]===state.tab?'active':''}" data-tab="${t[0]}"><span data-lucide="${t[2]}" style="width:14px;height:14px;"></span> ${t[1]} <span style="margin-right:4px;font-size:10.5px;background:rgba(0,0,0,0.08);padding:1px 7px;border-radius:8px;">${catCounts[t[0]]||0}</span></button>`).join('')}</div>
+
+    <div class="table-toolbar" style="margin-bottom:14px;">
+      <div class="search-wrap" style="flex:1;"><input type="text" id="notifSearch" class="search-input" placeholder="بحث في الإشعارات..."></div>
+    </div>
+
+    <div id="notifBody"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  function groupByTime(list) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const yesterday = new Date(today.getTime() - 86400000);
+    const weekAgo = new Date(today.getTime() - 7*86400000);
+    const groups = { today: [], yesterday: [], week: [], older: [] };
+    list.forEach(n => {
+      const d = new Date(n.created_at);
+      if (d >= today) groups.today.push(n);
+      else if (d >= yesterday) groups.yesterday.push(n);
+      else if (d >= weekAgo) groups.week.push(n);
+      else groups.older.push(n);
+    });
+    return groups;
+  }
+
+  function renderList() {
+    let filtered = [...rows];
+    if (state.tab === 'unread') filtered = filtered.filter(n => !n.is_read);
+    else if (state.tab !== 'all') filtered = filtered.filter(n => classifyLink(n.link) === state.tab);
+    if (state.search) {
+      const q = state.search.toLowerCase();
+      filtered = filtered.filter(n => ((n.title||'') + ' ' + (n.body||'')).toLowerCase().includes(q));
+    }
+    if (!filtered.length) { document.getElementById('notifBody').innerHTML = '<div class="panel"><div class="panel-body" style="text-align:center;color:var(--text-muted);padding:40px;font-size:13px;"><span data-lucide="bell-off" style="width:32px;height:32px;color:#9aa39c;"></span><div style="margin-top:10px;">لا توجد إشعارات</div></div></div>'; if (window.lucide) lucide.createIcons(); return; }
+
+    const g = groupByTime(filtered);
+    const sections = [['today','اليوم'],['yesterday','أمس'],['week','خلال الأسبوع'],['older','قديمة']];
+    document.getElementById('notifBody').innerHTML = sections.map(([k,lbl]) => {
+      if (!g[k].length) return '';
+      return `<div class="panel" style="margin-bottom:14px;">
+        <div class="panel-header"><h3 class="panel-title"><span data-lucide="clock" style="width:15px;height:15px;"></span> ${lbl} <span style="font-size:11.5px;color:var(--text-muted);font-weight:600;">(${g[k].length})</span></h3></div>
+        <div class="panel-body" style="padding:0;">
+          ${g[k].map(n => { const cat = classifyLink(n.link); return `
+            <div class="notif-row ${n.is_read?'':'unread'}" data-id="${n.id}" data-link="${esc(n.link||'')}" style="display:flex;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;${n.is_read?'':'background:rgba(31,122,58,0.05);'}">
+              <div style="width:36px;height:36px;border-radius:10px;background:${colorFor(cat)}18;color:${colorFor(cat)};display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span data-lucide="${iconFor(cat)}" style="width:17px;height:17px;"></span></div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:${n.is_read?600:800};font-size:13.5px;color:var(--text);">${esc(n.title)}</div>
+                ${n.body?`<div style="font-size:12.5px;color:var(--text-muted);margin-top:3px;line-height:1.6;">${esc(n.body)}</div>`:''}
+                <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;">${fmtDate(n.created_at)}</div>
+              </div>
+              <button class="ai-btn danger" data-del="${n.id}" title="حذف" onclick="event.stopPropagation();" style="align-self:center;"><span data-lucide="x" style="width:13px;height:13px;"></span></button>
+            </div>
+          `; }).join('')}
+        </div>
+      </div>`;
+    }).join('');
+    if (window.lucide) lucide.createIcons();
+
+    document.querySelectorAll('.notif-row').forEach(row => row.addEventListener('click', async () => {
+      const id = Number(row.dataset.id);
+      const link = row.dataset.link;
+      const nRec = rows.find(x => x.id === id);
+      if (nRec && !nRec.is_read) {
+        await sb.from('notifications').update({ is_read: true }).eq('id', id);
+        nRec.is_read = true;
+      }
+      if (link) location.hash = link;
+    }));
+    document.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = Number(btn.dataset.del);
+      const { error } = await sb.from('notifications').delete().eq('id', id);
+      if (error) { toast(error.message, 'error'); return; }
+      const idx = rows.findIndex(x => x.id === id);
+      if (idx >= 0) rows.splice(idx, 1);
+      renderList();
+    }));
+  }
+
+  renderList();
+
+  document.getElementById('notifTabs').querySelectorAll('.rep-tab').forEach(b => b.addEventListener('click', () => {
+    state.tab = b.dataset.tab;
+    document.querySelectorAll('#notifTabs .rep-tab').forEach(x => x.classList.toggle('active', x === b));
+    renderList();
+  }));
+  document.getElementById('notifSearch').addEventListener('input', e => { state.search = e.target.value; renderList(); });
+
+  document.getElementById('notifMarkAll').addEventListener('click', async () => {
+    const { error } = await sb.from('notifications').update({ is_read: true }).eq('user_id', CURRENT_USER.id).eq('is_read', false);
+    if (error) { toast(error.message, 'error'); return; }
+    rows.forEach(n => n.is_read = true);
+    toast('تم تعليم كل الإشعارات كمقروءة', 'success');
+    pageNotifications(body, query);
+  });
+  document.getElementById('notifDeleteRead').addEventListener('click', async () => {
+    if (!confirm('حذف كل الإشعارات المقروءة؟ لا يمكن التراجع.')) return;
+    const { error } = await sb.from('notifications').delete().eq('user_id', CURRENT_USER.id).eq('is_read', true);
+    if (error) { toast(error.message, 'error'); return; }
+    toast('تم حذف الإشعارات المقروءة', 'success');
+    pageNotifications(body, query);
+  });
+}
+
 async function pageInstallApp(body) {
   const ua = navigator.userAgent;
   const isIOS = /iphone|ipad|ipod/i.test(ua);
