@@ -2292,7 +2292,7 @@ function renderMeetingCreatePanel(departments, allUsersForMeeting) {
                 <div class="mform-field"><label>نوع الاجتماع *</label>
                   <select class="meeting-select" id="mType"><option value="weekly">أسبوعي</option><option value="emergency">طارئ</option><option value="administrative">إداري</option><option value="financial">مالي</option><option value="sales">مبيعات</option><option value="operations">تشغيل</option></select>
                 </div>
-                <div class="mform-field"><label>القسم *</label><select class="meeting-select" id="mDept">${(departments||[]).map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('')}</select></div>
+                <div class="mform-field"><label>القسم *</label><select class="meeting-select" id="mDept"><option value="heads">👥 رؤساء الأقسام</option>${(departments||[]).map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('')}</select></div>
                 <div class="mform-field"><label>تاريخ الاجتماع *</label><input type="date" class="meeting-input" id="mDate" required></div>
                 <div class="mform-field"><label>وقت الاجتماع *</label><input type="time" class="meeting-input" id="mTime" required></div>
               </div>
@@ -2655,21 +2655,29 @@ function wireMeetingCreateForm(departments, allUsersForMeeting) {
   }
 
   // ---------- عرض حضور القسم المحدد فقط ----------
+  const HEAD_ROLES = ['department_manager','operations_manager','maintenance_officer','projects_manager','development_manager','finance'];
   function renderPrimaryAttendees() {
-    const deptId = Number(document.getElementById('mDept').value);
-    const deptUsers = (allUsersForMeeting||[]).filter(u => u.department_id === deptId);
+    const raw = document.getElementById('mDept').value;
+    const isHeads = raw === 'heads';
+    let list;
+    if (isHeads) {
+      list = (allUsersForMeeting||[]).filter(u => HEAD_ROLES.includes(u.role));
+    } else {
+      const deptId = Number(raw);
+      list = (allUsersForMeeting||[]).filter(u => u.department_id === deptId);
+    }
     const picker = document.getElementById('attendeesPicker');
-    picker.innerHTML = deptUsers.length ? deptUsers.map((u,i) => `
+    picker.innerHTML = list.length ? list.map((u,i) => `
       <div class="attendance-row">
-        <input type="checkbox" class="attendeeCheck" data-dept="${deptId}" value="${u.id}">
+        <input type="checkbox" class="attendeeCheck" data-dept="${isHeads?(u.department_id||''):raw}" value="${u.id}">
         <div class="ar-person">
           <div class="avatar-gradient avatar-g${i%8}" style="width:30px; height:30px; font-size:11px;">${esc(avatarInitials(u.full_name))}</div>
-          <span style="font-size:13px; font-weight:600;">${esc(u.full_name)}</span>
+          <span style="font-size:13px; font-weight:600;">${esc(u.full_name)}${isHeads?` <span style="font-size:10.5px;color:#9A6B12;font-weight:600;">— ${esc(label('role',u.role))}</span>`:''}</span>
         </div>
         <span style="font-size:12px; color:#6B756F;">${esc(u.position_title || '-')}</span>
         ${attendanceToggleHtml(u.id)}
       </div>
-    `).join('') : '<p class="empty-state">لا يوجد موظفون في هذا القسم</p>';
+    `).join('') : `<p class="empty-state">${isHeads?'لا يوجد رؤساء أقسام مسجلون':'لا يوجد موظفون في هذا القسم'}</p>`;
     picker.querySelectorAll('.attendeeCheck').forEach(wireAttendeeRow);
     picker.querySelectorAll('.attendance-toggle').forEach(wireAttendanceToggle);
     updateAttendeesCount();
@@ -2760,10 +2768,12 @@ function wireMeetingCreateForm(departments, allUsersForMeeting) {
       const notes = document.getElementById('mNotes').value.trim();
       const summaryText = [goal, notes].filter(Boolean).join(' — ') || null;
 
+      const rawDept = document.getElementById('mDept').value;
+      const meetingDeptId = rawDept === 'heads' ? (CURRENT_USER.department_id || null) : Number(rawDept);
       const { data: newMeeting, error } = await sb.from('meetings').insert({
         title: document.getElementById('mTitle').value,
         meeting_type: document.getElementById('mType').value,
-        department_id: Number(document.getElementById('mDept').value),
+        department_id: meetingDeptId,
         meeting_datetime: meetingDatetime,
         location_type: document.getElementById('mLocation').value,
         location_detail: locDetail || null,
