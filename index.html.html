@@ -1181,6 +1181,59 @@ textarea.form-input { resize: vertical; min-height: 44px; line-height: 1.6; }
 .mt-wf-item .wf-s { font-size: 10.5px; color: #6B756F; }
 .mt-submit-bar { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; background: #FFFDF7; border: 1px solid #E8E3D6; border-radius: 16px; padding: 14px 16px; margin-top: 4px; }
 @media (max-width: 768px) { .mt-submit-bar { position: sticky; bottom: 8px; box-shadow: 0 -4px 16px rgba(15,61,46,0.1); } .mt-submit-bar .btn { flex: 1; min-width: 90px; } }
+
+/* ============ سيكشن الجودة (Quality) ============ */
+.q-progress-bar { position: sticky; top: 0; z-index: 30; background: #FFFDF7; border: 1px solid #E8E3D6; border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; box-shadow: 0 2px 10px rgba(15,61,46,0.06); }
+.q-progress-track { height: 8px; background: #ECEFE9; border-radius: 999px; overflow: hidden; margin: 8px 0; }
+.q-progress-fill { height: 100%; background: linear-gradient(90deg,#1F7A3A,#2E9E4C); border-radius: 999px; transition: width .25s ease; }
+.q-counters { display: flex; gap: 8px; flex-wrap: wrap; }
+.q-counter { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 10px; }
+.q-counter.c-conform { background: rgba(31,122,58,0.12); color: #1F7A3A; }
+.q-counter.c-follow { background: rgba(214,164,55,0.16); color: #9A6B12; }
+.q-counter.c-non { background: rgba(211,47,47,0.12); color: #D32F2F; }
+.q-counter.c-na { background: rgba(107,117,111,0.14); color: #6B756F; }
+.q-counter.c-total { background: rgba(47,128,201,0.12); color: #2F80C9; }
+
+.q-jump { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 12px; -webkit-overflow-scrolling: touch; }
+.q-jump button { flex-shrink: 0; font-size: 11.5px; font-weight: 700; padding: 6px 12px; border-radius: 999px; border: 1.5px solid #E8E3D6; background: #fff; color: #6B756F; cursor: pointer; white-space: nowrap; }
+.q-jump button.done { border-color: #1F7A3A; color: #1F7A3A; background: rgba(31,122,58,0.06); }
+
+.q-section { background: #FFFDF7; border: 1px solid #E8E3D6; border-radius: 16px; margin-bottom: 12px; overflow: hidden; }
+.q-sec-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; cursor: pointer; user-select: none; }
+.q-sec-head:hover { background: #F9F6EC; }
+.q-sec-num { width: 28px; height: 28px; border-radius: 8px; background: #0F3D2E; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0; }
+.q-sec-title { flex: 1; font-size: 14px; font-weight: 800; color: #24352E; }
+.q-sec-mini { font-size: 11px; color: #6B756F; margin-top: 2px; font-weight: 600; }
+.q-sec-chevron { color: #6B756F; transition: transform .2s ease; flex-shrink: 0; }
+.q-section.open .q-sec-chevron { transform: rotate(180deg); }
+.q-sec-body { display: none; padding: 0 16px 16px; }
+.q-section.open .q-sec-body { display: block; }
+.q-sec-allbtn { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; color: #1F7A3A; background: rgba(31,122,58,0.08); border: 1px solid rgba(31,122,58,0.25); border-radius: 999px; padding: 7px 14px; cursor: pointer; margin-bottom: 10px; }
+
+.q-item { padding: 11px 0; border-bottom: 1px solid #f0ede0; }
+.q-item:last-child { border-bottom: none; }
+.q-item-text { font-size: 13px; color: #24352E; line-height: 1.6; margin-bottom: 8px; }
+.q-item-text .n { color: #9A9A8C; font-weight: 700; margin-left: 4px; }
+.q-status-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.q-status-btn { flex: 1; min-width: 66px; display: flex; align-items: center; justify-content: center; gap: 4px; padding: 9px 6px; border-radius: 10px; border: 1.5px solid #E8E3D6; background: #fff; font-size: 11.5px; font-weight: 700; color: #6B756F; cursor: pointer; transition: all .12s ease; font-family: inherit; }
+.q-status-btn[data-s="conform"].active { background: #1F7A3A; border-color: #1F7A3A; color: #fff; }
+.q-status-btn[data-s="follow_up"].active { background: #D6A437; border-color: #D6A437; color: #fff; }
+.q-status-btn[data-s="non_conform"].active { background: #D32F2F; border-color: #D32F2F; color: #fff; }
+.q-status-btn[data-s="na"].active { background: #6B756F; border-color: #6B756F; color: #fff; }
+
+.q-sec-extras { margin-top: 14px; padding-top: 14px; border-top: 1.5px dashed #E8E3D6; display: none; }
+.q-section.has-issues .q-sec-extras { display: block; }
+.q-corr-chips { display: flex; gap: 7px; flex-wrap: wrap; }
+.q-corr-chip { font-size: 11.5px; font-weight: 600; padding: 7px 12px; border-radius: 999px; border: 1.5px solid #E8E3D6; background: #fff; color: #6B756F; cursor: pointer; }
+.q-corr-chip.active { background: rgba(15,61,46,0.06); border-color: #0F3D2E; color: #0F3D2E; }
+
+.q-score-ring { width: 92px; height: 92px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-direction: column; flex-shrink: 0; }
+.q-score-ring .pct { font-size: 22px; font-weight: 800; line-height: 1; }
+.q-score-ring .lbl { font-size: 9.5px; margin-top: 2px; }
+@media (max-width: 768px) {
+  .q-status-btn { min-width: 0; padding: 10px 4px; font-size: 11px; }
+  .q-progress-bar { top: 0; }
+}
 </style>
 </head>
 <body>
@@ -1266,6 +1319,10 @@ const LABELS = {
   maint_location: { kitchen: 'المطبخ', hall: 'الصالة', store: 'المخزن', office: 'المكتب', bathroom: 'الحمام', outdoor: 'خارجية', other: 'أخرى' },
   maint_impact: { none: 'لا يؤثر', partial: 'يؤثر جزئيًا', full: 'يوقف التشغيل بالكامل' },
   maint_stoppage: { none: 'لا يوجد', partial: 'توقف جزئي', full: 'توقف كامل' },
+  quality_status: { conform: 'مطابق', follow_up: 'يحتاج متابعة', non_conform: 'غير مطابق', na: 'لا ينطبق' },
+  quality_visit_type: { daily: 'يومية', weekly: 'أسبوعية', monthly: 'شهرية', surprise: 'مفاجئة' },
+  quality_severity: { low: 'منخفض', medium: 'متوسط', high: 'عالي', immediate: 'خطر فوري' },
+  quality_exec: { done: 'تم التنفيذ', in_progress: 'تحت الإجراء', not_started: 'لم يبدأ' },
   maint_status: { new: 'طلب جديد', under_review: 'تحت المراجعة', awaiting_inspection: 'بانتظار الفحص', inspection_reported: 'تم رفع تقرير الفحص', awaiting_approval: 'بانتظار الاعتماد', awaiting_quotes: 'بانتظار عروض الأسعار', awaiting_finance: 'بانتظار موافقة المالية', in_progress: 'قيد التنفيذ', awaiting_receipt: 'بانتظار استلام الفرع', closed: 'مغلق', rejected: 'مرفوض' },
   maint_recommend: { repair: 'إصلاح', replace: 'استبدال', postpone: 'تأجيل', reject: 'رفض' },
   maint_closure: { fixed: 'تم الإصلاح', partially_fixed: 'تم الإصلاح جزئيًا', needs_followup: 'يحتاج متابعة', replaced: 'تم الاستبدال', not_fixed: 'لم يتم الإصلاح' },
@@ -1935,12 +1992,13 @@ const MENU_ITEMS = [
   { key: 'conversations', label: 'تواصل داخلي', icon: 'message-circle' },
   { key: 'emergency', label: 'تواصل طارئ', icon: 'siren' },
   { key: 'maintenance', label: 'الصيانة', icon: 'wrench' },
+  { key: 'quality', label: 'الجودة', icon: 'shield-check' },
   { key: 'reports', label: 'التقارير', icon: 'bar-chart-3' },
   { key: 'users', label: 'المستخدمون', icon: 'users', roles: ['admin', 'company_manager', 'department_manager'] },
   { key: 'install_app', label: 'تحميل التطبيق', icon: 'download' },
   { key: 'settings', label: 'الإعدادات', icon: 'settings' },
 ];
-const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'المهام', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات' };
+const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'المهام', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -5289,6 +5347,9 @@ async function route() {
     else if (page === 'maintenance_new') await pageMaintenanceNew(body);
     else if (page === 'maintenance_detail') await pageMaintenanceDetail(body, param);
     else if (page === 'maintenance_suppliers') await pageMaintenanceSuppliers(body);
+    else if (page === 'quality') await pageQuality(body, query);
+    else if (page === 'quality_new') await pageQualityVisitNew(body, param);
+    else if (page === 'quality_detail') await pageQualityVisitDetail(body, param);
     else if (page === 'install_app') await pageInstallApp(body);
     else if (page === 'reports') await pageReports(body);
     else if (page === 'users') await pageUsers(body);
@@ -7744,6 +7805,427 @@ async function pageInstallApp(body) {
     if (zone) zone.innerHTML = '<div class="install-done"><span data-lucide="check-circle-2" style="width:22px;height:22px;"></span> تم تثبيت التطبيق بنجاح ✔</div>';
     if (window.lucide) lucide.createIcons();
   }, { once: true });
+}
+
+/* ============================================================
+   ============  سيكشن الجودة (Quality Module)  ================
+   ============================================================ */
+
+const Q_STATUS_COLOR = { conform: '#1F7A3A', follow_up: '#D6A437', non_conform: '#D32F2F', na: '#6B756F' };
+function qScoreColor(pct) { return pct >= 90 ? '#1F7A3A' : pct >= 75 ? '#D6A437' : pct >= 50 ? '#F2994A' : '#D32F2F'; }
+
+/* ---------- لوحة الجودة + قائمة الزيارات ---------- */
+async function pageQuality(body, query) {
+  const canCreate = can('quality', 'manage') || ['admin','company_manager','quality_manager','operations_manager','department_manager'].includes(CURRENT_USER.role);
+
+  body.innerHTML = `
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span> <span data-lucide="shield-check" style="width:22px;height:22px;color:#0F3D2E;"></span> إدارة الجودة</h2>
+        <p>نفّذ زيارات تدقيق الجودة على الفروع، قيّم المعايير التشغيلية، وتابع نسب الالتزام والمخالفات.</p>
+      </div>
+      ${canCreate ? '<a href="#quality_new" class="btn" style="background:var(--primary);color:#fff;font-size:12.5px;align-self:center;"><span data-lucide="plus" style="width:15px;height:15px;"></span> زيارة جودة جديدة</a>' : ''}
+    </div>
+    <div class="kpi-grid" id="qKpi">${[1,2,3,4].map(()=>'<div class="kpi-card"><div class="skeleton skeleton-row" style="width:42px;height:42px;border-radius:8px;"></div><div class="skeleton skeleton-row" style="width:60%;margin-top:12px;"></div></div>').join('')}</div>
+    <div class="panel" id="qSkeleton"><div class="panel-body"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  const [{ data: visits }, { data: branches }] = await Promise.all([
+    sb.from('quality_visits').select('*, branches(name), users(full_name)').order('created_at', { ascending: false }),
+    sb.from('branches').select('*').eq('is_active', true).order('name')
+  ]);
+  const rows = visits || [];
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const monthVisits = rows.filter(r => (r.visit_date || r.created_at || '').slice(0, 7) === thisMonth).length;
+  const completed = rows.filter(r => r.status === 'completed');
+  const avgCompliance = completed.length ? Math.round(completed.reduce((s, r) => s + Number(r.compliance_pct || 0), 0) / completed.length) : 0;
+  const openNonConform = rows.reduce((s, r) => s + Number(r.non_conform_count || 0), 0);
+
+  // أقل الفروع التزامًا
+  const branchScores = {};
+  completed.forEach(r => { const b = r.branches?.name || '—'; (branchScores[b] = branchScores[b] || []).push(Number(r.compliance_pct || 0)); });
+  const lowBranches = Object.entries(branchScores).map(([n, arr]) => [n, Math.round(arr.reduce((a, b) => a + b, 0) / arr.length)]).sort((a, b) => a[1] - b[1]).slice(0, 5);
+
+  document.getElementById('qKpi').innerHTML = `
+    <div class="kpi-card"><div class="kpi-icon c-blue"><span data-lucide="clipboard-check" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${monthVisits}</div><div class="kpi-label">زيارات هذا الشهر</div></div>
+    <div class="kpi-card"><div class="kpi-icon ${avgCompliance>=75?'c-green':'c-red'}"><span data-lucide="percent" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${avgCompliance}%</div><div class="kpi-label">متوسط الالتزام</div></div>
+    <div class="kpi-card"><div class="kpi-icon c-red"><span data-lucide="alert-triangle" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${openNonConform}</div><div class="kpi-label">بنود غير مطابقة</div></div>
+    <div class="kpi-card"><div class="kpi-icon c-gold"><span data-lucide="clipboard-list" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${rows.length}</div><div class="kpi-label">إجمالي الزيارات</div></div>
+  `;
+
+  document.getElementById('qSkeleton').remove();
+  const analytics = lowBranches.length ? `
+    <div class="panel" style="margin-top:14px;"><div class="panel-header"><h3 class="panel-title"><span data-lucide="trending-down" style="width:17px;height:17px;"></span> أقل الفروع التزامًا</h3></div><div class="panel-body">
+      ${lowBranches.map(([n,p]) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12.5px;"><span>${esc(n)}</span><strong style="color:${qScoreColor(p)};">${p}%</strong></div>`).join('')}
+    </div></div>` : '';
+
+  const state = { branch: query?.branch || '', status: query?.status || '', search: '' };
+  const listPanel = `
+    ${analytics}
+    <div class="panel" style="margin-top:14px;"><div class="panel-header"><h3 class="panel-title"><span data-lucide="list-checks" style="width:18px;height:18px;"></span> زيارات الجودة</h3></div>
+    <div class="panel-body">
+      <div class="table-toolbar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <div class="search-wrap" style="flex:1;min-width:180px;"><input type="text" id="qSearch" placeholder="بحث برقم الزيارة أو الفرع..." class="search-input"></div>
+        <select id="qBranchFilter" class="form-select"><option value="">كل الفروع</option>${(branches||[]).map(b => `<option value="${b.id}" ${state.branch==String(b.id)?'selected':''}>${esc(b.name)}</option>`).join('')}</select>
+        <select id="qStatusFilter" class="form-select"><option value="">كل الحالات</option><option value="draft" ${state.status==='draft'?'selected':''}>مسودة</option><option value="completed" ${state.status==='completed'?'selected':''}>مكتملة</option></select>
+      </div>
+      <div style="overflow-x:auto;"><table class="adv-table"><thead><tr><th>#</th><th>الفرع</th><th>المقيّم</th><th>التاريخ</th><th>النوع</th><th>الالتزام</th><th>الحالة</th><th></th></tr></thead><tbody id="qTbody"></tbody></table></div>
+    </div></div>
+  `;
+  body.insertAdjacentHTML('beforeend', listPanel);
+  if (window.lucide) lucide.createIcons();
+
+  function renderRows() {
+    const q = state.search.trim().toLowerCase();
+    const filtered = rows.filter(r => {
+      if (state.branch && String(r.branch_id) !== state.branch) return false;
+      if (state.status && r.status !== state.status) return false;
+      if (q && !((r.visit_no||'') + ' ' + (r.branches?.name||'')).toLowerCase().includes(q)) return false;
+      return true;
+    });
+    const tb = document.getElementById('qTbody');
+    if (!filtered.length) { tb.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted);">لا توجد زيارات</td></tr>'; return; }
+    tb.innerHTML = filtered.map(r => {
+      const pct = Math.round(Number(r.compliance_pct || 0));
+      const href = r.status === 'draft' ? '#quality_new/' + r.id : '#quality_detail/' + r.id;
+      return `<tr style="cursor:pointer;" onclick="location.hash='${href}'">
+        <td style="font-weight:700;color:var(--primary);">${esc(r.visit_no || r.id)}</td>
+        <td>${esc(r.branches?.name || '-')}</td>
+        <td>${esc(r.inspector_name || r.users?.full_name || '-')}</td>
+        <td style="font-size:11.5px;color:var(--text-muted);">${esc((r.visit_date||'').slice(0,10) || fmtDate(r.created_at))}</td>
+        <td>${label('quality_visit_type', r.visit_type)}</td>
+        <td>${r.status==='completed' ? `<span style="font-weight:800;color:${qScoreColor(pct)};">${pct}%</span>` : '-'}</td>
+        <td>${r.status==='completed' ? '<span class="badge-status badge-done">مكتملة</span>' : '<span class="badge-status badge-closed">مسودة</span>'}</td>
+        <td><a href="${href}" class="btn btn-outline" style="padding:4px 10px;font-size:11px;" onclick="event.stopPropagation();">${r.status==='draft'?'استكمال':'عرض'}</a></td>
+      </tr>`;
+    }).join('');
+  }
+  renderRows();
+  document.getElementById('qSearch').addEventListener('input', e => { state.search = e.target.value; renderRows(); });
+  document.getElementById('qBranchFilter').addEventListener('change', e => { state.branch = e.target.value; renderRows(); });
+  document.getElementById('qStatusFilter').addEventListener('change', e => { state.status = e.target.value; renderRows(); });
+}
+
+/* ---------- زيارة جودة جديدة (الشيك ليست) ---------- */
+async function pageQualityVisitNew(body, param) {
+  const resumeId = param ? Number(param) : null;
+  const [{ data: sections }, { data: items }, { data: branches }] = await Promise.all([
+    sb.from('quality_sections').select('*').eq('is_active', true).order('sort_order'),
+    sb.from('quality_items').select('*').eq('is_active', true).order('sort_order'),
+    sb.from('branches').select('*').eq('is_active', true).order('name')
+  ]);
+  const secs = sections || [];
+  const itemsBySec = {};
+  (items || []).forEach(it => { (itemsBySec[it.section_id] = itemsBySec[it.section_id] || []).push(it); });
+  const totalItems = (items || []).length;
+
+  const Q = { statuses: {}, sections: {}, meta: { branch_id: '', inspector_name: CURRENT_USER.full_name, visit_type: 'daily', visit_date: new Date().toISOString().slice(0, 10) } };
+  secs.forEach(s => { Q.sections[s.id] = { corr: new Set(), severity: '', execution: '', notes: '', photos: [] }; });
+
+  if (resumeId) {
+    const [{ data: v }, { data: vi }, { data: vs }] = await Promise.all([
+      sb.from('quality_visits').select('*').eq('id', resumeId).single(),
+      sb.from('quality_visit_items').select('*').eq('visit_id', resumeId),
+      sb.from('quality_visit_sections').select('*').eq('visit_id', resumeId)
+    ]);
+    if (v) { Q.meta.branch_id = String(v.branch_id || ''); Q.meta.inspector_name = v.inspector_name || Q.meta.inspector_name; Q.meta.visit_type = v.visit_type || 'daily'; Q.meta.visit_date = (v.visit_date || '').slice(0, 10) || Q.meta.visit_date; }
+    (vi || []).forEach(r => { if (r.item_id && r.status) Q.statuses[r.item_id] = r.status; });
+    (vs || []).forEach(r => { const t = Q.sections[r.section_id]; if (t) { t.corr = new Set((r.corrective_actions || '').split('،').map(x => x.trim()).filter(Boolean)); t.severity = r.severity || ''; t.execution = r.execution_status || ''; t.notes = r.notes || ''; } });
+  }
+
+  const noBranches = !branches || !branches.length;
+  const statusDefs = [['conform','مطابق'],['follow_up','متابعة'],['non_conform','غير مطابق'],['na','لا ينطبق']];
+
+  body.innerHTML = `
+    <a href="#quality" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لزيارات الجودة</a>
+    <div class="mt-hero-header">
+      <div><h2><span class="mt-accent"></span> <span data-lucide="clipboard-check" style="width:22px;height:22px;color:#0F3D2E;"></span> زيارة جودة جديدة</h2>
+        <p>قيّم كل بند بلمسة واحدة. استخدم «الكل مطابق» ثم غيّر الاستثناءات فقط.</p></div>
+    </div>
+
+    ${noBranches ? '<div class="panel" style="border:1.5px solid #F2C94C;background:#FFFBEF;margin-bottom:14px;"><div class="panel-body" style="font-size:13px;color:#7A4E0E;">لا توجد فروع مسجلة. أضف فرعًا أولًا من قسم الصيانة → الفروع.</div></div>' : ''}
+
+    <div class="meeting-form-card">
+      <div class="meeting-section-title"><span class="mst-accent"></span><span data-lucide="map-pin" style="width:17px;height:17px;"></span> بيانات الزيارة</div>
+      <div class="mform-grid">
+        <div class="form-field"><label>الفرع *</label>
+          <select id="qBranch" class="form-select" ${noBranches?'disabled':''}><option value="">اختر الفرع</option>${(branches||[]).map(b => `<option value="${b.id}" ${Q.meta.branch_id==String(b.id)?'selected':''}>${esc(b.name)}</option>`).join('')}</select></div>
+        <div class="form-field"><label>اسم المقيّم</label><input id="qInspector" class="form-input" value="${esc(Q.meta.inspector_name)}"></div>
+        <div class="form-field"><label>نوع الزيارة</label>
+          <select id="qType" class="form-select">${['daily','weekly','monthly','surprise'].map(t => `<option value="${t}" ${Q.meta.visit_type===t?'selected':''}>${label('quality_visit_type', t)}</option>`).join('')}</select></div>
+        <div class="form-field"><label>تاريخ الزيارة</label><input id="qDate" type="date" class="form-input" value="${Q.meta.visit_date}"></div>
+      </div>
+    </div>
+
+    <div class="q-progress-bar">
+      <div style="display:flex;justify-content:space-between;align-items:center;"><strong style="font-size:12.5px;color:#24352E;">التقدّم</strong><span id="qProgPct" style="font-size:12.5px;font-weight:800;color:#0F3D2E;">0%</span></div>
+      <div class="q-progress-track"><div class="q-progress-fill" id="qProgFill" style="width:0%;"></div></div>
+      <div class="q-counters" id="qCounters"></div>
+    </div>
+
+    <div class="q-jump" id="qJump">${secs.map((s, i) => `<button type="button" data-jump="${s.id}">${i+1}. ${esc(s.title)}</button>`).join('')}</div>
+
+    <div id="qSections">
+      ${secs.map((s, i) => `
+        <div class="q-section" data-sec="${s.id}">
+          <div class="q-sec-head" data-toggle="${s.id}">
+            <span class="q-sec-num">${i+1}</span>
+            <div style="flex:1;"><div class="q-sec-title">${esc(s.title)}</div><div class="q-sec-mini" id="qMini-${s.id}">${(itemsBySec[s.id]||[]).length} بنود</div></div>
+            <span class="q-sec-chevron" data-lucide="chevron-down" style="width:18px;height:18px;"></span>
+          </div>
+          <div class="q-sec-body">
+            <button type="button" class="q-sec-allbtn" data-allconform="${s.id}"><span data-lucide="check-check" style="width:14px;height:14px;"></span> تعليم كل البنود «مطابق»</button>
+            ${(itemsBySec[s.id]||[]).map((it, idx) => `
+              <div class="q-item" data-item="${it.id}" data-secref="${s.id}">
+                <div class="q-item-text"><span class="n">${idx+1}.</span> ${esc(it.text)}</div>
+                <div class="q-status-row">
+                  ${statusDefs.map(([v,lbl]) => `<button type="button" class="q-status-btn ${Q.statuses[it.id]===v?'active':''}" data-s="${v}" data-for="${it.id}">${lbl}</button>`).join('')}
+                </div>
+              </div>
+            `).join('')}
+            <div class="q-sec-extras" id="qExtras-${s.id}">
+              <div style="font-size:12px;font-weight:700;color:#6B756F;margin-bottom:8px;">الإجراءات التصحيحية</div>
+              <div class="q-corr-chips" data-corr="${s.id}">${(s.corrective_options||[]).map(c => `<button type="button" class="q-corr-chip ${Q.sections[s.id].corr.has(c)?'active':''}" data-corrval="${esc(c)}">${esc(c)}</button>`).join('') || '<span style="font-size:11.5px;color:#9aa39c;">لا توجد إجراءات معرّفة</span>'}</div>
+              <div class="mform-grid" style="margin-top:12px;">
+                <div class="form-field"><label>مستوى الخطورة</label><select class="form-select" data-sev="${s.id}"><option value="">—</option>${['low','medium','high','immediate'].map(x => `<option value="${x}" ${Q.sections[s.id].severity===x?'selected':''}>${label('quality_severity', x)}</option>`).join('')}</select></div>
+                <div class="form-field"><label>حالة التنفيذ</label><select class="form-select" data-exec="${s.id}"><option value="">—</option>${['done','in_progress','not_started'].map(x => `<option value="${x}" ${Q.sections[s.id].execution===x?'selected':''}>${label('quality_exec', x)}</option>`).join('')}</select></div>
+              </div>
+              <div class="form-field" style="margin-top:10px;"><label>ملاحظات / الإجراء المطلوب</label><textarea class="form-input" rows="2" data-notes="${s.id}" placeholder="اكتب الملاحظات أو الإجراء التصحيحي...">${esc(Q.sections[s.id].notes)}</textarea></div>
+              <div class="form-field" style="margin-top:10px;"><label>رفع صور</label>
+                <div class="mt-upload"><input type="file" accept="image/*" multiple data-photo="${s.id}"><span data-lucide="image-plus" class="u-ic" style="width:24px;height:24px;"></span><div class="u-t">اضغط لرفع صور القسم</div></div>
+                <div class="mt-thumbs" data-thumbs="${s.id}"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="mt-submit-bar">
+      <a href="#quality" class="btn btn-outline"><span data-lucide="x" style="width:14px;height:14px;"></span> إلغاء</a>
+      <button type="button" class="btn btn-outline" id="qSaveDraft"><span data-lucide="save" style="width:14px;height:14px;"></span> حفظ كمسودة</button>
+      <button type="button" class="btn" id="qFinish" style="background:var(--primary);color:#fff;"><span data-lucide="check-circle-2" style="width:15px;height:15px;"></span> إنهاء الزيارة</button>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  // meta bindings
+  document.getElementById('qBranch').addEventListener('change', e => Q.meta.branch_id = e.target.value);
+  document.getElementById('qInspector').addEventListener('input', e => Q.meta.inspector_name = e.target.value);
+  document.getElementById('qType').addEventListener('change', e => Q.meta.visit_type = e.target.value);
+  document.getElementById('qDate').addEventListener('change', e => Q.meta.visit_date = e.target.value);
+
+  // accordion toggle
+  body.querySelectorAll('[data-toggle]').forEach(h => h.addEventListener('click', () => h.closest('.q-section').classList.toggle('open')));
+  if (secs[0]) body.querySelector('.q-section')?.classList.add('open');
+
+  // jump
+  body.querySelectorAll('[data-jump]').forEach(b => b.addEventListener('click', () => {
+    const sec = body.querySelector('.q-section[data-sec="' + b.dataset.jump + '"]');
+    if (sec) { sec.classList.add('open'); sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  }));
+
+  function refreshSection(sid) {
+    const secItems = itemsBySec[sid] || [];
+    let c = 0, f = 0, n = 0, na = 0, answered = 0;
+    secItems.forEach(it => { const s = Q.statuses[it.id]; if (!s) return; answered++; if (s==='conform') c++; else if (s==='follow_up') f++; else if (s==='non_conform') n++; else if (s==='na') na++; });
+    const mini = document.getElementById('qMini-' + sid);
+    if (mini) mini.innerHTML = `${answered}/${secItems.length} — <span style="color:#1F7A3A;">${c} مطابق</span>${n?` · <span style="color:#D32F2F;">${n} غير مطابق</span>`:''}${f?` · <span style="color:#9A6B12;">${f} متابعة</span>`:''}`;
+    const secEl = body.querySelector('.q-section[data-sec="' + sid + '"]');
+    if (secEl) secEl.classList.toggle('has-issues', (f + n) > 0);
+    const jbtn = body.querySelector('[data-jump="' + sid + '"]');
+    if (jbtn) jbtn.classList.toggle('done', answered === secItems.length && secItems.length > 0);
+  }
+
+  function refreshProgress() {
+    let c = 0, f = 0, n = 0, na = 0, answered = 0;
+    (items || []).forEach(it => { const s = Q.statuses[it.id]; if (!s) return; answered++; if (s==='conform') c++; else if (s==='follow_up') f++; else if (s==='non_conform') n++; else if (s==='na') na++; });
+    const pct = totalItems ? Math.round(answered / totalItems * 100) : 0;
+    document.getElementById('qProgPct').textContent = pct + '%';
+    document.getElementById('qProgFill').style.width = pct + '%';
+    document.getElementById('qCounters').innerHTML = `
+      <span class="q-counter c-total">الكل ${totalItems}</span>
+      <span class="q-counter c-conform">مطابق ${c}</span>
+      <span class="q-counter c-follow">متابعة ${f}</span>
+      <span class="q-counter c-non">غير مطابق ${n}</span>
+      <span class="q-counter c-na">لا ينطبق ${na}</span>`;
+  }
+
+  // status buttons
+  body.querySelectorAll('.q-status-btn').forEach(btn => btn.addEventListener('click', () => {
+    const id = btn.dataset.for, val = btn.dataset.s;
+    const row = btn.closest('.q-item');
+    row.querySelectorAll('.q-status-btn').forEach(x => x.classList.remove('active'));
+    if (Q.statuses[id] === val) { delete Q.statuses[id]; } else { Q.statuses[id] = val; btn.classList.add('active'); }
+    refreshSection(row.dataset.secref); refreshProgress();
+  }));
+
+  // mark all conform
+  body.querySelectorAll('[data-allconform]').forEach(b => b.addEventListener('click', () => {
+    const sid = b.dataset.allconform;
+    (itemsBySec[sid] || []).forEach(it => { Q.statuses[it.id] = 'conform'; });
+    const secEl = body.querySelector('.q-section[data-sec="' + sid + '"]');
+    secEl.querySelectorAll('.q-item').forEach(row => { row.querySelectorAll('.q-status-btn').forEach(x => x.classList.toggle('active', x.dataset.s === 'conform')); });
+    refreshSection(sid); refreshProgress();
+  }));
+
+  // corrective chips
+  body.querySelectorAll('[data-corr] .q-corr-chip').forEach(chip => chip.addEventListener('click', () => {
+    const sid = chip.closest('[data-corr]').dataset.corr, val = chip.dataset.corrval;
+    const set = Q.sections[sid].corr;
+    if (set.has(val)) { set.delete(val); chip.classList.remove('active'); } else { set.add(val); chip.classList.add('active'); }
+  }));
+  body.querySelectorAll('[data-sev]').forEach(s => s.addEventListener('change', e => Q.sections[s.dataset.sev].severity = e.target.value));
+  body.querySelectorAll('[data-exec]').forEach(s => s.addEventListener('change', e => Q.sections[s.dataset.exec].execution = e.target.value));
+  body.querySelectorAll('[data-notes]').forEach(t => t.addEventListener('input', e => Q.sections[t.dataset.notes].notes = e.target.value));
+
+  // photos per section
+  body.querySelectorAll('[data-photo]').forEach(inp => inp.addEventListener('change', async () => {
+    const sid = inp.dataset.photo;
+    for (const f of Array.from(inp.files || [])) {
+      if (Q.sections[sid].photos.length >= 6) { toast('حد أقصى 6 صور للقسم', 'warning'); break; }
+      try { Q.sections[sid].photos.push(await compressImage(f, 1000, 0.6)); } catch (e) {}
+    }
+    inp.value = '';
+    const tw = body.querySelector('[data-thumbs="' + sid + '"]');
+    tw.innerHTML = Q.sections[sid].photos.map((src, i) => `<div class="mt-thumb"><img src="${src}"><button type="button" class="rm" data-rmphoto="${i}">×</button></div>`).join('');
+    tw.querySelectorAll('[data-rmphoto]').forEach(b => b.addEventListener('click', () => { Q.sections[sid].photos.splice(Number(b.dataset.rmphoto), 1); inp.dispatchEvent(new Event('change')); }));
+  }));
+
+  // initial refresh (for resumed drafts)
+  secs.forEach(s => refreshSection(s.id));
+  refreshProgress();
+
+  async function persist(isFinish) {
+    if (!Q.meta.branch_id) { toast('اختر الفرع أولًا', 'error'); return; }
+    let c = 0, f = 0, n = 0, na = 0;
+    (items || []).forEach(it => { const s = Q.statuses[it.id]; if (s==='conform') c++; else if (s==='follow_up') f++; else if (s==='non_conform') n++; else if (s==='na') na++; });
+    const evaluated = c + f + n;
+    if (isFinish && evaluated === 0) { toast('قيّم بندًا واحدًا على الأقل قبل الإنهاء', 'error'); return; }
+    const compliance = evaluated ? Math.round(c / evaluated * 100) : 0;
+
+    const btn = isFinish ? document.getElementById('qFinish') : document.getElementById('qSaveDraft');
+    const other = isFinish ? document.getElementById('qSaveDraft') : document.getElementById('qFinish');
+    btn.disabled = true; other.disabled = true;
+
+    const payload = {
+      branch_id: Number(Q.meta.branch_id), inspector_id: CURRENT_USER.id, inspector_name: Q.meta.inspector_name || CURRENT_USER.full_name,
+      visit_type: Q.meta.visit_type, visit_date: Q.meta.visit_date, status: isFinish ? 'completed' : 'draft',
+      total_items: totalItems, conform_count: c, follow_up_count: f, non_conform_count: n, na_count: na, compliance_pct: compliance,
+      ended_at: isFinish ? new Date().toISOString() : null, updated_at: new Date().toISOString()
+    };
+
+    let visitId = resumeId;
+    if (visitId) {
+      await sb.from('quality_visits').update(payload).eq('id', visitId);
+      await sb.from('quality_visit_items').delete().eq('visit_id', visitId);
+      await sb.from('quality_visit_sections').delete().eq('visit_id', visitId);
+      await sb.from('quality_attachments').delete().eq('visit_id', visitId);
+    } else {
+      payload.started_at = new Date().toISOString();
+      const { data: created, error } = await sb.from('quality_visits').insert(payload).select().single();
+      if (error) { toast(error.message, 'error'); btn.disabled = false; other.disabled = false; return; }
+      visitId = created.id;
+    }
+
+    const itemRows = [];
+    (items || []).forEach(it => { if (Q.statuses[it.id]) itemRows.push({ visit_id: visitId, section_id: it.section_id, item_id: it.id, item_text: it.text, status: Q.statuses[it.id] }); });
+    if (itemRows.length) await sb.from('quality_visit_items').insert(itemRows);
+
+    const secRows = [], photoRows = [];
+    secs.forEach(s => {
+      const t = Q.sections[s.id];
+      const hasData = t.corr.size || t.severity || t.execution || t.notes || t.photos.length;
+      if (hasData) secRows.push({ visit_id: visitId, section_id: s.id, section_title: s.title, corrective_actions: [...t.corr].join('، ') || null, severity: t.severity || null, execution_status: t.execution || null, notes: t.notes || null });
+      t.photos.forEach((src, i) => photoRows.push({ visit_id: visitId, section_id: s.id, file_url: src, file_name: 'صورة ' + (i+1), file_type: 'image', uploaded_by: CURRENT_USER.id }));
+    });
+    if (secRows.length) await sb.from('quality_visit_sections').insert(secRows);
+    if (photoRows.length) await sb.from('quality_attachments').insert(photoRows);
+
+    toast(isFinish ? `تم إنهاء الزيارة — الالتزام ${compliance}%` : 'تم حفظ المسودة', 'success');
+    location.hash = isFinish ? '#quality_detail/' + visitId : '#quality';
+  }
+
+  document.getElementById('qSaveDraft').addEventListener('click', () => persist(false));
+  document.getElementById('qFinish').addEventListener('click', () => persist(true));
+}
+
+/* ---------- تقرير زيارة الجودة ---------- */
+async function pageQualityVisitDetail(body, id) {
+  if (!id) { body.innerHTML = '<p class="empty-state">زيارة غير معروفة</p>'; return; }
+  const vid = Number(id);
+  const [{ data: v }, { data: vitems }, { data: vsections }, { data: atts }, { data: secDefs }] = await Promise.all([
+    sb.from('quality_visits').select('*, branches(name), users(full_name)').eq('id', vid).single(),
+    sb.from('quality_visit_items').select('*').eq('visit_id', vid),
+    sb.from('quality_visit_sections').select('*').eq('visit_id', vid),
+    sb.from('quality_attachments').select('*').eq('visit_id', vid),
+    sb.from('quality_sections').select('id, title, sort_order').order('sort_order')
+  ]);
+  if (!v) { body.innerHTML = '<p class="empty-state">الزيارة غير موجودة</p>'; return; }
+
+  const pct = Math.round(Number(v.compliance_pct || 0));
+  const color = qScoreColor(pct);
+  const bySec = {};
+  (vitems || []).forEach(it => { (bySec[it.section_id] = bySec[it.section_id] || []).push(it); });
+  const secExtra = {};
+  (vsections || []).forEach(s => secExtra[s.section_id] = s);
+  const attBySec = {};
+  (atts || []).forEach(a => { (attBySec[a.section_id] = attBySec[a.section_id] || []).push(a); });
+  const secOrder = (secDefs || []).length ? secDefs : Object.keys(bySec).map(id => ({ id: Number(id), title: (bySec[id][0]||{}).section_id }));
+
+  const issues = (vitems || []).filter(it => it.status === 'non_conform' || it.status === 'follow_up');
+
+  body.innerHTML = `
+    <a href="#quality" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لزيارات الجودة</a>
+    <div class="panel">
+      <div class="panel-body" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
+        <div class="q-score-ring" style="background:conic-gradient(${color} ${pct*3.6}deg, #ECEFE9 0deg);">
+          <div style="width:74px;height:74px;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+            <span class="pct" style="color:${color};">${pct}%</span><span class="lbl" style="color:#6B756F;">الالتزام</span>
+          </div>
+        </div>
+        <div style="flex:1;min-width:200px;">
+          <h3 class="panel-title" style="margin:0;">${esc(v.visit_no || '#'+v.id)}</h3>
+          <div style="font-size:13px;color:#24352E;font-weight:700;margin-top:5px;">${esc(v.branches?.name || '-')}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${esc(v.inspector_name || v.users?.full_name || '')} · ${label('quality_visit_type', v.visit_type)} · ${esc((v.visit_date||'').slice(0,10))}</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+            <span class="q-counter c-conform">مطابق ${v.conform_count||0}</span>
+            <span class="q-counter c-follow">متابعة ${v.follow_up_count||0}</span>
+            <span class="q-counter c-non">غير مطابق ${v.non_conform_count||0}</span>
+            <span class="q-counter c-na">لا ينطبق ${v.na_count||0}</span>
+          </div>
+        </div>
+        <button class="btn btn-outline" onclick="window.print()" style="align-self:flex-start;"><span data-lucide="printer" style="width:14px;height:14px;"></span> طباعة</button>
+      </div>
+    </div>
+
+    ${issues.length ? `
+      <div class="panel" style="margin-top:14px;"><div class="panel-header"><h3 class="panel-title"><span data-lucide="alert-triangle" style="width:17px;height:17px;color:#D32F2F;"></span> البنود المخالفة والمتابعة (${issues.length})</h3></div>
+      <div class="panel-body">
+        ${issues.map(it => `<div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12.5px;"><span style="width:9px;height:9px;border-radius:50%;background:${Q_STATUS_COLOR[it.status]};margin-top:5px;flex-shrink:0;"></span><div><div>${esc(it.item_text)}</div><div style="font-size:11px;color:${Q_STATUS_COLOR[it.status]};font-weight:700;margin-top:2px;">${label('quality_status', it.status)}</div></div></div>`).join('')}
+      </div></div>
+    ` : `<div class="panel" style="margin-top:14px;"><div class="panel-body" style="text-align:center;color:#1F7A3A;font-weight:700;font-size:13px;padding:20px;"><span data-lucide="check-circle-2" style="width:20px;height:20px;vertical-align:-4px;"></span> لا توجد بنود مخالفة 🎉</div></div>`}
+
+    <div class="panel" style="margin-top:14px;"><div class="panel-header"><h3 class="panel-title"><span data-lucide="list-checks" style="width:17px;height:17px;"></span> تفصيل الأقسام</h3></div>
+    <div class="panel-body">
+      ${secOrder.map(sd => {
+        const list = bySec[sd.id] || [];
+        if (!list.length && !secExtra[sd.id]) return '';
+        const cc = list.filter(x => x.status==='conform').length;
+        const ex = secExtra[sd.id];
+        const photos = attBySec[sd.id] || [];
+        return `<div style="border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;"><strong style="font-size:13px;">${esc(sd.title)}</strong><span style="font-size:12px;color:#1F7A3A;font-weight:700;">${cc}/${list.length} مطابق</span></div>
+          ${ex && ex.corrective_actions ? `<div style="font-size:11.5px;color:#6B756F;margin-top:6px;"><b>إجراءات:</b> ${esc(ex.corrective_actions)}</div>` : ''}
+          ${ex && ex.severity ? `<div style="font-size:11.5px;color:#6B756F;margin-top:3px;"><b>الخطورة:</b> ${label('quality_severity', ex.severity)}${ex.execution_status?` · <b>التنفيذ:</b> ${label('quality_exec', ex.execution_status)}`:''}</div>` : ''}
+          ${ex && ex.notes ? `<div style="font-size:11.5px;color:#24352E;margin-top:5px;background:var(--bg);padding:7px 9px;border-radius:6px;">${esc(ex.notes)}</div>` : ''}
+          ${photos.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">${photos.map(p => `<a href="${esc(p.file_url)}" target="_blank" style="width:56px;height:56px;border-radius:8px;overflow:hidden;border:1px solid var(--border);"><img src="${esc(p.file_url)}" style="width:100%;height:100%;object-fit:cover;"></a>`).join('')}</div>` : ''}
+        </div>`;
+      }).join('')}
+    </div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
 }
 
 /* ============================================================
