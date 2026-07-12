@@ -376,6 +376,21 @@ tr:hover td { background: var(--primary-light); }
 .reset-filters-btn:hover { background: rgba(31,122,58,0.08); }
 .reset-filters-btn svg { width: 14px; height: 14px; }
 .toolbar-divider { width: 1px; height: 26px; background: #D8C27A; opacity: 0.6; margin: 0 2px; }
+
+/* حقل تاريخ داخل شريط الفلاتر — متناسق مع باقي الفلاتر */
+.filter-date-wrap::after { display: none; }
+.filter-date-wrap input[type="date"] {
+  border: none; background: transparent; outline: none;
+  font-size: 13px; color: #24352E; font-weight: 600;
+  font-family: 'Tajawal', sans-serif;
+  padding: 8px 4px; min-width: 130px; cursor: pointer;
+}
+.filter-date-wrap input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(35%) sepia(60%) saturate(500%) hue-rotate(20deg);
+  cursor: pointer; opacity: 0.85;
+}
+.filter-date-wrap input[type="date"]::-webkit-datetime-edit { color: #24352E; }
+.filter-date-wrap input[type="date"]:invalid { color: #8b968f; }
 .search-wrap {
   flex: 1; min-width: 220px; max-width: 340px; height: 42px; direction: ltr; display: flex; align-items: stretch;
   border-radius: 999px; overflow: hidden; background: #FFFDF7;
@@ -5786,16 +5801,23 @@ function decisionPill(status) {
 
 // ============ مهام الأقسام ============
 async function pageDepartmentTasks(body, urlQuery) {
+  const filter = (urlQuery && urlQuery.filter) || '';
   const { data: allUsers } = await sb.from('users').select('id, full_name, department_id').eq('is_active', true).order('full_name');
   const { data: assignedToMe } = await sb.from('department_tasks').select('*, assigner:assigned_by(full_name), assignee:assigned_to(full_name)').eq('assigned_to', CURRENT_USER.id).order('due_datetime', { ascending: true });
   const { data: assignedByMe } = await sb.from('department_tasks').select('*, assigner:assigned_by(full_name), assignee:assigned_to(full_name)').eq('assigned_by', CURRENT_USER.id).order('due_datetime', { ascending: true });
 
   const now = new Date();
   const isOverdue = t => t.due_datetime && new Date(t.due_datetime) < now && t.status !== 'completed';
+  const isDueToday = t => {
+    if (!t.due_datetime) return false;
+    const d = new Date(t.due_datetime), n = new Date();
+    return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate() && t.status !== 'completed';
+  };
   const statAssignedToMe = (assignedToMe||[]).length;
   const statAssignedByMe = (assignedByMe||[]).length;
   const statOverdue = [...(assignedToMe||[]), ...(assignedByMe||[])].filter(isOverdue).length;
   const statCompleted = [...(assignedToMe||[]), ...(assignedByMe||[])].filter(t => t.status === 'completed').length;
+  const statDueToday = [...(assignedToMe||[]), ...(assignedByMe||[])].filter(isDueToday).length;
 
   function avatarInitials(name) { return (name||'').trim().split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join(''); }
   const priorityIcon = { high: '🔴', medium: '🟡', low: '🟢' };
@@ -5829,30 +5851,69 @@ async function pageDepartmentTasks(body, urlQuery) {
     </tr>`;
   }
 
+  const filterLabels = {
+    assigned_to_me: 'المهام المسندة لي',
+    created_by_me: 'المهام التي أسندتها',
+    overdue: 'المهام المتأخرة',
+    due_today: 'مهام تنتهي اليوم',
+    completed: 'المهام المكتملة'
+  };
+
+  // تطبيق الفلتر: تحضير القوائم المفلترة
+  let showAssignedToMe = assignedToMe || [];
+  let showAssignedByMe = assignedByMe || [];
+  let showToMeSection = true;
+  let showByMeSection = true;
+
+  if (filter === 'assigned_to_me') { showByMeSection = false; }
+  else if (filter === 'created_by_me') { showToMeSection = false; }
+  else if (filter === 'overdue') {
+    showAssignedToMe = showAssignedToMe.filter(isOverdue);
+    showAssignedByMe = showAssignedByMe.filter(isOverdue);
+  } else if (filter === 'due_today') {
+    showAssignedToMe = showAssignedToMe.filter(isDueToday);
+    showAssignedByMe = showAssignedByMe.filter(isDueToday);
+  } else if (filter === 'completed') {
+    showAssignedToMe = showAssignedToMe.filter(t => t.status === 'completed');
+    showAssignedByMe = showAssignedByMe.filter(t => t.status === 'completed');
+  }
+
+  const filterBanner = filter ? `
+    <div style="background:linear-gradient(90deg, rgba(214,164,55,0.12), rgba(15,61,46,0.06));border:1px solid rgba(214,164,55,0.35);border-radius:12px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span data-lucide="filter" style="width:15px;height:15px;color:#9A6B12;"></span>
+      <strong style="color:#0F3D2E;font-size:13.5px;">${esc(filterLabels[filter] || 'مفلتر')}</strong>
+      <a href="#department_tasks" style="margin-inline-start:auto;font-size:12.5px;color:#D32F2F;font-weight:700;">إزالة الفلتر ×</a>
+    </div>
+  ` : '';
+
   body.innerHTML = `
     <div class="task-page-header">
       <div>
-        <h2><span class="tph-accent"></span><span data-lucide="clipboard-check" style="width:22px;height:22px; color:#0F3D2E;"></span> المهام والتكليفات</h2>
-        <p>أسند المهام وتابع ما تم تكليفك به وما كلفت به الآخرين</p>
+        <h2><span class="tph-accent"></span><span data-lucide="clipboard-check" style="width:22px;height:22px; color:#0F3D2E;"></span> ${filter ? esc(filterLabels[filter] || 'المهام والتكليفات') : 'المهام والتكليفات'}</h2>
+        <p>${filter ? 'عرض مفلتر — استخدم زر "إزالة الفلتر" للعودة للعرض الكامل' : 'أسند المهام وتابع ما تم تكليفك به وما كلفت به الآخرين'}</p>
       </div>
     </div>
 
+    ${filterBanner}
+
     <div class="task-quick-tabs">
-      <button type="button" class="tqt-btn tqt-primary" id="dtToggleFormBtn"><span data-lucide="plus" style="width:15px;height:15px;"></span> إسناد مهمة جديدة</button>
-      <button type="button" class="tqt-btn" onclick="document.getElementById('assignedToMeSection').scrollIntoView({behavior:'smooth'})"><span data-lucide="user" style="width:15px;height:15px;"></span> مهامي</button>
-      <button type="button" class="tqt-btn" onclick="document.getElementById('assignedByMeSection').scrollIntoView({behavior:'smooth'})"><span data-lucide="send" style="width:15px;height:15px;"></span> المهام التي أسندتها</button>
-      <button type="button" class="tqt-btn" style="${statOverdue>0?'border-color:#D32F2F; color:#D32F2F;':''}" onclick="document.getElementById('assignedToMeSection').scrollIntoView({behavior:'smooth'})"><span data-lucide="alert-circle" style="width:15px;height:15px;"></span> متأخر</button>
+      <button type="button" class="tqt-btn tqt-primary" id="dtToggleFormBtn">إسناد مهمة جديدة</button>
+      <button type="button" class="tqt-btn" onclick="location.hash='#department_tasks?filter=assigned_to_me'">مهامي</button>
+      <button type="button" class="tqt-btn" onclick="location.hash='#department_tasks?filter=created_by_me'">المهام التي أسندتها</button>
+      <button type="button" class="tqt-btn" style="${statOverdue>0?'border-color:#D32F2F; color:#D32F2F;':''}" onclick="location.hash='#department_tasks?filter=overdue'">متأخر</button>
+      ${filter ? `<button type="button" class="tqt-btn" onclick="location.hash='#department_tasks'">عرض الكل</button>` : ''}
     </div>
 
     <div class="kpi-grid">
-      <div class="kpi-card clickable-stat-card" data-target-page="department_tasks" data-scroll-target="assignedToMeSection" aria-label="عرض المهام المسندة لي"><div class="kpi-icon c-blue"><span data-lucide="user-check" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${statAssignedToMe}</div><div class="kpi-label">مهام مسندة لي</div></div>
-      <div class="kpi-card clickable-stat-card" data-target-page="department_tasks" data-scroll-target="assignedByMeSection" aria-label="عرض المهام التي أسندتها"><div class="kpi-icon c-gold"><span data-lucide="send" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${statAssignedByMe}</div><div class="kpi-label">مهام أسندتها</div></div>
-      <div class="kpi-card clickable-stat-card" data-target-page="department_tasks" data-scroll-target="assignedToMeSection" aria-label="عرض المهام المتأخرة"><div class="kpi-icon c-red"><span data-lucide="clock" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${statOverdue}</div><div class="kpi-label">مهام متأخرة</div>${statOverdue>0?'<span class="stat-badge">تحتاج متابعة</span>':''}</div>
-      <div class="kpi-card clickable-stat-card" data-target-page="department_tasks" data-scroll-target="assignedToMeSection" aria-label="عرض المهام المكتملة"><div class="kpi-icon c-green"><span data-lucide="check-circle-2" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${statCompleted}</div><div class="kpi-label">مكتملة</div></div>
+      <div class="kpi-card clickable-stat-card" onclick="location.hash='#department_tasks?filter=assigned_to_me'" aria-label="عرض المهام المسندة لي"><div class="kpi-icon c-blue"><span data-lucide="user-check" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${statAssignedToMe}</div><div class="kpi-label">مهام مسندة لي</div></div>
+      <div class="kpi-card clickable-stat-card" onclick="location.hash='#department_tasks?filter=created_by_me'" aria-label="عرض المهام التي أسندتها"><div class="kpi-icon c-gold"><span data-lucide="send" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${statAssignedByMe}</div><div class="kpi-label">مهام أسندتها</div></div>
+      <div class="kpi-card clickable-stat-card" onclick="location.hash='#department_tasks?filter=overdue'" aria-label="عرض المهام المتأخرة"><div class="kpi-icon c-red"><span data-lucide="clock" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${statOverdue}</div><div class="kpi-label">مهام متأخرة</div>${statOverdue>0?'<span class="stat-badge">تحتاج متابعة</span>':''}</div>
+      <div class="kpi-card clickable-stat-card" onclick="location.hash='#department_tasks?filter=due_today'" aria-label="عرض مهام تنتهي اليوم"><div class="kpi-icon c-gold"><span data-lucide="calendar-clock" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${statDueToday}</div><div class="kpi-label">تنتهي اليوم</div></div>
+      <div class="kpi-card clickable-stat-card" onclick="location.hash='#department_tasks?filter=completed'" aria-label="عرض المهام المكتملة"><div class="kpi-icon c-green"><span data-lucide="check-circle-2" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${statCompleted}</div><div class="kpi-label">مكتملة</div></div>
     </div>
 
     <div class="meeting-form-card hidden" id="deptTaskFormPanel">
-      <div class="meeting-section-title"><span class="mst-accent"></span> إسناد مهمة جديدة</div>
+      <div class="meeting-section-title">إسناد مهمة جديدة</div>
       <div class="error-msg" id="dtError"></div>
       <form id="deptTaskForm">
         <div class="mform-grid">
@@ -5877,29 +5938,31 @@ async function pageDepartmentTasks(body, urlQuery) {
       </form>
     </div>
 
+    ${showToMeSection ? `
     <div class="panel" id="assignedToMeSection">
-      <div class="panel-header"><h3><span data-lucide="inbox" style="width:15px;height:15px;vertical-align:-2px;margin-left:5px;"></span>مهام مسندة لي</h3></div>
+      <div class="panel-header"><h3><span data-lucide="inbox" style="width:15px;height:15px;vertical-align:-2px;margin-left:5px;"></span>مهام مسندة لي${filter?` (${showAssignedToMe.length})`:''}</h3></div>
       <div class="panel-body">
-        ${(assignedToMe||[]).length ? `<div style="overflow-x:auto;"><table><thead><tr><th>المهمة</th><th>من</th><th>الموعد</th><th>الحالة</th><th>نسبة الإنجاز</th><th>مرفق</th><th>إجراءات</th></tr></thead><tbody>${assignedToMe.map((t,i) => taskRow(t, i, true)).join('')}</tbody></table></div>` : `
+        ${showAssignedToMe.length ? `<div style="overflow-x:auto;"><table><thead><tr><th>المهمة</th><th>من</th><th>الموعد</th><th>الحالة</th><th>نسبة الإنجاز</th><th>مرفق</th><th>إجراءات</th></tr></thead><tbody>${showAssignedToMe.map((t,i) => taskRow(t, i, true)).join('')}</tbody></table></div>` : `
         <div class="task-empty-state">
           <div class="tes-icon"><span data-lucide="clipboard-check" style="width:38px;height:38px;"></span></div>
-          <div class="tes-title">لا توجد مهام مسندة لك حاليًا</div>
-          <div class="tes-sub">عندما يتم إسناد مهام لك، ستظهر هنا.</div>
+          <div class="tes-title">لا توجد مهام مسندة لك ${filter?'ضمن هذا الفلتر':'حاليًا'}</div>
+          <div class="tes-sub">${filter?'جرّب فلترًا آخر أو اضغط "عرض الكل".':'عندما يتم إسناد مهام لك، ستظهر هنا.'}</div>
         </div>`}
       </div>
-    </div>
+    </div>` : ''}
 
+    ${showByMeSection ? `
     <div class="panel" id="assignedByMeSection">
-      <div class="panel-header"><h3><span data-lucide="send" style="width:15px;height:15px;vertical-align:-2px;margin-left:5px;"></span>مهام أسندتها للآخرين</h3></div>
+      <div class="panel-header"><h3><span data-lucide="send" style="width:15px;height:15px;vertical-align:-2px;margin-left:5px;"></span>مهام أسندتها للآخرين${filter?` (${showAssignedByMe.length})`:''}</h3></div>
       <div class="panel-body">
-        ${(assignedByMe||[]).length ? `<div style="overflow-x:auto;"><table><thead><tr><th>المهمة</th><th>إلى</th><th>الموعد</th><th>الحالة</th><th>نسبة الإنجاز</th><th>مرفق</th><th>إجراءات</th></tr></thead><tbody>${assignedByMe.map((t,i) => taskRow(t, i, false)).join('')}</tbody></table></div>` : `
+        ${showAssignedByMe.length ? `<div style="overflow-x:auto;"><table><thead><tr><th>المهمة</th><th>إلى</th><th>الموعد</th><th>الحالة</th><th>نسبة الإنجاز</th><th>مرفق</th><th>إجراءات</th></tr></thead><tbody>${showAssignedByMe.map((t,i) => taskRow(t, i, false)).join('')}</tbody></table></div>` : `
         <div class="task-empty-state">
           <div class="tes-icon"><span data-lucide="send" style="width:38px;height:38px;"></span></div>
-          <div class="tes-title">لم تُسند أي مهام بعد</div>
-          <div class="tes-sub">استخدم زر "إسناد مهمة جديدة" أعلى الصفحة للبدء.</div>
+          <div class="tes-title">لم تُسند أي مهام ${filter?'ضمن هذا الفلتر':'بعد'}</div>
+          <div class="tes-sub">${filter?'جرّب فلترًا آخر أو اضغط "عرض الكل".':'استخدم زر "إسناد مهمة جديدة" أعلى الصفحة للبدء.'}</div>
         </div>`}
       </div>
-    </div>
+    </div>` : ''}
   `;
 
   document.getElementById('dtToggleFormBtn').addEventListener('click', () => {
@@ -6626,8 +6689,8 @@ function renderDecisionsTable(body, canManage) {
             <option value="medium" ${DecisionsState.priorityFilter==='medium'?'selected':''}>متوسطة</option>
             <option value="low" ${DecisionsState.priorityFilter==='low'?'selected':''}>منخفضة</option>
           </select></div>
-          <div class="filter-select-wrap"><span class="fsw-icon" data-lucide="calendar-clock" style="width:15px;height:15px;"></span>
-          <input type="date" id="decDueBeforeFilter" value="${esc(DecisionsState.dueBeforeFilter)}" style="border:none; background:transparent; padding:8px 4px; font-size:13px;" title="حتى تاريخ">
+          <div class="filter-select-wrap filter-date-wrap"><span class="fsw-icon" data-lucide="calendar-clock" style="width:15px;height:15px;"></span>
+          <input type="date" id="decDueBeforeFilter" value="${esc(DecisionsState.dueBeforeFilter)}" title="حتى تاريخ" placeholder="حتى تاريخ">
           </div>
           <div class="filter-select-wrap"><span class="fsw-icon" data-lucide="list" style="width:15px;height:15px;"></span>
           <select id="decPageSize">
@@ -10892,25 +10955,10 @@ async function pageQualityVisitNew(body, param) {
       <div class="search-wrap" style="flex:1;min-width:170px;"><input type="text" id="qtSearch" class="search-input" placeholder="بحث في البنود..."></div>
       <select id="qtSecFilter" class="form-select"><option value="">كل الأقسام</option>${secs.map(s => `<option value="${s.id}">${esc(s.title)}</option>`).join('')}</select>
       <select id="qtStatusFilter" class="form-select"><option value="">كل الحالات</option>${statusOpts.map(s => `<option value="${s}">${label('quality_status', s)}</option>`).join('')}</select>
-      <button type="button" class="btn btn-outline" id="qtAllConform" style="font-size:12px;"><span data-lucide="check-check" style="width:14px;height:14px;"></span> تعليم الكل «مطابق»</button>
       <button type="button" class="btn btn-outline qt-expand-btn" id="qtExpand" style="font-size:12px;"><span data-lucide="minimize-2" style="width:14px;height:14px;"></span> <span id="qtExpandLbl">العرض الموسّع</span></button>
     </div>
 
     <div class="qtbl-hint"><span data-lucide="move-horizontal" style="width:15px;height:15px;"></span> اسحب الجدول يمينًا ويسارًا لعرض الإجراء التصحيحي والملاحظات وملخص الزيارة السابقة.</div>
-
-    <!-- صور الأقسام (اختياري لكل قسم) -->
-    <details class="meeting-form-card" style="margin-bottom:12px;">
-      <summary style="cursor:pointer;display:flex;align-items:center;gap:8px;font-weight:800;color:#24352E;font-size:14px;list-style:none;"><span data-lucide="image" style="width:17px;height:17px;color:#D6A437;"></span> صور توثيقية لكل قسم (اختياري) <span style="margin-right:auto;font-size:11.5px;color:#6B756F;font-weight:600;">اضغط للفتح</span></summary>
-      <div style="margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
-        ${secs.map(s => `
-          <div style="border:1px solid #E8E3D6;border-radius:12px;padding:10px;background:#FFFDF7;">
-            <div style="font-weight:700;font-size:12.5px;color:#24352E;margin-bottom:8px;">${esc(s.title)}</div>
-            <div class="mt-upload" style="padding:10px;"><input type="file" accept="image/*" multiple data-secphoto="${s.id}"><span data-lucide="image-plus" class="u-ic" style="width:20px;height:20px;"></span><div class="u-t" style="font-size:11.5px;">صور القسم</div></div>
-            <div class="mt-thumbs" data-secthumbs="${s.id}"></div>
-          </div>
-        `).join('')}
-      </div>
-    </details>
     <datalist id="qUsersDL">${usersList.map(u => `<option value="${esc(u.full_name)}"></option>`).join('')}</datalist>
 
     <div class="qtbl-scroll">
@@ -11003,11 +11051,7 @@ async function pageQualityVisitNew(body, param) {
   body.querySelectorAll('.qt-notes').forEach(i => i.addEventListener('input', e => Q.items[i.dataset.item].notes = e.target.value));
 
   // mark all conform
-  document.getElementById('qtAllConform').addEventListener('click', () => {
-    flat.forEach(it => { Q.items[it.id].status = 'conform'; });
-    body.querySelectorAll('.qt-status').forEach(sel => { sel.value = 'conform'; sel.dataset.v = 'conform'; });
-    refreshProgress();
-  });
+  // زر "تعليم الكل مطابق" تمت إزالته بناءً على طلب الفريق
 
   // العرض الموسّع (تصغير الخط والأعمدة المثبّتة)
   const qtbl = body.querySelector('.qtbl'), expBtn = document.getElementById('qtExpand'), expLbl = document.getElementById('qtExpandLbl');
@@ -11716,7 +11760,7 @@ async function notifyMaintUsers(userIds, title, body, link) {
 /* ============ Dashboard + List ============ */
 async function pageMaintenance(body, urlQuery) {
   const canCreate = can('maintenance', 'manage') || ['admin','company_manager','department_manager','maintenance_officer'].includes(CURRENT_USER.role);
-  const canManageBranches = ['admin','company_manager','operations_manager','maintenance_officer'].includes(CURRENT_USER.role);
+  const canManageBranches = ['admin','company_manager','operations_manager','quality_manager','maintenance_officer'].includes(CURRENT_USER.role);
 
   body.innerHTML = `
     <div class="mt-hero-header">
@@ -11898,7 +11942,7 @@ async function pageMaintenanceNew(body, param) {
     if (data && data.is_draft) draft = data;
   }
   const { data: branches } = await sb.from('branches').select('*').eq('is_active', true).order('name');
-  const canManageBranches = ['admin','company_manager','operations_manager','maintenance_officer'].includes(CURRENT_USER.role);
+  const canManageBranches = ['admin','company_manager','operations_manager','quality_manager','maintenance_officer'].includes(CURRENT_USER.role);
   const areas = ['kitchen','hall','cashier','ac','electric','plumbing','equipment','other'];
   const types = ['electric','plumbing','ac','equipment','furniture','network','other'];
   const locations = ['kitchen','hall','store','office','bathroom','outdoor','other'];
