@@ -1511,7 +1511,7 @@ function wireChatInputBar(onSend, conversationId) {
   fileInput.addEventListener('change', () => {
     if (fileInput.files[0]) {
       __chatPendingFile = fileInput.files[0];
-      document.getElementById('attachPreviewText').textContent = '<span data-lucide="paperclip" style="width:12px;height:12px;display:inline-block;vertical-align:-2px;"></span> ' + __chatPendingFile.name;
+      document.getElementById('attachPreviewText').textContent = '📎 ' + __chatPendingFile.name;
       document.getElementById('attachPreview').classList.remove('hidden');
     }
   });
@@ -1544,10 +1544,11 @@ function wireChatInputBar(onSend, conversationId) {
 
     let attachment = null;
     if (__chatPendingFile) {
-      const filePath = `${conversationId || 'chat'}/${Date.now()}_${__chatPendingFile.name}`;
-      const { error: upErr } = await sb.storage.from('attachments').upload(filePath, __chatPendingFile);
+      const safeExt = (__chatPendingFile.name.split('.').pop() || 'bin').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) || 'bin';
+      const filePath = `chat/${conversationId || 'x'}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${safeExt}`;
+      const { error: upErr } = await sb.storage.from('maintenance').upload(filePath, __chatPendingFile, { contentType: __chatPendingFile.type || undefined });
       if (upErr) { toast('فشل رفع الملف: ' + upErr.message, 'error'); return; }
-      const { data: urlData } = sb.storage.from('attachments').getPublicUrl(filePath);
+      const { data: urlData } = sb.storage.from('maintenance').getPublicUrl(filePath);
       attachment = { url: urlData.publicUrl, name: __chatPendingFile.name, type: __chatPendingFile.type };
     }
 
@@ -2986,10 +2987,10 @@ async function pageMeetingDetail(body, meetingId) {
     try {
       let attachment = null;
       if (file) {
-        const filePath = `meeting-prep/${meetingId}/${Date.now()}_${file.name}`;
-        const { error: upErr } = await sb.storage.from('attachments').upload(filePath, file);
+        const filePath = `meeting-prep/${meetingId}/${Date.now()}_${Math.random().toString(36).slice(2,8)}.${(file.name.split('.').pop()||'bin').replace(/[^a-zA-Z0-9]/g,'').slice(0,8)||'bin'}`;
+        const { error: upErr } = await sb.storage.from('maintenance').upload(filePath, file, { contentType: file.type || undefined });
         if (upErr) throw upErr;
-        const { data: urlData } = sb.storage.from('attachments').getPublicUrl(filePath);
+        const { data: urlData } = sb.storage.from('maintenance').getPublicUrl(filePath);
         attachment = { url: urlData.publicUrl, name: file.name, type: file.type };
       }
       const { error } = await sb.from('meeting_preparation_reports').insert({
@@ -3833,10 +3834,10 @@ async function pageDepartmentTasks(body, urlQuery) {
       let attachment = null;
       if (fileInput.files[0]) {
         const file = fileInput.files[0];
-        const filePath = `dept-tasks/${Date.now()}_${file.name}`;
-        const { error: upErr } = await sb.storage.from('attachments').upload(filePath, file);
+        const filePath = `dept-tasks/${Date.now()}_${Math.random().toString(36).slice(2,8)}.${(file.name.split('.').pop()||'bin').replace(/[^a-zA-Z0-9]/g,'').slice(0,8)||'bin'}`;
+        const { error: upErr } = await sb.storage.from('maintenance').upload(filePath, file, { contentType: file.type || undefined });
         if (upErr) throw upErr;
-        const { data: urlData } = sb.storage.from('attachments').getPublicUrl(filePath);
+        const { data: urlData } = sb.storage.from('maintenance').getPublicUrl(filePath);
         attachment = { url: urlData.publicUrl, name: file.name, type: file.type };
       }
 
@@ -4201,10 +4202,10 @@ async function submitEmergencyAlert(isDraft) {
     let attachment = null;
     if (fileInput.files[0]) {
       const file = fileInput.files[0];
-      const filePath = `emergency/${Date.now()}_${file.name}`;
-      const { error: upErr } = await sb.storage.from('attachments').upload(filePath, file);
+      const filePath = `emergency/${Date.now()}_${Math.random().toString(36).slice(2,8)}.${(file.name.split('.').pop()||'bin').replace(/[^a-zA-Z0-9]/g,'').slice(0,8)||'bin'}`;
+      const { error: upErr } = await sb.storage.from('maintenance').upload(filePath, file, { contentType: file.type || undefined });
       if (upErr) throw upErr;
-      const { data: urlData } = sb.storage.from('attachments').getPublicUrl(filePath);
+      const { data: urlData } = sb.storage.from('maintenance').getPublicUrl(filePath);
       attachment = { url: urlData.publicUrl, name: file.name };
     }
 
