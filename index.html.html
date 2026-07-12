@@ -5399,11 +5399,17 @@ async function renderApp() {
   await route();
 }
 
+let __routeToken = 0;
+function isStaleRoute(tk) { return tk !== __routeToken; }
+
 async function route() {
   const { page, param, query } = currentRoute();
+  const myTk = ++__routeToken;
   document.title = 'شؤون الغذاء - ' + (PAGE_TITLES[page] || '');
   const body = document.getElementById('pageBody');
+  body.dataset.routeTk = String(myTk);
   try {
+    if (isStaleRoute(myTk)) return;
     if (page === 'dashboard') await pageDashboard(body);
     else if (page === 'vision') await pageVision(body, param);
     else if (page === 'meetings') await pageMeetings(body, query);
@@ -5414,7 +5420,7 @@ async function route() {
     else if (page === 'conversations') await pageConversations(body, query);
     else if (page === 'emergency') await pageEmergency(body);
     else if (page === 'maintenance') await pageMaintenance(body, query);
-    else if (page === 'maintenance_new') await pageMaintenanceNew(body);
+    else if (page === 'maintenance_new') await pageMaintenanceNew(body, param);
     else if (page === 'maintenance_detail') await pageMaintenanceDetail(body, param);
     else if (page === 'maintenance_suppliers') await pageMaintenanceSuppliers(body);
     else if (page === 'quality') await pageQuality(body, query);
@@ -8030,9 +8036,10 @@ async function pageQualityVisitNew(body, param) {
   const totalItems = flat.length;
   const usersList = users || [];
 
-  // الحالة: بيانات كل بند
-  const Q = { items: {}, meta: { branch_id: '', inspector_name: CURRENT_USER.full_name, visit_type: 'daily', visit_date: new Date().toISOString().slice(0, 10) } };
+  // الحالة: بيانات كل بند + صور لكل قسم
+  const Q = { items: {}, secPhotos: {}, meta: { branch_id: '', inspector_name: CURRENT_USER.full_name, visit_type: 'daily', visit_date: new Date().toISOString().slice(0, 10) } };
   flat.forEach(it => { Q.items[it.id] = { status: '', corrective: '', custom: '', notes: '', responsible: '', due: '', action_status: '' }; });
+  secs.forEach(s => { Q.secPhotos[s.id] = []; });
   let prevByItem = {};
 
   if (resumeId) {
@@ -8084,6 +8091,20 @@ async function pageQualityVisitNew(body, param) {
     </div>
 
     <div class="qtbl-hint"><span data-lucide="move-horizontal" style="width:15px;height:15px;"></span> اسحب الجدول يمينًا ويسارًا لعرض الإجراء التصحيحي والملاحظات وملخص الزيارة السابقة.</div>
+
+    <!-- صور الأقسام (اختياري لكل قسم) -->
+    <details class="meeting-form-card" style="margin-bottom:12px;">
+      <summary style="cursor:pointer;display:flex;align-items:center;gap:8px;font-weight:800;color:#24352E;font-size:14px;list-style:none;"><span data-lucide="image" style="width:17px;height:17px;color:#D6A437;"></span> صور توثيقية لكل قسم (اختياري) <span style="margin-right:auto;font-size:11.5px;color:#6B756F;font-weight:600;">اضغط للفتح</span></summary>
+      <div style="margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+        ${secs.map(s => `
+          <div style="border:1px solid #E8E3D6;border-radius:12px;padding:10px;background:#FFFDF7;">
+            <div style="font-weight:700;font-size:12.5px;color:#24352E;margin-bottom:8px;">${esc(s.title)}</div>
+            <div class="mt-upload" style="padding:10px;"><input type="file" accept="image/*" multiple data-secphoto="${s.id}"><span data-lucide="image-plus" class="u-ic" style="width:20px;height:20px;"></span><div class="u-t" style="font-size:11.5px;">صور القسم</div></div>
+            <div class="mt-thumbs" data-secthumbs="${s.id}"></div>
+          </div>
+        `).join('')}
+      </div>
+    </details>
     <datalist id="qUsersDL">${usersList.map(u => `<option value="${esc(u.full_name)}"></option>`).join('')}</datalist>
 
     <div class="qtbl-scroll">
@@ -8235,6 +8256,19 @@ async function pageQualityVisitNew(body, param) {
     });
   }
 
+  // رفع صور الأقسام (مضغوطة)
+  body.querySelectorAll('[data-secphoto]').forEach(inp => inp.addEventListener('change', async () => {
+    const sid = inp.dataset.secphoto;
+    for (const f of Array.from(inp.files || [])) {
+      if (Q.secPhotos[sid].length >= 6) { toast('حد أقصى 6 صور للقسم', 'warning'); break; }
+      try { Q.secPhotos[sid].push(await compressImage(f, 1000, 0.6)); } catch (e) {}
+    }
+    inp.value = '';
+    const tw = body.querySelector('[data-secthumbs="' + sid + '"]');
+    tw.innerHTML = Q.secPhotos[sid].map((src, i) => `<div class="mt-thumb"><img src="${src}"><button type="button" class="rm" data-rmsecphoto="${i}" data-sid="${sid}">×</button></div>`).join('');
+    tw.querySelectorAll('[data-rmsecphoto]').forEach(b => b.addEventListener('click', () => { Q.secPhotos[b.dataset.sid].splice(Number(b.dataset.rmsecphoto), 1); inp.dispatchEvent(new Event('change')); }));
+  }));
+
   refreshProgress();
   if (Q.meta.branch_id) loadPrev(Q.meta.branch_id);
 
@@ -8261,6 +8295,7 @@ async function pageQualityVisitNew(body, param) {
     if (visitId) {
       await sb.from('quality_visits').update(payload).eq('id', visitId);
       await sb.from('quality_visit_items').delete().eq('visit_id', visitId);
+      await sb.from('quality_attachments').delete().eq('visit_id', visitId);
     } else {
       payload.started_at = new Date().toISOString();
       const { data: created, error } = await sb.from('quality_visits').insert(payload).select().single();
@@ -8278,6 +8313,17 @@ async function pageQualityVisitNew(body, param) {
       }
     });
     if (itemRows.length) await sb.from('quality_visit_items').insert(itemRows);
+
+    // حفظ صور الأقسام
+    const photoRows = [];
+    for (const sid of Object.keys(Q.secPhotos)) {
+      const list = Q.secPhotos[sid];
+      for (let i = 0; i < list.length; i++) {
+        const url = await uploadDataUri(list[i], 'quality-' + visitId + '/sec-' + sid) || list[i];
+        photoRows.push({ visit_id: visitId, section_id: Number(sid), file_url: url, file_name: 'صورة ' + (i + 1), file_type: 'image', uploaded_by: CURRENT_USER.id });
+      }
+    }
+    if (photoRows.length) await sb.from('quality_attachments').insert(photoRows);
 
     toast(isFinish ? `تم إنهاء الزيارة — الالتزام ${compliance}%` : 'تم حفظ المسودة', 'success');
     location.hash = isFinish ? '#quality_detail/' + visitId : '#quality';
@@ -9006,9 +9052,12 @@ async function pageMaintenance(body, urlQuery) {
     });
     const tb = document.getElementById('mtTbody');
     if (!filtered.length) { tb.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted);">لا توجد طلبات</td></tr>'; return; }
-    tb.innerHTML = filtered.map(r => `
-      <tr style="cursor:pointer;" onclick="location.hash='#maintenance_detail/${r.id}'">
-        <td style="font-weight:700;color:var(--primary);">${esc(r.request_no || r.id)}</td>
+    tb.innerHTML = filtered.map(r => {
+      const isOwnDraft = r.is_draft && r.requester_id === CURRENT_USER.id;
+      const href = isOwnDraft ? '#maintenance_new/'+r.id : '#maintenance_detail/'+r.id;
+      return `
+      <tr style="cursor:pointer;" onclick="location.hash='${href}'">
+        <td style="font-weight:700;color:var(--primary);">${esc(r.request_no || r.id)}${r.is_draft ? ' <span style="font-size:9.5px;background:#E8E3D6;color:#6B756F;padding:1px 6px;border-radius:6px;">مسودة</span>' : ''}</td>
         <td>${esc(r.branches?.name || '-')}</td>
         <td>${r.maintenance_type ? label('maint_type', r.maintenance_type) : label('maint_area', r.affected_area)}</td>
         <td style="max-width:220px;">${esc(r.issue_title || (r.description||'').slice(0, 60))}${!r.issue_title && (r.description||'').length>60?'…':''}</td>
@@ -9017,9 +9066,9 @@ async function pageMaintenance(body, urlQuery) {
         <td>${esc(r.owner?.full_name || r.requester?.full_name || '-')}</td>
         <td>${r.estimated_cost ? Number(r.estimated_cost).toLocaleString() + ' ر.س' : '-'}</td>
         <td style="font-size:11.5px;color:var(--text-muted);">${fmtDate(r.reported_at)}</td>
-        <td><a href="#maintenance_detail/${r.id}" class="btn btn-outline" style="padding:4px 10px;font-size:11px;" onclick="event.stopPropagation();">عرض</a></td>
-      </tr>
-    `).join('');
+        <td><a href="${href}" class="btn btn-outline" style="padding:4px 10px;font-size:11px;" onclick="event.stopPropagation();">${isOwnDraft?'متابعة':'عرض'}</a></td>
+      </tr>`;
+    }).join('');
   }
   renderList();
 
@@ -9033,7 +9082,13 @@ async function pageMaintenance(body, urlQuery) {
 }
 
 /* ============ New Request — Maintenance Request Center ============ */
-async function pageMaintenanceNew(body) {
+async function pageMaintenanceNew(body, param) {
+  const draftId = param ? Number(param) : null;
+  let draft = null;
+  if (draftId) {
+    const { data } = await sb.from('maintenance_requests').select('*').eq('id', draftId).single();
+    if (data && data.is_draft) draft = data;
+  }
   const { data: branches } = await sb.from('branches').select('*').eq('is_active', true).order('name');
   const canManageBranches = ['admin','company_manager','operations_manager','maintenance_officer'].includes(CURRENT_USER.role);
   const areas = ['kitchen','hall','cashier','ac','electric','plumbing','equipment','other'];
@@ -9044,7 +9099,12 @@ async function pageMaintenanceNew(body) {
   const nowStr = fmtDateAr(new Date().toISOString());
 
   // الحالة الداخلية للطلب (للاختيارات + المعاينة + المرفقات)
-  const st = { severity: 'medium', impact: 'none', stoppage: 'none', images: [], video: null };
+  const st = {
+    severity: draft?.severity || 'medium',
+    impact: draft?.impact_on_operation || 'none',
+    stoppage: draft?.stoppage_type || 'none',
+    images: [], video: null
+  };
 
   const noBranches = !branches || !branches.length;
 
@@ -9056,7 +9116,7 @@ async function pageMaintenanceNew(body) {
         <h2><span class="mt-accent"></span> <span data-lucide="wrench" style="width:22px;height:22px;color:#0F3D2E;"></span> رفع طلب صيانة</h2>
         <p>سجّل مشكلة الصيانة وحدد الفرع والقسم ودرجة الخطورة لمتابعة الطلب بسرعة.</p>
       </div>
-      <span class="mt-preview-badge" style="align-self:center;"><span data-lucide="plus-circle" style="width:13px;height:13px;"></span> طلب جديد</span>
+      <span class="mt-preview-badge" style="align-self:center;">${draft ? `<span data-lucide="edit-3" style="width:13px;height:13px;"></span> متابعة تعديل مسودة${draft.request_no?' — '+esc(draft.request_no):''}` : '<span data-lucide="plus-circle" style="width:13px;height:13px;"></span> طلب جديد'}</span>
     </div>
 
     <div class="mt-stepper">
@@ -9087,33 +9147,33 @@ async function pageMaintenanceNew(body) {
               <label>الفرع *</label>
               <select name="branch_id" required class="form-select" ${noBranches?'disabled':''}>
                 <option value="">اختر الفرع</option>
-                ${(branches||[]).map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}
+                ${(branches||[]).map(b => `<option value="${b.id}" ${draft && draft.branch_id==b.id?'selected':''}>${esc(b.name)}</option>`).join('')}
               </select>
             </div>
             <div class="form-field">
               <label>القسم المتضرر *</label>
               <select name="affected_area" required class="form-select">
                 <option value="">اختر القسم</option>
-                ${areas.map(a => `<option value="${a}">${label('maint_area', a)}</option>`).join('')}
+                ${areas.map(a => `<option value="${a}" ${draft && draft.affected_area===a?'selected':''}>${label('maint_area', a)}</option>`).join('')}
               </select>
             </div>
             <div class="form-field">
               <label>نوع الصيانة *</label>
               <select name="maintenance_type" required class="form-select">
                 <option value="">اختر نوع الصيانة</option>
-                ${types.map(t => `<option value="${t}">${label('maint_type', t)}</option>`).join('')}
+                ${types.map(t => `<option value="${t}" ${draft && draft.maintenance_type===t?'selected':''}>${label('maint_type', t)}</option>`).join('')}
               </select>
             </div>
             <div class="form-field">
               <label>الموقع داخل الفرع</label>
               <select name="branch_location" class="form-select">
                 <option value="">اختر الموقع</option>
-                ${locations.map(l => `<option value="${l}">${label('maint_location', l)}</option>`).join('')}
+                ${locations.map(l => `<option value="${l}" ${draft && draft.branch_location===l?'selected':''}>${label('maint_location', l)}</option>`).join('')}
               </select>
             </div>
             <div class="form-field full">
               <label>عنوان مختصر للمشكلة *</label>
-              <input type="text" name="issue_title" required class="form-input" maxlength="120" placeholder="مثال: تعطل مكيف الصالة الرئيسية">
+              <input type="text" name="issue_title" required class="form-input" maxlength="120" placeholder="مثال: تعطل مكيف الصالة الرئيسية" value="${esc(draft?.issue_title || '')}">
             </div>
           </div>
         </div>
@@ -9124,29 +9184,29 @@ async function pageMaintenanceNew(body) {
           <div class="mform-grid">
             <div class="form-field full">
               <label>وصف المشكلة *</label>
-              <textarea name="description" required rows="3" class="form-input" maxlength="1000" placeholder="اكتب وصف المشكلة بالتفصيل (ماذا حدث؟ أين حدث؟ متى حدث؟)"></textarea>
-              <div style="font-size:10.5px;color:#9aa39c;text-align:left;margin-top:3px;"><span id="mtDescCount">0</span> / 1000</div>
+              <textarea name="description" required rows="3" class="form-input" maxlength="1000" placeholder="اكتب وصف المشكلة بالتفصيل (ماذا حدث؟ أين حدث؟ متى حدث؟)">${esc(draft?.description || '')}</textarea>
+              <div style="font-size:10.5px;color:#9aa39c;text-align:left;margin-top:3px;"><span id="mtDescCount">${(draft?.description||'').length}</span> / 1000</div>
             </div>
             <div class="form-field full">
               <label>سبب المشكلة (اختياري)</label>
-              <input type="text" name="cause" class="form-input" placeholder="اكتب سبب المشكلة إن وُجد">
+              <input type="text" name="cause" class="form-input" placeholder="اكتب سبب المشكلة إن وُجد" value="${esc(draft?.cause || '')}">
             </div>
             <div class="form-field">
               <label>تأثير العطل على التشغيل *</label>
               <div class="mt-seg" data-seg="impact">
-                ${impacts.map(im => `<button type="button" data-val="${im}" class="${im==='none'?'active':''}">${label('maint_impact', im)}</button>`).join('')}
+                ${impacts.map(im => `<button type="button" data-val="${im}" class="${im===st.impact?'active':''}">${label('maint_impact', im)}</button>`).join('')}
               </div>
             </div>
             <div class="form-field">
               <label>درجة الخطورة *</label>
               <div class="mt-chips" data-chips="severity">
-                ${priorities.map(p => `<button type="button" class="mt-chip ${p==='medium'?'active':''}" data-val="${p}">${label('maint_priority', p)}</button>`).join('')}
+                ${priorities.map(p => `<button type="button" class="mt-chip ${p===st.severity?'active':''}" data-val="${p}">${label('maint_priority', p)}</button>`).join('')}
               </div>
             </div>
             <div class="form-field full">
               <label>هل يوجد توقف كامل أو جزئي؟</label>
               <div class="mt-seg" data-seg="stoppage">
-                ${[['none','لا يوجد'],['partial','توقف جزئي'],['full','توقف كامل']].map(s => `<button type="button" data-val="${s[0]}" class="${s[0]==='none'?'active':''}">${s[1]}</button>`).join('')}
+                ${[['none','لا يوجد'],['partial','توقف جزئي'],['full','توقف كامل']].map(s => `<button type="button" data-val="${s[0]}" class="${s[0]===st.stoppage?'active':''}">${s[1]}</button>`).join('')}
               </div>
             </div>
           </div>
@@ -9175,11 +9235,11 @@ async function pageMaintenanceNew(body) {
                 <div class="u-s">MP4, MOV — الحد الأقصى <b>10 ثوانٍ</b></div>
               </div>
               <div id="mtVidPreview" style="margin-top:8px;"></div>
-              <input type="url" name="attachment_url" class="form-input" style="margin-top:10px;" placeholder="أو ألصق رابط ملف (اختياري)">
+              <input type="url" name="attachment_url" class="form-input" style="margin-top:10px;" placeholder="أو ألصق رابط ملف (اختياري)" value="${esc(draft?.attachment_url || '')}">
             </div>
             <div class="form-field full">
               <label>ملاحظات إضافية (اختياري)</label>
-              <textarea name="additional_notes" rows="2" class="form-input" placeholder="اكتب أي ملاحظات إضافية..."></textarea>
+              <textarea name="additional_notes" rows="2" class="form-input" placeholder="اكتب أي ملاحظات إضافية...">${esc(draft?.additional_notes || '')}</textarea>
             </div>
           </div>
         </div>
@@ -9367,9 +9427,20 @@ async function pageMaintenanceNew(body) {
     submitBtn.disabled = true; draftBtn.disabled = true;
     const restore = () => { submitBtn.disabled = false; draftBtn.disabled = false; };
 
-    const { data: created, error } = await sb.from('maintenance_requests').insert(payload).select().single();
-    if (error) { toast(error.message, 'error'); restore(); return; }
-    await logMaintTimeline(created.id, 'created', null, 'new', isDraft ? 'تم حفظ الطلب كمسودة' : 'تم رفع الطلب');
+    let created;
+    if (draft) {
+      // تحديث مسودة موجودة
+      payload.reported_at = draft.reported_at || payload.reported_at;
+      const { data: updated, error } = await sb.from('maintenance_requests').update(payload).eq('id', draft.id).select().single();
+      if (error) { toast(error.message, 'error'); restore(); return; }
+      created = updated;
+      await logMaintTimeline(created.id, isDraft ? 'draft_updated' : 'created', null, 'new', isDraft ? 'تم تحديث المسودة' : 'تم إرسال الطلب من المسودة');
+    } else {
+      const { data: ins, error } = await sb.from('maintenance_requests').insert(payload).select().single();
+      if (error) { toast(error.message, 'error'); restore(); return; }
+      created = ins;
+      await logMaintTimeline(created.id, 'created', null, 'new', isDraft ? 'تم حفظ الطلب كمسودة' : 'تم رفع الطلب');
+    }
     await saveImages(created.id);
 
     // رفع الفيديو على Storage (إن وُجد)
@@ -9507,8 +9578,9 @@ async function pageMaintenanceDetail(body, id) {
           <div style="font-size:13px;font-weight:700;color:#24352E;margin-top:5px;">${esc(req.issue_title || req.description?.slice(0,60) || '-')}</div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${esc(req.branches?.name || '-')} · ${req.maintenance_type ? label('maint_type', req.maintenance_type) : label('maint_area', req.affected_area)}</div>
         </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
           ${maintStatusBadge(req.status)} ${maintSevBadge(req.severity)}
+          ${req.is_draft && req.requester_id===CURRENT_USER.id ? `<a href="#maintenance_new/${req.id}" class="btn" style="background:var(--primary);color:#fff;font-size:12px;padding:6px 14px;"><span data-lucide="edit-3" style="width:13px;height:13px;"></span> متابعة التعديل</a>` : ''}
         </div>
       </div>
       <div class="panel-body">
