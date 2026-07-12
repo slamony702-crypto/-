@@ -5067,12 +5067,13 @@ window.closeDecisionDrawer = function() {
   document.getElementById('decDrawer')?.classList.remove('show');
 };
 
-window.deleteDecision = async function(id) {
-  if (!confirm('هل أنت متأكد من حذف هذا القرار؟')) return;
-  const { error } = await sb.from('decisions').delete().eq('id', id);
-  if (error) { toast(error.message, 'error'); return; }
-  toast('تم حذف القرار', 'success');
-  pageDecisions(document.getElementById('pageBody'));
+window.deleteDecision = function(id) {
+  confirmModal('هل أنت متأكد من حذف هذا القرار؟', async () => {
+    const { error } = await sb.from('decisions').delete().eq('id', id);
+    if (error) { toast(error.message, 'error'); return; }
+    toast('تم حذف القرار', 'success');
+    pageDecisions(document.getElementById('pageBody'));
+  }, true);
 };
 
 
@@ -6723,12 +6724,13 @@ window.openChangePasswordModal = function(userId) {
   });
 };
 
-window.deleteUserPermanently = async function(userId) {
-  if (!confirm('حذف نهائي — هل أنت متأكد؟ لا يمكن التراجع.')) return;
-  const { error } = await sb.from('users').delete().eq('id', userId);
-  if (error) { toast(error.message, 'error'); return; }
-  toast('تم حذف المستخدم نهائيًا', 'success');
-  renderApp();
+window.deleteUserPermanently = function(userId) {
+  confirmModal('حذف نهائي — هل أنت متأكد؟ لا يمكن التراجع.', async () => {
+    const { error } = await sb.from('users').delete().eq('id', userId);
+    if (error) { toast(error.message, 'error'); return; }
+    toast('تم حذف المستخدم نهائيًا', 'success');
+    renderApp();
+  }, true);
 };
 
 window.toggleUserStatus = async function(userId) {
@@ -8082,6 +8084,7 @@ async function pageQualityVisitNew(body, param) {
     </div>
 
     <div class="qtbl-hint"><span data-lucide="move-horizontal" style="width:15px;height:15px;"></span> اسحب الجدول يمينًا ويسارًا لعرض الإجراء التصحيحي والملاحظات وملخص الزيارة السابقة.</div>
+    <datalist id="qUsersDL">${usersList.map(u => `<option value="${esc(u.full_name)}"></option>`).join('')}</datalist>
 
     <div class="qtbl-scroll">
       <table class="qtbl">
@@ -8110,7 +8113,7 @@ async function pageQualityVisitNew(body, param) {
               <td><select class="qt-status" data-item="${it.id}" data-v="${d.status}"><option value="">—</option>${optHtml('quality_status', statusOpts, d.status)}</select></td>
               <td><select class="qt-corr" data-item="${it.id}"><option value="">—</option>${optHtml('quality_corrective', Q_CORRECTIVE_OPTS, d.corrective)}</select></td>
               <td><input class="qt-custom" data-item="${it.id}" value="${esc(d.custom)}" placeholder="اكتب الإجراء" style="display:${d.corrective==='custom'?'block':'none'};"></td>
-              <td><select class="qt-resp" data-item="${it.id}"><option value="">—</option>${usersList.map(u => `<option value="${u.id}" ${d.responsible==String(u.id)?'selected':''}>${esc(u.full_name)}</option>`).join('')}</select></td>
+              <td><input class="qt-resp" list="qUsersDL" data-item="${it.id}" value="${esc((usersList.find(u => String(u.id) === d.responsible) || {}).full_name || '')}" placeholder="اسم المسؤول"></td>
               <td><input type="date" class="qt-due" data-item="${it.id}" value="${d.due}"></td>
               <td><select class="qt-act" data-item="${it.id}"><option value="">—</option>${optHtml('quality_action_status', ['not_started','in_progress','done','overdue','cancelled'], d.action_status)}</select></td>
               <td><input class="qt-notes" data-item="${it.id}" value="${esc(d.notes)}" placeholder="ملاحظات..."></td>
@@ -8164,7 +8167,10 @@ async function pageQualityVisitNew(body, param) {
     if (ci) ci.style.display = e.target.value === 'custom' ? 'block' : 'none';
   }));
   body.querySelectorAll('.qt-custom').forEach(i => i.addEventListener('input', e => Q.items[i.dataset.item].custom = e.target.value));
-  body.querySelectorAll('.qt-resp').forEach(s => s.addEventListener('change', e => Q.items[s.dataset.item].responsible = e.target.value));
+  body.querySelectorAll('.qt-resp').forEach(s => s.addEventListener('input', e => {
+    const u = usersList.find(x => x.full_name === e.target.value.trim());
+    Q.items[s.dataset.item].responsible = u ? String(u.id) : '';
+  }));
   body.querySelectorAll('.qt-due').forEach(i => i.addEventListener('change', e => Q.items[i.dataset.item].due = e.target.value));
   body.querySelectorAll('.qt-act').forEach(s => s.addEventListener('change', e => Q.items[s.dataset.item].action_status = e.target.value));
   body.querySelectorAll('.qt-notes').forEach(i => i.addEventListener('input', e => Q.items[i.dataset.item].notes = e.target.value));
@@ -9338,7 +9344,12 @@ async function pageMaintenanceNew(body) {
 
   async function saveImages(requestId) {
     if (!st.images.length) return;
-    const rows = st.images.map((src, i) => ({ request_id: requestId, stage: 'request', file_url: src, file_name: 'صورة ' + (i+1), file_type: 'image', uploaded_by: CURRENT_USER.id }));
+    const rows = [];
+    for (let i = 0; i < st.images.length; i++) {
+      // نرفع للتخزين أولًا؛ لو فشل نخزّن الـ data URI كخطة بديلة
+      const url = await uploadDataUri(st.images[i], 'req-' + requestId) || st.images[i];
+      rows.push({ request_id: requestId, stage: 'request', file_url: url, file_name: 'صورة ' + (i+1), file_type: 'image', uploaded_by: CURRENT_USER.id });
+    }
     try { await sb.from('maintenance_attachments').insert(rows); } catch (e) {}
   }
 
@@ -9397,6 +9408,19 @@ function getVideoDuration(file) {
     v.onerror = () => { URL.revokeObjectURL(v.src); reject(new Error('cannot read video')); };
     v.src = URL.createObjectURL(file);
   });
+}
+
+// رفع صورة data URI إلى Storage وإرجاع الرابط العام (أو null للـ fallback)
+async function uploadDataUri(dataUri, pathPrefix) {
+  try {
+    const res = await fetch(dataUri);
+    const blob = await res.blob();
+    const path = `${pathPrefix}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.jpg`;
+    const { error } = await sb.storage.from('maintenance').upload(path, blob, { contentType: blob.type || 'image/jpeg' });
+    if (error) return null;
+    const { data } = sb.storage.from('maintenance').getPublicUrl(path);
+    return data?.publicUrl || null;
+  } catch (e) { return null; }
 }
 
 // رفع ملف إلى Supabase Storage (bucket: maintenance) وإرجاع الرابط العام
@@ -9723,12 +9747,31 @@ async function handleMaintAction(action, req) {
   if (action === 'send_finance') return advance('awaiting_finance', 'أُرسل الطلب للمالية');
 
   if (action === 'reject') {
-    const reason = prompt('سبب الرفض:');
-    if (!reason) return;
-    await sb.from('maintenance_requests').update({ status: 'rejected', reject_reason: reason, updated_at: new Date().toISOString() }).eq('id', rid);
-    await logMaintTimeline(rid, 'status_change', prev, 'rejected', 'رُفض الطلب: ' + reason);
-    toast('تم الرفض', 'success');
-    return pageMaintenanceDetail(document.getElementById('pageBody'), rid);
+    const host = document.createElement('div');
+    host.className = 'modal-overlay';
+    host.innerHTML = `
+      <div class="panel modal-box" style="width:420px;max-width:95%;">
+        <div class="panel-header"><h3 class="panel-title">رفض طلب الصيانة</h3></div>
+        <div class="panel-body">
+          <div class="form-field"><label>سبب الرفض *</label><textarea id="mtRejectReason" rows="3" class="form-input" placeholder="اكتب سبب الرفض..."></textarea></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
+            <button type="button" class="btn btn-outline" id="mtRejectCancel">إلغاء</button>
+            <button type="button" class="btn" id="mtRejectOk" style="background:var(--danger);color:#fff;">تأكيد الرفض</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(host);
+    host.querySelector('#mtRejectCancel').addEventListener('click', () => host.remove());
+    host.querySelector('#mtRejectOk').addEventListener('click', async () => {
+      const reason = host.querySelector('#mtRejectReason').value.trim();
+      if (!reason) { toast('اكتب سبب الرفض', 'error'); return; }
+      host.remove();
+      await sb.from('maintenance_requests').update({ status: 'rejected', reject_reason: reason, updated_at: new Date().toISOString() }).eq('id', rid);
+      await logMaintTimeline(rid, 'status_change', prev, 'rejected', 'رُفض الطلب: ' + reason);
+      toast('تم الرفض', 'success');
+      pageMaintenanceDetail(document.getElementById('pageBody'), rid);
+    });
+    return;
   }
 
   if (action === 'add_inspection') return openMaintInspectionModal(req);
