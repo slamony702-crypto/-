@@ -137,6 +137,9 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 .login-error.show { display: flex; }
 .login-error [data-lucide] { width: 15px; height: 15px; flex-shrink: 0; }
 .login-footer-note { text-align: center; color: #9AA39C; font-size: 11.5px; margin-top: 22px; }
+.login-signup-cta { text-align: center; font-size: 12.5px; color: #6B756F; margin-top: 16px; }
+.login-signup-cta a { color: #14431a; font-weight: 700; text-decoration: none; }
+.login-signup-cta a:hover { color: #D6A437; text-decoration: underline; }
 @media (max-width: 900px) { .login-leaf { display: none; } }
 @media (max-width: 640px) {
   .login-box { max-width: 100%; }
@@ -3094,6 +3097,7 @@ function renderLogin() {
             <span data-lucide="log-in"></span><span>تسجيل الدخول</span>
           </button>
         </form>
+        <p class="login-signup-cta">مستخدم جديد؟ <a href="javascript:void(0)" id="goSignupRequestLink">قدّم طلب انضمام</a></p>
         <p class="login-footer-note">نظام شؤون الغذاء</p>
       </div>
     </div>
@@ -3110,6 +3114,7 @@ function renderLogin() {
   document.getElementById('loginForgotLink').addEventListener('click', () => {
     toast('يرجى التواصل مع مسؤول النظام لإعادة تعيين كلمة المرور', 'success');
   });
+  document.getElementById('goSignupRequestLink').addEventListener('click', () => renderSignupRequestPage());
   document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const errBox = document.getElementById('loginError');
@@ -3141,6 +3146,116 @@ function renderLogin() {
       submitBtn.innerHTML = '<span data-lucide="log-in"></span><span>تسجيل الدخول</span>';
       if (window.lucide) lucide.createIcons();
     }
+  });
+}
+
+// ============ طلب انضمام (تسجيل جديد قبل الدخول) ============
+function renderSignupRequestPage() {
+  root.innerHTML = `
+    <div class="login-page">
+      <div class="login-glow"></div>
+      <svg class="login-leaf leaf-tl" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <path d="M100 10 C40 40 20 100 40 160 C60 130 90 120 100 90 C110 120 140 130 160 160 C180 100 160 40 100 10 Z" fill="#ffffff" opacity="0.07"/>
+        <path d="M100 30 C60 55 45 105 60 150 C75 125 95 118 100 95 C105 118 125 125 140 150 C155 105 140 55 100 30 Z" fill="#D6A437" opacity="0.10"/>
+      </svg>
+      <div class="login-box" id="signupBox">
+        <div class="login-logo-wrap"><img src="${LOGO_DATA_URI}" alt="شؤون الغذاء"></div>
+        <h1>طلب انضمام جديد</h1>
+        <p class="subtitle">عبّي بياناتك وهنراجعها ونتواصل معاك</p>
+        <div class="login-error" id="srError"><span data-lucide="alert-circle"></span><span id="srErrorText"></span></div>
+        <form id="signupRequestForm">
+          <div class="login-field">
+            <label for="srFullName">الاسم الكامل *</label>
+            <div class="login-input-wrap"><input type="text" id="srFullName" placeholder="اسمك الرباعي" required autofocus>
+            <span class="login-input-icon" data-lucide="user"></span></div>
+          </div>
+          <div class="login-field">
+            <label for="srMobile">رقم الجوال *</label>
+            <div class="login-input-wrap"><input type="tel" id="srMobile" placeholder="05xxxxxxxx" required>
+            <span class="login-input-icon" data-lucide="phone"></span></div>
+          </div>
+          <div class="login-field">
+            <label for="srEmail">البريد الإلكتروني *</label>
+            <div class="login-input-wrap"><input type="email" id="srEmail" placeholder="name@example.com" required>
+            <span class="login-input-icon" data-lucide="mail"></span></div>
+          </div>
+          <div class="login-field">
+            <label for="srJobTitle">المسمى الوظيفي *</label>
+            <div class="login-input-wrap"><input type="text" id="srJobTitle" placeholder="مثال: مشرف فرع" required>
+            <span class="login-input-icon" data-lucide="briefcase"></span></div>
+          </div>
+          <div class="login-field">
+            <label for="srRegion">المنطقة / الفرع التابع له *</label>
+            <div class="login-input-wrap"><input type="text" id="srRegion" placeholder="مثال: الرياض - فرع العليا" required>
+            <span class="login-input-icon" data-lucide="map-pin"></span></div>
+          </div>
+          <div class="login-field">
+            <label for="srNotes">نبذة عنك (اختياري)</label>
+            <div class="login-input-wrap"><input type="text" id="srNotes" placeholder="أي بيانات إضافية حابب تضيفها">
+            <span class="login-input-icon" data-lucide="file-text"></span></div>
+          </div>
+          <button type="submit" class="login-submit-btn" id="srSubmitBtn">
+            <span data-lucide="send"></span><span>إرسال الطلب</span>
+          </button>
+        </form>
+        <p class="login-signup-cta"><a href="javascript:void(0)" id="backToLoginLink">العودة لتسجيل الدخول</a></p>
+      </div>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  document.getElementById('backToLoginLink').addEventListener('click', () => renderLogin());
+  document.getElementById('signupRequestForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('srError');
+    const errText = document.getElementById('srErrorText');
+    const submitBtn = document.getElementById('srSubmitBtn');
+    errBox.classList.remove('show');
+    const payload = {
+      full_name: document.getElementById('srFullName').value.trim(),
+      mobile_number: document.getElementById('srMobile').value.trim(),
+      email: document.getElementById('srEmail').value.trim(),
+      job_title: document.getElementById('srJobTitle').value.trim(),
+      region: document.getElementById('srRegion').value.trim(),
+      notes: document.getElementById('srNotes').value.trim() || null
+    };
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="login-spinner"></span><span>جارٍ الإرسال...</span>';
+    try {
+      const { error } = await sb.from('signup_requests').insert(payload);
+      if (error) throw error;
+      renderSignupRequestSuccess();
+    } catch (err) {
+      errText.textContent = 'تعذّر إرسال الطلب، حاول مرة أخرى (' + (err.message || '') + ')';
+      errBox.classList.add('show');
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<span data-lucide="send"></span><span>إرسال الطلب</span>';
+      if (window.lucide) lucide.createIcons();
+    }
+  });
+}
+
+function renderSignupRequestSuccess() {
+  const box = document.getElementById('signupBox');
+  if (!box) return;
+  box.innerHTML = `
+    <div style="text-align:center; padding:10px 0;">
+      <div style="width:64px;height:64px;border-radius:50%;background:rgba(31,122,58,0.12);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+        <span data-lucide="check-check" style="width:30px;height:30px;color:#1F7A3A;"></span>
+      </div>
+      <h1 style="margin-bottom:10px;">تم استلام طلبك بنجاح</h1>
+      <p class="subtitle" style="margin-bottom:22px;">خلال يوم عمل سيتم مراجعة بياناتك، وعند الموافقة سيتم إرسال إشعار لكم</p>
+      <button type="button" class="login-submit-btn" id="srInstallBtn" style="margin-bottom:12px;">
+        <span data-lucide="download"></span><span>تحميل التطبيق عشان توصلك الإشعارات</span>
+      </button>
+      <p class="login-signup-cta"><a href="javascript:void(0)" id="backToLoginLink2">العودة لتسجيل الدخول</a></p>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  document.getElementById('backToLoginLink2').addEventListener('click', () => renderLogin());
+  document.getElementById('srInstallBtn').addEventListener('click', () => {
+    const nativeBtn = document.getElementById('iabInstallBtn');
+    if (nativeBtn) nativeBtn.click();
+    else toast('افتح قائمة المتصفح واختر "إضافة إلى الشاشة الرئيسية"', 'success');
   });
 }
 
@@ -8197,7 +8312,7 @@ function renderReportsTabContent() {
 
 
 // ============ المستخدمون ============
-const UsersPageState = { activeTab: 'departments', selectedDept: null, search: '', roleFilter: '', statusFilter: '', nationalityFilter: '' };
+const UsersPageState = { activeTab: 'departments', selectedDept: null, search: '', roleFilter: '', statusFilter: '', nationalityFilter: '', prefillFromSignup: null };
 
 async function pageUsers(body) {
   if (!can('users', 'view')) {
@@ -8208,8 +8323,13 @@ async function pageUsers(body) {
   if (!isAdmin) usersQuery = usersQuery.eq('department_id', CURRENT_USER.department_id);
   const { data: users } = await usersQuery;
   const { data: departments } = await sb.from('departments').select('*').order('name');
+  let pendingSignups = [];
+  if (isAdmin) {
+    const { data: sr } = await sb.from('signup_requests').select('*').eq('status', 'pending').order('created_at', { ascending: false });
+    pendingSignups = sr || [];
+  }
 
-  window.__usersPageData = { users: users||[], departments: departments||[], isAdmin };
+  window.__usersPageData = { users: users||[], departments: departments||[], isAdmin, pendingSignups };
 
   function avatarInitials(name) { return (name||'').trim().split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join(''); }
   function deptColorIndex(deptId) {
@@ -8252,6 +8372,7 @@ async function pageUsers(body) {
       <button type="button" class="tqt-btn ${UsersPageState.activeTab==='departments'?'active':''}" data-tab="departments"><span data-lucide="building-2" style="width:14px;height:14px;"></span> دليل الأقسام</button>
       <button type="button" class="tqt-btn ${UsersPageState.activeTab==='list'?'active':''}" data-tab="list"><span data-lucide="list" style="width:14px;height:14px;"></span> قائمة المستخدمين</button>
       ${isAdmin ? `<button type="button" class="tqt-btn ${UsersPageState.activeTab==='add'?'active':''}" data-tab="add"><span data-lucide="user-plus" style="width:14px;height:14px;"></span> إضافة مستخدم</button>` : ''}
+      ${isAdmin ? `<button type="button" class="tqt-btn ${UsersPageState.activeTab==='signup_requests'?'active':''}" data-tab="signup_requests"><span data-lucide="inbox" style="width:14px;height:14px;"></span> طلبات التسجيل ${pendingSignups.length?`<span class="stat-badge" style="margin-right:4px;">${pendingSignups.length}</span>`:''}</button>` : ''}
       <button type="button" class="tqt-btn ${UsersPageState.activeTab==='roles'?'active':''}" data-tab="roles"><span data-lucide="shield" style="width:14px;height:14px;"></span> الأدوار والصلاحيات</button>
       <button type="button" class="tqt-btn ${UsersPageState.activeTab==='activity'?'active':''}" data-tab="activity"><span data-lucide="history" style="width:14px;height:14px;"></span> سجل النشاط</button>
     </div>
@@ -8402,16 +8523,18 @@ function renderUsersTabContent() {
     document.getElementById('ulResetBtn').addEventListener('click', () => { UsersPageState.search=''; UsersPageState.roleFilter=''; UsersPageState.statusFilter=''; UsersPageState.nationalityFilter=''; renderUsersTabContent(); });
 
   } else if (UsersPageState.activeTab === 'add') {
+    const pf = UsersPageState.prefillFromSignup || null;
     host.innerHTML = `
+      ${pf ? `<div class="error-msg show" style="background:rgba(31,122,58,0.08);color:#1F7A3A;border-color:rgba(31,122,58,0.25);"><span data-lucide="check-check" style="width:14px;height:14px;"></span> بتحول طلب انضمام "${esc(pf.full_name)}" لمستخدم — كمّل اسم المستخدم وكلمة المرور والقسم والدور</div>` : ''}
       <div class="error-msg" id="addUserError"></div>
       <div class="meeting-form-card">
         <div class="meeting-section-title"><span class="mst-accent"></span><span data-lucide="id-card" style="width:15px;height:15px;"></span> البيانات الأساسية</div>
         <div class="mform-grid">
-          <div class="mform-field"><label>الاسم الكامل *</label><input type="text" class="meeting-input" id="auFullName" required></div>
+          <div class="mform-field"><label>الاسم الكامل *</label><input type="text" class="meeting-input" id="auFullName" value="${esc(pf?.full_name||'')}" required></div>
           <div class="mform-field"><label>اسم المستخدم *</label><input type="text" class="meeting-input" id="auUsername" required></div>
           <div class="mform-field"><label>كلمة المرور *</label><input type="text" class="meeting-input" id="auPassword" required></div>
-          <div class="mform-field"><label>البريد الإلكتروني</label><input type="email" class="meeting-input" id="auEmail"></div>
-          <div class="mform-field"><label>رقم الجوال</label><input type="text" class="meeting-input" id="auMobile" placeholder="05xxxxxxxx"></div>
+          <div class="mform-field"><label>البريد الإلكتروني</label><input type="email" class="meeting-input" id="auEmail" value="${esc(pf?.email||'')}"></div>
+          <div class="mform-field"><label>رقم الجوال</label><input type="text" class="meeting-input" id="auMobile" placeholder="05xxxxxxxx" value="${esc(pf?.mobile_number||'')}"></div>
           <div class="mform-field"><label>الجنسية</label><input type="text" class="meeting-input" id="auNationality"></div>
         </div>
       </div>
@@ -8419,9 +8542,10 @@ function renderUsersTabContent() {
         <div class="meeting-section-title"><span class="mst-accent"></span><span data-lucide="briefcase" style="width:15px;height:15px;"></span> بيانات العمل</div>
         <div class="mform-grid">
           <div class="mform-field"><label>القسم *</label><select class="meeting-select" id="auDept" required>${(departments||[]).map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('')}</select></div>
-          <div class="mform-field"><label>المنصب</label><input type="text" class="meeting-input" id="auPosition"></div>
+          <div class="mform-field"><label>المنصب</label><input type="text" class="meeting-input" id="auPosition" value="${esc(pf?.job_title||'')}"></div>
           <div class="mform-field"><label>المدير المباشر</label><select class="meeting-select" id="auManager"><option value="">بدون</option>${(users||[]).map(u=>`<option value="${u.id}">${esc(u.full_name)}</option>`).join('')}</select></div>
           <div class="mform-field"><label>تاريخ الانضمام</label><input type="date" class="meeting-input" id="auJoinDate"></div>
+          ${pf ? `<div class="mform-field"><label>المنطقة/الفرع (من الطلب)</label><input type="text" class="meeting-input" value="${esc(pf.region||'')}" disabled></div>` : ''}
         </div>
       </div>
       <div class="meeting-form-card">
@@ -8432,7 +8556,7 @@ function renderUsersTabContent() {
         </div>
       </div>
       <div class="meeting-action-bar">
-        <button type="button" class="meeting-action-btn mab-cancel" onclick="UsersPageState.activeTab='list'; renderUsersPageShell();"><span data-lucide="x" style="width:14px;height:14px;"></span> إلغاء</button>
+        <button type="button" class="meeting-action-btn mab-cancel" onclick="UsersPageState.activeTab='list'; UsersPageState.prefillFromSignup=null; renderUsersPageShell();"><span data-lucide="x" style="width:14px;height:14px;"></span> إلغاء</button>
         <button type="button" class="meeting-action-btn mab-primary" id="auSubmitBtn"><span data-lucide="user-plus" style="width:14px;height:14px;"></span> إضافة المستخدم</button>
       </div>`;
 
@@ -8444,7 +8568,7 @@ function renderUsersTabContent() {
         const username = document.getElementById('auUsername').value.trim();
         const password = document.getElementById('auPassword').value;
         if (!fullName || !username || !password) throw new Error('الاسم واسم المستخدم وكلمة المرور مطلوبون');
-        const { error } = await sb.from('users').insert({
+        const { data: newUser, error } = await sb.from('users').insert({
           full_name: fullName, username, password_plain: password,
           email: document.getElementById('auEmail').value || null,
           mobile_number: document.getElementById('auMobile').value || null,
@@ -8456,14 +8580,69 @@ function renderUsersTabContent() {
           role: document.getElementById('auRole').value,
           status: document.getElementById('auStatus').value,
           is_active: document.getElementById('auStatus').value === 'active'
-        });
+        }).select().single();
         if (error) throw error;
+        if (pf) {
+          await sb.from('signup_requests').update({
+            status: 'approved', reviewed_by: CURRENT_USER.id, reviewed_at: new Date().toISOString()
+          }).eq('id', pf.id);
+          if (newUser) {
+            await sb.from('notifications').insert({
+              user_id: newUser.id, title: 'تم قبول طلب انضمامك 🎉',
+              body: 'تفعّل حسابك على نظام شؤون الغذاء — تواصل مع مسؤول النظام لاستلام بيانات الدخول',
+              link: '#dashboard'
+            }).catch(() => {});
+          }
+        }
         toast('تم إضافة المستخدم بنجاح', 'success');
         UsersPageState.activeTab = 'list';
+        UsersPageState.prefillFromSignup = null;
         renderApp();
       } catch (err) {
         errBox.textContent = err.message; errBox.classList.add('show');
       }
+    });
+
+  } else if (UsersPageState.activeTab === 'signup_requests') {
+    const { pendingSignups } = window.__usersPageData;
+    host.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h3><span data-lucide="inbox" style="width:15px;height:15px;vertical-align:-2px;margin-left:5px;"></span>طلبات انضمام قيد المراجعة</h3></div>
+        <div class="panel-body">
+          ${(pendingSignups||[]).length ? pendingSignups.map(r => `
+            <div class="followup-row" data-sr-id="${r.id}">
+              <span data-lucide="user-round" style="width:14px;height:14px; color:#0F3D2E;"></span>
+              <div class="followup-row-info">
+                <strong>${esc(r.full_name)}</strong> — ${esc(r.job_title)}
+                <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">
+                  📱 ${esc(r.mobile_number)} &nbsp; · &nbsp; ✉️ ${esc(r.email)} &nbsp; · &nbsp; 📍 ${esc(r.region)}
+                  ${r.notes ? `<br>${esc(r.notes)}` : ''}
+                </div>
+                <div style="font-size:10.5px; color:var(--text-muted); margin-top:2px;">استُلم ${fmtDate(r.created_at)}</div>
+              </div>
+              <button class="chat-action-btn" style="background:rgba(31,122,58,0.1);color:#1F7A3A;" data-sr-approve="${r.id}"><span data-lucide="check" style="width:13px;height:13px;"></span> قبول</button>
+              <button class="chat-action-btn" style="background:rgba(211,47,47,0.1);color:#D32F2F;" data-sr-reject="${r.id}"><span data-lucide="x" style="width:13px;height:13px;"></span> رفض</button>
+            </div>`).join('') : '<p class="empty-state">لا توجد طلبات انضمام جديدة حاليًا</p>'}
+        </div>
+      </div>`;
+    host.querySelectorAll('[data-sr-approve]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const req = (pendingSignups||[]).find(r => r.id === Number(btn.dataset.srApprove));
+        if (!req) return;
+        UsersPageState.prefillFromSignup = req;
+        UsersPageState.activeTab = 'add';
+        renderUsersPageShell();
+      });
+    });
+    host.querySelectorAll('[data-sr-reject]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('تأكيد رفض هذا الطلب؟')) return;
+        await sb.from('signup_requests').update({
+          status: 'rejected', reviewed_by: CURRENT_USER.id, reviewed_at: new Date().toISOString()
+        }).eq('id', Number(btn.dataset.srReject));
+        toast('تم رفض الطلب', 'success');
+        renderApp();
+      });
     });
 
   } else if (UsersPageState.activeTab === 'roles') {
