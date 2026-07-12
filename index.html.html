@@ -466,19 +466,65 @@ tr:hover td { background: var(--primary-light); }
   .mt-hero-header p { font-size: 11.5px !important; }
   .badge-status, .q-badge, .status-pill, .stat-badge { font-size: 10px !important; padding: 2px 7px !important; }
 
-  /* ============ Accordion: كل قسم قابل للطي على الموبايل ============ */
-  .panel { position: relative; }
-  .panel > .panel-header { cursor: pointer; user-select: none; padding-left: 40px !important; }
-  .panel > .panel-header::after {
-    content: ''; position: absolute; left: 14px; top: 50%;
-    width: 10px; height: 10px;
-    border-right: 2px solid var(--text-muted); border-bottom: 2px solid var(--text-muted);
-    transform: translateY(-70%) rotate(45deg); transition: transform .2s ease;
+  /* ============ Accordion: أقسام قابلة للطي على الموبايل — واضحة جدًا ============ */
+  .panel, .meeting-form-card { position: relative; margin-bottom: 12px !important; }
+
+  /* هيدر قابل للنقر: كامل عرضه ملموس، مع سهم ذهبي واضح */
+  .panel > .panel-header,
+  .meeting-form-card > .meeting-section-title {
+    cursor: pointer; user-select: none;
+    padding: 12px 14px 12px 46px !important;
+    background: linear-gradient(90deg, rgba(214,164,55,0.06), transparent) !important;
+    border-radius: 12px 12px 0 0;
+    position: relative;
+    transition: background .2s ease;
   }
-  .panel.collapsed > .panel-header::after { transform: translateY(-20%) rotate(-45deg); }
+  .panel > .panel-header:active,
+  .meeting-form-card > .meeting-section-title:active { background: rgba(214,164,55,0.14) !important; }
+
+  /* السهم الذهبي الواضح (دائرة مع سهم) */
+  .panel > .panel-header::after,
+  .meeting-form-card > .meeting-section-title::after {
+    content: ''; position: absolute; left: 12px; top: 50%;
+    width: 26px; height: 26px; margin-top: -13px;
+    background: rgba(214,164,55,0.15); border: 1.5px solid #D6A437;
+    border-radius: 50%; box-sizing: border-box;
+    transition: all .2s ease;
+  }
+  .panel > .panel-header::before,
+  .meeting-form-card > .meeting-section-title::before {
+    content: ''; position: absolute; left: 20px; top: 50%;
+    width: 8px; height: 8px; margin-top: -6px;
+    border-right: 2.5px solid #9A6B12; border-bottom: 2.5px solid #9A6B12;
+    transform: rotate(45deg); transition: all .2s ease; z-index: 2;
+  }
+
+  /* حالة "مقفول": السهم يقلب لليمين والقسم يبقى مضغوط */
+  .panel.collapsed > .panel-header::before,
+  .meeting-form-card.collapsed > .meeting-section-title::before {
+    transform: rotate(-45deg); margin-top: -2px;
+  }
+  .panel.collapsed > .panel-header::after,
+  .meeting-form-card.collapsed > .meeting-section-title::after {
+    background: rgba(214,164,55,0.08);
+  }
+
+  /* اخفاء المحتوى في الحالة المقفولة */
   .panel.collapsed > .panel-body,
-  .panel.collapsed > .drawer-body { display: none !important; }
-  .panel.collapsed { padding-bottom: 0; }
+  .panel.collapsed > .drawer-body,
+  .meeting-form-card.collapsed > *:not(.meeting-section-title) { display: none !important; }
+  .panel.collapsed, .meeting-form-card.collapsed { padding-bottom: 0 !important; }
+
+  /* شارة "اضغط لفتح" على الأقسام المقفولة */
+  .panel.collapsed > .panel-header::after,
+  .meeting-form-card.collapsed > .meeting-section-title::after {
+    box-shadow: 0 0 0 3px rgba(214,164,55,0.12);
+  }
+
+  /* الأقسام المقفولة: خفيفة اللون قليلاً لتمييزها بصريًا */
+  .panel.collapsed { opacity: 0.9; }
+  .panel.collapsed > .panel-header { background: rgba(214,164,55,0.04) !important; }
+  .meeting-form-card.collapsed { background: rgba(214,164,55,0.03) !important; }
 
   .dash-two-col { grid-template-columns: 1fr !important; }
   .quick-actions-bar { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
@@ -2245,42 +2291,48 @@ function attachVoiceButtons(root) {
   if (document.readyState !== 'loading') { observer.observe(document.body, { childList: true, subtree: true }); attachVoiceButtons(document); makeMobilePanelsCollapsible(document); }
 })();
 
-// ============ Accordion: طيّ الأقسام على الموبايل ============
+// ============ Accordion: طيّ الأقسام على الموبايل (يشمل .panel و .meeting-form-card) ============
 function makeMobilePanelsCollapsible(root) {
   if (window.innerWidth > 768) return; // موبايل فقط
   const scope = root && root.nodeType === 1 ? root : document;
-  const panels = [];
-  if (scope.matches && scope.matches('.panel')) panels.push(scope);
-  if (scope.querySelectorAll) scope.querySelectorAll('.panel').forEach(p => panels.push(p));
 
-  // اطوي الكل من الأساس ما عدا أول واحد في كل حاوية أب (page-body أو parent مماثل)
+  // اجمع كل الأقسام القابلة للطي
+  const sections = [];
+  const addIfMatches = (el, selector) => { if (el.matches && el.matches(selector)) sections.push(el); };
+  addIfMatches(scope, '.panel'); addIfMatches(scope, '.meeting-form-card');
+  if (scope.querySelectorAll) {
+    scope.querySelectorAll('.panel, .meeting-form-card').forEach(p => sections.push(p));
+  }
+
+  // اطوي الكل ما عدا أول قسم في كل حاوية أب (page-body أو parent مماثل)
   const containerFirstMap = new WeakMap();
-  panels.forEach(panel => {
-    if (panel.dataset.collapsibleInit) return;
-    const header = panel.querySelector(':scope > .panel-header');
-    if (!header) { panel.dataset.collapsibleInit = '1'; return; }
-    panel.dataset.collapsibleInit = '1';
+  sections.forEach(section => {
+    if (section.dataset.collapsibleInit) return;
 
-    // تخطي الـ modal والـ drawer لأنها overlays
-    if (panel.closest('.modal-overlay, .modal-box, .drawer, .drawer-overlay')) return;
+    // ابحث عن الهيدر: panel-header أو meeting-section-title
+    const header = section.querySelector(':scope > .panel-header, :scope > .meeting-section-title');
+    if (!header) { section.dataset.collapsibleInit = '1'; return; }
+    section.dataset.collapsibleInit = '1';
 
-    // اطوي كل الأقسام مبدئيًا، وسيب أول قسم في كل حاوية مفتوح
-    const parent = panel.parentElement || document.body;
+    // تخطي المودالز والدروارز
+    if (section.closest('.modal-overlay, .modal-box, .drawer, .drawer-overlay')) return;
+
+    // أول قسم في كل حاوية يبقى مفتوح، الباقي مقفول
+    const parent = section.parentElement || document.body;
     if (!containerFirstMap.has(parent)) { containerFirstMap.set(parent, true); }
-    else { panel.classList.add('collapsed'); }
+    else { section.classList.add('collapsed'); }
 
-    // اضغط على الهيدر يوسّع/يطوي
     header.addEventListener('click', (e) => {
-      // ماتشتغلش لو الضغط على زر داخل الهيدر (زي «+ إضافة» أو أزرار أخرى)
+      // ماتقفلش لو ضغط على زر داخل الهيدر (زي "+ إضافة")
       if (e.target.closest('button, a, input, select, textarea')) return;
-      panel.classList.toggle('collapsed');
+      section.classList.toggle('collapsed');
     });
   });
 }
 // عند تدوير الشاشة أو تغيير الحجم، أعد الفحص
 window.addEventListener('resize', () => {
   if (window.innerWidth > 768) {
-    document.querySelectorAll('.panel.collapsed').forEach(p => p.classList.remove('collapsed'));
+    document.querySelectorAll('.panel.collapsed, .meeting-form-card.collapsed').forEach(p => p.classList.remove('collapsed'));
   } else {
     makeMobilePanelsCollapsible(document);
   }
