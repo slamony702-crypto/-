@@ -3191,7 +3191,7 @@ function renderSignupRequestPage() {
           </div>
           <div class="login-field">
             <label for="srNotes">نبذة عنك (اختياري)</label>
-            <div class="login-input-wrap"><input type="text" id="srNotes" placeholder="أي بيانات إضافية حابب تضيفها">
+            <div class="login-input-wrap"><input type="text" id="srNotes" placeholder="أي بيانات إضافية ترغب في إضافتها">
             <span class="login-input-icon" data-lucide="file-text"></span></div>
           </div>
           <button type="submit" class="login-submit-btn" id="srSubmitBtn">
@@ -3245,7 +3245,7 @@ function renderSignupRequestSuccess() {
       <h1 style="margin-bottom:10px;">تم استلام طلبك بنجاح</h1>
       <p class="subtitle" style="margin-bottom:22px;">سيتم مراجعة بياناتك من قسم الموارد البشرية، والرد عليكم خلال يوم عمل</p>
       <button type="button" class="login-submit-btn" id="srInstallBtn" style="margin-bottom:12px;">
-        <span data-lucide="download"></span><span>تحميل التطبيق عشان توصلك الإشعارات</span>
+        <span data-lucide="download"></span><span>تحميل التطبيق لتصلك الإشعارات لاحقًا</span>
       </button>
       <p class="login-signup-cta"><a href="javascript:void(0)" id="backToLoginLink2">العودة لتسجيل الدخول</a></p>
     </div>
@@ -8528,7 +8528,7 @@ function renderUsersTabContent() {
   } else if (UsersPageState.activeTab === 'add') {
     const pf = UsersPageState.prefillFromSignup || null;
     host.innerHTML = `
-      ${pf ? `<div class="error-msg show" style="background:rgba(31,122,58,0.08);color:#1F7A3A;border-color:rgba(31,122,58,0.25);"><span data-lucide="check-check" style="width:14px;height:14px;"></span> بتحول طلب انضمام "${esc(pf.full_name)}" لمستخدم — كمّل اسم المستخدم وكلمة المرور والقسم والدور</div>` : ''}
+      ${pf ? `<div class="error-msg show" style="background:rgba(31,122,58,0.08);color:#1F7A3A;border-color:rgba(31,122,58,0.25);"><span data-lucide="check-check" style="width:14px;height:14px;"></span> جارٍ تحويل طلب الانضمام الخاص بـ "${esc(pf.full_name)}" إلى مستخدم — يرجى إكمال اسم المستخدم وكلمة المرور والقسم والدور</div>` : ''}
       <div class="error-msg" id="addUserError"></div>
       <div class="meeting-form-card">
         <div class="meeting-section-title"><span class="mst-accent"></span><span data-lucide="id-card" style="width:15px;height:15px;"></span> البيانات الأساسية</div>
@@ -8721,7 +8721,7 @@ function renderUsersTabContent() {
           if (newUser) {
             await sb.from('notifications').insert({
               user_id: newUser.id, title: 'تم قبول طلب انضمامك 🎉',
-              body: 'تم تفعيل حسابك على نظام شؤون الغذاء — راجع بيانات الدخول اللي وصلتك',
+              body: 'تم تفعيل حسابك على نظام شؤون الغذاء — يرجى مراجعة بيانات الدخول التي وصلتك',
               link: '#dashboard'
             }).catch(() => {});
           }
@@ -8818,7 +8818,7 @@ function showApprovalConfirmModal(req, username, password) {
           <button class="modal-close-x" id="srConfirmCloseX"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
         </div>
         <div class="panel-body">
-          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:10px;">ابعت الرسالة دي لـ <strong>${esc(req.full_name)}</strong> عشان يعرف بيانات دخوله:</p>
+          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:10px;">أرسل هذه الرسالة إلى <strong>${esc(req.full_name)}</strong> ليطّلع على بيانات الدخول الخاصة به:</p>
           <textarea class="meeting-input" id="srConfirmMsg" rows="7" style="width:100%;font-size:12.5px;" readonly>${esc(msg)}</textarea>
           <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
             <button class="meeting-action-btn mab-primary" id="srCopyMsgBtn"><span data-lucide="copy" style="width:14px;height:14px;"></span> نسخ الرسالة</button>
@@ -9949,7 +9949,7 @@ async function pageDashboard(body) {
       bar.id = 'appUpdateBanner';
       bar.innerHTML = `
         <span data-lucide="sparkles" style="width:16px;height:16px;flex-shrink:0;"></span>
-        <span style="flex:1;">في نسخة جديدة من النظام جاهزة — حدّثها دلوقتي عشان تستخدم آخر تحسينات</span>
+        <span style="flex:1;">تتوفر نسخة جديدة من النظام — يرجى التحديث الآن للاستفادة من أحدث التحسينات</span>
         <button id="appUpdateBtn" type="button">تحديث الآن</button>
         <button id="appUpdateDismiss" type="button" aria-label="إغلاق" style="background:none;border:none;color:inherit;opacity:.75;font-size:16px;line-height:1;cursor:pointer;padding:2px 4px;">✕</button>
       `;
