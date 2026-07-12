@@ -2441,6 +2441,7 @@ async function pageMeetings(body, urlQuery) {
   if (urlQuery) {
     if (urlQuery.status) MeetingsState.statusFilter = urlQuery.status;
     if (urlQuery.type) MeetingsState.typeFilter = urlQuery.type;
+    if (urlQuery.search) MeetingsState.search = urlQuery.search;
     if (urlQuery.period === 'current-month') {
       const thisMonth = new Date().toISOString().slice(0, 7);
       MeetingsState.all = MeetingsState.all.filter(m => (m.meeting_datetime || '').slice(0, 7) === thisMonth);
@@ -8882,6 +8883,7 @@ async function pageGlobalSearch(body, query) {
               <div style="display:flex;gap:6px;flex-wrap:wrap;">
                 <button class="chat-action-btn" style="background:#0F3D2E;color:#fff;" data-gs-assign="${r.id}" data-gs-name="${esc(String(r.title||'').replace(/"/g,''))}"><span data-lucide="list-plus" style="width:12px;height:12px;"></span> إسناد مهمة</button>
                 <button class="chat-action-btn" data-gs-tasks="${esc(String(r.title||'').replace(/"/g,''))}"><span data-lucide="clipboard-list" style="width:12px;height:12px;"></span> متابعة مهامه</button>
+                <button class="chat-action-btn" style="background:#2F80C9;color:#fff;" data-gs-meetings="${esc(String(r.title||'').replace(/"/g,''))}"><span data-lucide="calendar" style="width:12px;height:12px;"></span> اجتماعاته</button>
                 <button class="chat-action-btn" style="background:var(--accent);color:#3a2c00;" data-gs-msg="${r.id}" data-gs-msgname="${esc(String(r.title||'').replace(/"/g,''))}"><span data-lucide="message-circle" style="width:12px;height:12px;"></span> رسالة</button>
               </div>
             </div>
@@ -8903,6 +8905,7 @@ async function pageGlobalSearch(body, query) {
 
   res.querySelectorAll('[data-gs-assign]').forEach(b => b.addEventListener('click', () => openQuickAddTaskModal(Number(b.dataset.gsAssign), b.dataset.gsName)));
   res.querySelectorAll('[data-gs-tasks]').forEach(b => b.addEventListener('click', () => { location.hash = '#tasks?search=' + encodeURIComponent(b.dataset.gsTasks); }));
+  res.querySelectorAll('[data-gs-meetings]').forEach(b => b.addEventListener('click', () => { location.hash = '#meetings?search=' + encodeURIComponent(b.dataset.gsMeetings); }));
   res.querySelectorAll('[data-gs-msg]').forEach(b => b.addEventListener('click', () => openDirectChatFromDirectory(Number(b.dataset.gsMsg), b.dataset.gsMsgname)));
 }
 
