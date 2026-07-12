@@ -8236,6 +8236,23 @@ async function pageDashboard(body) {
 
   const recentMeetings = [...(meetings || [])].sort((a, b) => (b.meeting_datetime || '').localeCompare(a.meeting_datetime || '')).slice(0, 5);
 
+  // اجتماعات الأسبوع (السبت→الخميس بالتقويم الميلادي المحلي، ببساطة: آخر 7 أيام قادمة)
+  const nowD = new Date();
+  const weekEnd = new Date(nowD.getTime() + 7 * 86400000);
+  const meetingsThisWeek = (meetings || []).filter(m => {
+    if (!m.meeting_datetime) return false;
+    const d = new Date(m.meeting_datetime);
+    return d >= nowD && d <= weekEnd && m.status === 'scheduled';
+  }).length;
+
+  // طلبات صيانة عاجلة/حرجة مفتوحة
+  let maintUrgent = 0;
+  try {
+    let mq = sb.from('maintenance_requests').select('id, severity, status');
+    const { data: maintRows } = await mq;
+    maintUrgent = (maintRows || []).filter(r => ['high','critical'].includes(r.severity) && !['closed','rejected'].includes(r.status)).length;
+  } catch (e) {}
+
   const { data: recentMsgsRaw } = await sb.from('messages').select('*, users(full_name), conversations(conversation_type)').order('sent_at', { ascending: false }).limit(6);
   const { data: myReads } = await sb.from('message_reads').select('message_id').eq('user_id', CURRENT_USER.id);
   const readIds = new Set((myReads||[]).map(r=>r.message_id));
@@ -8296,6 +8313,8 @@ async function pageDashboard(body) {
       <div class="stat-card dash-stat-card clickable-stat-card" data-target-page="meetings" data-filter-key="status" data-filter-value="closed" data-scroll-target="meetings-table" aria-label="عرض الاجتماعات المغلقة" style="--accent-color:var(--primary);"><div class="dash-stat-icon" style="background:rgba(27,94,32,0.1); color:var(--primary);"><span data-lucide="lock" style="width:19px;height:19px;"></span></div><div class="value">${meetingsClosed}</div><div class="label">اجتماعات مغلقة</div></div>
       <div class="stat-card dash-stat-card clickable-stat-card" data-target-page="meetings" data-filter-key="status" data-filter-value="scheduled" data-scroll-target="meetings-table" aria-label="عرض الاجتماعات المفتوحة" style="--accent-color:var(--accent);"><div class="dash-stat-icon" style="background:rgba(249,168,37,0.15); color:#a86e00;"><span data-lucide="folder-open" style="width:19px;height:19px;"></span></div><div class="value">${meetingsOpen}</div><div class="label">اجتماعات مفتوحة</div></div>
       <div class="stat-card dash-stat-card clickable-stat-card" data-target-page="meetings" data-filter-key="period" data-filter-value="current-month" data-scroll-target="meetings-table" aria-label="عرض اجتماعات هذا الشهر" style="--accent-color:var(--primary);"><div class="dash-stat-icon" style="background:rgba(27,94,32,0.1); color:var(--primary);"><span data-lucide="calendar-days" style="width:19px;height:19px;"></span></div><div class="value">${meetingsThisMonth}</div><div class="label">اجتماعات هذا الشهر</div></div>
+      <div class="stat-card dash-stat-card clickable-stat-card" data-target-page="meetings" data-filter-key="status" data-filter-value="scheduled" data-scroll-target="meetings-table" aria-label="عرض اجتماعات الأسبوع" style="--accent-color:#2F80C9;"><div class="dash-stat-icon" style="background:rgba(47,128,201,0.1); color:#2F80C9;"><span data-lucide="calendar-clock" style="width:19px;height:19px;"></span></div><div class="value">${meetingsThisWeek}</div><div class="label">اجتماعات هذا الأسبوع</div></div>
+      <div class="stat-card dash-stat-card clickable-stat-card" data-target-page="maintenance" data-filter-key="severity" data-filter-value="high" aria-label="عرض طلبات الصيانة العاجلة" style="--accent-color:#D32F2F;"><div class="dash-stat-icon" style="background:rgba(211,47,47,0.10); color:#D32F2F;"><span data-lucide="wrench" style="width:19px;height:19px;"></span></div><div class="value">${maintUrgent}</div><div class="label">صيانة عاجلة/حرجة</div>${maintUrgent > 0 ? '<span class="stat-badge">تحتاج متابعة</span>' : ''}</div>
     </div>
 
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;" class="dash-two-col">
