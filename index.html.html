@@ -8607,15 +8607,17 @@ function renderUsersTabContent() {
     });
 
   } else if (UsersPageState.activeTab === 'signup_requests') {
-    const { pendingSignups, rejectedSignups, departments } = window.__usersPageData;
+    const { pendingSignups, rejectedSignups, departments, users } = window.__usersPageData;
+    const jobTitles = [...new Set((users||[]).map(u => (u.position_title||'').trim()).filter(Boolean))].sort();
+    const smallInput = (id, val, type) => `<input type="${type||'text'}" class="meeting-input" data-sr-field="${id}" value="${esc(val||'')}" style="min-width:110px;font-size:12px;padding:6px 8px;">`;
     const renderRow = r => `
                 <tr data-sr-row="${r.id}">
-                  <td><strong>${esc(r.full_name)}</strong><div style="font-size:10.5px;color:var(--text-muted);">استُلم ${fmtDate(r.created_at)}</div></td>
-                  <td>${esc(r.mobile_number)}</td>
-                  <td>${esc(r.email)}</td>
-                  <td>${esc(r.job_title)}</td>
-                  <td>${esc(r.region)}</td>
-                  <td style="max-width:160px;">${r.notes ? esc(r.notes) : '<span style="color:var(--text-muted);">—</span>'}</td>
+                  <td>${smallInput('full_name-'+r.id, r.full_name)}<div style="font-size:10.5px;color:var(--text-muted);margin-top:3px;">استُلم ${fmtDate(r.created_at)}</div></td>
+                  <td>${smallInput('mobile-'+r.id, r.mobile_number, 'tel')}</td>
+                  <td>${smallInput('email-'+r.id, r.email, 'email')}</td>
+                  <td><input type="text" class="meeting-input" data-sr-field="job-${r.id}" list="srJobTitlesList" value="${esc(r.job_title||'')}" style="min-width:130px;font-size:12px;padding:6px 8px;"></td>
+                  <td>${smallInput('region-'+r.id, r.region)}</td>
+                  <td>${smallInput('notes-'+r.id, r.notes||'')}</td>
                   <td>
                     <select class="meeting-select" data-sr-dept="${r.id}" style="min-width:150px;">
                       <option value="">كما أرسلها (بدون قسم محدد)</option>
@@ -8632,7 +8634,9 @@ function renderUsersTabContent() {
         <div class="panel-header"><h3><span data-lucide="inbox" style="width:15px;height:15px;vertical-align:-2px;margin-left:5px;"></span>طلبات الانضمام قيد المراجعة</h3></div>
         <div class="panel-body">
           ${(pendingSignups||[]).length ? `
+          <datalist id="srJobTitlesList">${jobTitles.map(t=>`<option value="${esc(t)}"></option>`).join('')}</datalist>
           <div class="search-wrap" style="max-width:320px;margin-bottom:12px;"><input type="text" id="srSearchInput" class="search-input" placeholder="ابحث بالاسم، الجوال، الإيميل، المسمى، المنطقة..."></div>
+          <p style="font-size:11.5px;color:var(--text-muted);margin-bottom:10px;">يمكن تعديل أي بيانات في الجدول قبل القبول — مثل تصحيح مسمى وظيفي خاطئ.</p>
           <div style="overflow-x:auto;">
           <table class="adv-table" id="srTable">
             <thead><tr>
@@ -8661,13 +8665,19 @@ function renderUsersTabContent() {
       `;
     if (window.lucide) lucide.createIcons();
 
+    function srFieldVal(id, fallback) {
+      const el = host.querySelector(`[data-sr-field="${id}"]`);
+      return el ? el.value.trim() : fallback;
+    }
+
     const srSearchInput = document.getElementById('srSearchInput');
     if (srSearchInput) {
       srSearchInput.addEventListener('input', () => {
         const q = srSearchInput.value.trim().toLowerCase();
         let visibleCount = 0;
         host.querySelectorAll('#srTable tbody tr').forEach(tr => {
-          const match = tr.textContent.toLowerCase().includes(q);
+          const inputVals = [...tr.querySelectorAll('input')].map(i => i.value).join(' ');
+          const match = (tr.textContent + ' ' + inputVals).toLowerCase().includes(q);
           tr.classList.toggle('hidden', !match);
           if (match) visibleCount++;
         });
@@ -8699,12 +8709,22 @@ function renderUsersTabContent() {
 
     host.querySelectorAll('[data-sr-approve]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const req = (pendingSignups||[]).find(r => r.id === Number(btn.dataset.srApprove));
-        if (!req) return;
+        const origReq = (pendingSignups||[]).find(r => r.id === Number(btn.dataset.srApprove));
+        if (!origReq) return;
+        // خُد القيم المعدَّلة من خلايا الجدول (لو الأدمن صحّح أي بيانات) وارجع للأصل لو الخلية فاضية
+        const req = {
+          ...origReq,
+          full_name: srFieldVal('full_name-'+origReq.id, origReq.full_name) || origReq.full_name,
+          mobile_number: srFieldVal('mobile-'+origReq.id, origReq.mobile_number) || origReq.mobile_number,
+          email: srFieldVal('email-'+origReq.id, origReq.email) || origReq.email,
+          job_title: srFieldVal('job-'+origReq.id, origReq.job_title) || origReq.job_title,
+          region: srFieldVal('region-'+origReq.id, origReq.region) || origReq.region,
+          notes: srFieldVal('notes-'+origReq.id, origReq.notes)
+        };
         if (!confirm('تأكيد قبول طلب "' + req.full_name + '" وإنشاء حساب له؟')) return;
         btn.disabled = true;
         try {
-          const deptSelect = host.querySelector(`[data-sr-dept="${req.id}"]`);
+          const deptSelect = host.querySelector(`[data-sr-dept="${origReq.id}"]`);
           const departmentId = deptSelect && deptSelect.value ? Number(deptSelect.value) : null;
           const username = await uniqueUsername(genUsernameBase(req));
           const password = genPassword();
@@ -8716,8 +8736,10 @@ function renderUsersTabContent() {
           }).select().single();
           if (error) throw error;
           await sb.from('signup_requests').update({
-            status: 'approved', reviewed_by: CURRENT_USER.id, reviewed_at: new Date().toISOString()
-          }).eq('id', req.id);
+            status: 'approved', reviewed_by: CURRENT_USER.id, reviewed_at: new Date().toISOString(),
+            full_name: req.full_name, mobile_number: req.mobile_number, email: req.email,
+            job_title: req.job_title, region: req.region, notes: req.notes || null
+          }).eq('id', origReq.id);
           if (newUser) {
             await sb.from('notifications').insert({
               user_id: newUser.id, title: 'تم قبول طلب انضمامك 🎉',
