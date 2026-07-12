@@ -2279,7 +2279,7 @@ const MENU_ITEMS = [
   { key: 'install_app', label: 'تحميل التطبيق', icon: 'download' },
   { key: 'settings', label: 'الإعدادات', icon: 'settings' },
 ];
-const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'المهام', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', notifications: 'الإشعارات', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات' };
+const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'المهام', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -6094,9 +6094,7 @@ async function renderApp() {
     const input = document.getElementById('globalSearchInput');
     const q = input.value.trim();
     if (!q) { input.focus(); return; }
-    const { data: meetingsRes } = await sb.from('meetings').select('id').ilike('title', `%${q}%`).limit(1);
-    if (meetingsRes && meetingsRes.length) { location.hash = '#meeting_detail/' + meetingsRes[0].id; return; }
-    location.hash = '#tasks';
+    location.hash = '#search?q=' + encodeURIComponent(q);
   }
   document.getElementById('globalSearchInput').addEventListener('keydown', async (e) => {
     if (e.key !== 'Enter') return;
@@ -6137,6 +6135,7 @@ async function route() {
     else if (page === 'quality_reports') await pageQualityReports(body, query);
     else if (page === 'maintenance_reports') await pageMaintenanceReports(body, query);
     else if (page === 'notifications') await pageNotifications(body, query);
+    else if (page === 'search') await pageGlobalSearch(body, query);
     else if (page === 'install_app') await pageInstallApp(body);
     else if (page === 'reports') await pageReports(body);
     else if (page === 'users') await pageUsers(body);
@@ -8559,6 +8558,96 @@ async function pageDashboard(body) {
 })();
 
 /* ============ صفحة تحميل التطبيق ============ */
+/* ============ البحث الشامل ============ */
+async function pageGlobalSearch(body, query) {
+  const q = (query && query.q) ? decodeURIComponent(query.q) : '';
+  body.innerHTML = `
+    <div class="mt-hero-header">
+      <div><h2><span class="mt-accent"></span> <span data-lucide="search" style="width:22px;height:22px;color:#0F3D2E;"></span> نتائج البحث</h2>
+        <p>${q ? `نتائج البحث عن: "${esc(q)}"` : 'اكتب كلمة للبحث في كل أقسام المنصة'}</p></div>
+    </div>
+    <div class="table-toolbar" style="margin-bottom:14px;">
+      <div class="search-wrap" style="flex:1;"><input type="text" id="gsInput" class="search-input" value="${esc(q)}" placeholder="ابحث في الاجتماعات، المهام، القرارات، الصيانة، الجودة، الموظفين..."></div>
+      <button class="btn" id="gsGoBtn" style="background:var(--primary);color:#fff;">بحث</button>
+    </div>
+    <div id="gsResults"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  document.getElementById('gsGoBtn').addEventListener('click', () => {
+    const v = document.getElementById('gsInput').value.trim();
+    if (v) location.hash = '#search?q=' + encodeURIComponent(v);
+  });
+  document.getElementById('gsInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { const v = e.target.value.trim(); if (v) location.hash = '#search?q=' + encodeURIComponent(v); }
+  });
+
+  if (!q || q.length < 2) {
+    document.getElementById('gsResults').innerHTML = '<p class="empty-state">اكتب حرفين على الأقل لبدء البحث</p>';
+    return;
+  }
+
+  const res = document.getElementById('gsResults');
+  res.innerHTML = '<p class="empty-state">جاري البحث...</p>';
+  const like = `%${q}%`;
+
+  const [meetings, tasks, deptTasks, decisions, maint, quality, users] = await Promise.all([
+    sb.from('meetings').select('id, title, meeting_datetime, status').ilike('title', like).limit(8),
+    sb.from('action_items').select('id, title, status').ilike('title', like).limit(8),
+    sb.from('department_tasks').select('id, title, status').ilike('title', like).limit(8),
+    sb.from('decisions').select('id, decision_text, status').ilike('decision_text', like).limit(8),
+    sb.from('maintenance_requests').select('id, request_no, issue_title, description, status').or(`issue_title.ilike.${like},description.ilike.${like}`).limit(8),
+    sb.from('quality_visits').select('id, visit_no, status, branches(name)').ilike('visit_no', like).limit(8),
+    sb.from('users').select('id, full_name, position_title, username').eq('is_active', true).or(`full_name.ilike.${like},username.ilike.${like}`).limit(8)
+  ]);
+
+  const groups = [
+    { key: 'meetings', label: 'الاجتماعات', icon: 'calendar', color: '#2F80C9',
+      rows: (meetings.data || []).map(m => ({ title: m.title, sub: fmtDate(m.meeting_datetime), link: '#meeting_detail/' + m.id })) },
+    { key: 'tasks', label: 'المهام', icon: 'check-square', color: '#D6A437',
+      rows: (tasks.data || []).map(t => ({ title: t.title, sub: label('task_status', t.status), link: '#tasks' })) },
+    { key: 'dept_tasks', label: 'مهام الأقسام', icon: 'clipboard-list', color: '#7C3AED',
+      rows: (deptTasks.data || []).map(t => ({ title: t.title, sub: t.status || '', link: '#department_tasks' })) },
+    { key: 'decisions', label: 'القرارات', icon: 'gavel', color: '#1F7A3A',
+      rows: (decisions.data || []).map(d => ({ title: d.decision_text, sub: label('decision_status', d.status), link: '#decisions' })) },
+    { key: 'maintenance', label: 'الصيانة', icon: 'wrench', color: '#0F3D2E',
+      rows: (maint.data || []).map(r => ({ title: r.issue_title || (r.description||'').slice(0,60) || r.request_no, sub: label('maint_status', r.status), link: '#maintenance_detail/' + r.id })) },
+    { key: 'quality', label: 'زيارات الجودة', icon: 'shield-check', color: '#1F7A3A',
+      rows: (quality.data || []).map(v => ({ title: v.visit_no, sub: (v.branches?.name || '') + ' — ' + (v.status === 'completed' ? 'مكتملة' : 'مسودة'), link: v.status === 'draft' ? '#quality_new/' + v.id : '#quality_detail/' + v.id })) },
+    { key: 'users', label: 'الموظفون', icon: 'users', color: '#2F80C9',
+      rows: (users.data || []).map(u => ({ title: u.full_name, sub: u.position_title || u.username, link: '#users' })) }
+  ];
+
+  const totalCount = groups.reduce((s, g) => s + g.rows.length, 0);
+  if (!totalCount) {
+    res.innerHTML = `<div class="panel"><div class="panel-body" style="text-align:center;padding:40px;color:var(--text-muted);"><span data-lucide="search-x" style="width:32px;height:32px;color:#9aa39c;"></span><div style="margin-top:10px;font-size:13px;">لا توجد نتائج لـ "${esc(q)}"</div></div></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+
+  res.innerHTML = `
+    <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:12px;">تم العثور على ${totalCount} نتيجة</div>
+    ${groups.filter(g => g.rows.length).map(g => `
+      <div class="panel" style="margin-bottom:14px;">
+        <div class="panel-header"><h3 class="panel-title"><span data-lucide="${g.icon}" style="width:16px;height:16px;color:${g.color};"></span> ${g.label} <span style="font-size:11.5px;color:var(--text-muted);font-weight:600;">(${g.rows.length})</span></h3></div>
+        <div class="panel-body" style="padding:0;">
+          ${g.rows.map(r => `
+            <div style="display:flex;gap:12px;padding:11px 16px;border-bottom:1px solid var(--border);cursor:pointer;align-items:center;" onclick="location.hash='${r.link}'">
+              <div style="width:32px;height:32px;border-radius:9px;background:${g.color}18;color:${g.color};display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span data-lucide="${g.icon}" style="width:15px;height:15px;"></span></div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:700;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(r.title || '-')}</div>
+                ${r.sub ? `<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">${esc(r.sub)}</div>` : ''}
+              </div>
+              <span data-lucide="chevron-left" style="width:15px;height:15px;color:var(--text-muted);flex-shrink:0;"></span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `).join('')}
+  `;
+  if (window.lucide) lucide.createIcons();
+}
+
 /* ============ صفحة الإشعارات الموسّعة ============ */
 async function pageNotifications(body, query) {
   body.innerHTML = '<p class="empty-state">جاري تحميل الإشعارات...</p>';
