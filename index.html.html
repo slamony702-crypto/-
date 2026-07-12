@@ -3589,7 +3589,11 @@ async function authLogin(username, password) {
   }
 
   // 2) تحقّق من بيانات الدخول عبر دالة آمنة (RPC) بدل قراءة الجدول مباشرة (محمي بـ RLS لغير المسجّلين)
-  const { data: verifyRows } = await sb.rpc('verify_login', { p_username: username, p_password: password }).catch(() => ({ data: null }));
+  let verifyRows = null;
+  try {
+    const rpcRes = await sb.rpc('verify_login', { p_username: username, p_password: password });
+    verifyRows = rpcRes && rpcRes.data;
+  } catch (e) { verifyRows = null; }
   const minimal = verifyRows && verifyRows[0];
   if (!minimal || !minimal.is_active) {
     throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة');
