@@ -2120,7 +2120,19 @@ const VOICE_COMMANDS = [
     'اراسل','ابغى اراسل','ابغى اراسله',
     // يمني
     'بغيت اكلم','بغيت اراسل','ابا اكلمه','ابا اراسله','ابا ارسل له'
-  ], action: 'message' }
+  ], action: 'message' },
+
+  { keys: [
+    // فصحى / عام
+    'افتح تقرير','فتح تقرير','عرض تقرير','اعرض تقرير','التقارير','تقارير',
+    // مصري
+    'ورّيني تقرير','وريني تقرير','عايز تقرير','عاوز تقرير','عايز اشوف تقرير','اشوف تقرير',
+    'افتحلي تقرير','افتح لي تقرير',
+    // سعودي / خليجي
+    'ابغى تقرير','ابى تقرير','ابي تقرير','بغيت تقرير','ابغى اشوف تقرير','شوف تقرير',
+    // يمني
+    'ابا تقرير','بغيت اشوف تقرير','ابا اشوف تقرير'
+  ], action: 'reports' }
 ];
 function stripVoiceCommandPreposition(s) {
   s = (s || '').trim();
@@ -2238,6 +2250,16 @@ async function tryVoiceCommand(rawText) {
   const matched = best.action;
   const restWords = [...origWords.slice(0, best.start), ...origWords.slice(best.start + best.wc)];
   const rest = restWords.join(' ').trim();
+
+  // أوامر لا تحتاج اسم موظف — روتنة مباشرة
+  if (matched === 'reports') {
+    const hint = normalizeArabic(rest);
+    if (/صيانه|صيانة/.test(hint)) location.hash = '#maintenance_reports';
+    else if (/جوده|جودة/.test(hint)) location.hash = '#quality_reports';
+    else location.hash = '#reports';
+    return true;
+  }
+
   const split = splitNameAndContent(rest);
   const name = stripVoiceCommandPreposition(split.name);
   const content = split.content;
@@ -2257,8 +2279,43 @@ async function tryVoiceCommand(rawText) {
   if (matched === 'assign') { openQuickAddTaskModal(target.id, target.full_name, content || null); }
   else if (matched === 'tasks') { location.hash = '#tasks?search=' + encodeURIComponent(target.full_name); }
   else if (matched === 'meetings') { location.hash = '#meetings?search=' + encodeURIComponent(target.full_name); }
-  else if (matched === 'message') { openDirectChatFromDirectory(target.id, target.full_name); }
+  else if (matched === 'message') { voiceOpenChatAndPrefill(target.id, target.full_name, content || null); }
   return true;
+}
+
+// فتح شات مباشر مع موظف وتعبئة الرسالة (لأوامر: "ابعت لعمر صبري وقوله كذا")
+async function voiceOpenChatAndPrefill(userId, userName, prefillMessage) {
+  // تأكد إننا في صفحة التواصل الداخلي (طبقة الشات ممكن تظهر بس منها)
+  if (!location.hash.startsWith('#conversations')) {
+    location.hash = '#conversations';
+    // انتظر رندر الصفحة
+    for (let i = 0; i < 25; i++) {
+      await new Promise(r => setTimeout(r, 100));
+      if (document.getElementById('taskChatPanel')) break;
+    }
+  }
+  try {
+    if (typeof window.openDirectChatFromDirectory === 'function') {
+      await window.openDirectChatFromDirectory(userId, userName);
+    }
+  } catch (e) { /* آمن للفشل */ }
+  if (!prefillMessage) return;
+
+  // انتظر ظهور مربع الإدخال
+  let chatInput = null;
+  for (let i = 0; i < 20; i++) {
+    await new Promise(r => setTimeout(r, 100));
+    chatInput = document.getElementById('chatInput');
+    if (chatInput) break;
+  }
+  if (!chatInput) return;
+  chatInput.value = prefillMessage;
+  chatInput.focus();
+  // ضع المؤشر آخر الكلام
+  try { chatInput.setSelectionRange(prefillMessage.length, prefillMessage.length); } catch (e) {}
+  chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+  chatInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  toast('كلامك جاهز في مربع الرسالة — راجعه واضغط إرسال', 'success');
 }
 function wireGlobalVoiceButton(onTranscribed) {
   const btn = document.getElementById('globalVoiceBtn');
