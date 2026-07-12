@@ -976,6 +976,114 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
 :root[data-theme="dark"] .modal-box { background: var(--surface); color: var(--text); }
 :root[data-theme="dark"] .modal-overlay { background: rgba(0,0,0,0.7); }
 :root[data-theme="dark"] .drawer { background: var(--surface); color: var(--text); }
+
+/* ============ Dark Mode: تعديلات موسّعة لكل المكونات ============ */
+/* الشات والرسائل */
+:root[data-theme="dark"] .chat-box,
+:root[data-theme="dark"] .chat-messages,
+:root[data-theme="dark"] .chat-input,
+:root[data-theme="dark"] .chat-msg,
+:root[data-theme="dark"] .chat-msg-bubble,
+:root[data-theme="dark"] .chat-send-btn,
+:root[data-theme="dark"] .msg-row-item { background: var(--surface); color: var(--text); border-color: var(--border); }
+:root[data-theme="dark"] .chat-msg-bubble.mine { background: var(--primary-dark); color: #fff; }
+:root[data-theme="dark"] .chat-msg-bubble.other { background: var(--card-warm); color: var(--text); }
+:root[data-theme="dark"] .followup-row,
+:root[data-theme="dark"] .attendance-row { background: transparent; color: var(--text); border-color: var(--border); }
+:root[data-theme="dark"] .followup-tab { color: var(--text-muted); }
+:root[data-theme="dark"] .followup-tab.active { color: var(--primary); border-color: var(--primary); }
+:root[data-theme="dark"] .followup-section-title { color: var(--text) !important; }
+
+/* KPI cards + stat cards تفاصيل داخلية */
+:root[data-theme="dark"] .kpi-icon { background: rgba(255,255,255,0.05); }
+:root[data-theme="dark"] .stat-badge { background: rgba(214,164,55,0.12); color: #E8B85A; }
+:root[data-theme="dark"] .status-pill { background: rgba(255,255,255,0.06); color: var(--text); }
+:root[data-theme="dark"] .badge-status,
+:root[data-theme="dark"] .status-pill { color: var(--text); }
+
+/* Timeline items */
+:root[data-theme="dark"] .mt-timeline-item,
+:root[data-theme="dark"] .decision-timeline-item { border-color: var(--border) !important; color: var(--text); }
+
+/* Segmented control (نوع الانعقاد، تأثير التشغيل) */
+:root[data-theme="dark"] .mt-seg { background: #14431a; }
+:root[data-theme="dark"] .mt-seg button { color: var(--text-muted); background: transparent; }
+:root[data-theme="dark"] .mt-seg button.active { background: var(--primary); color: #fff; }
+:root[data-theme="dark"] .mt-chip { background: var(--card-warm); border-color: var(--border); color: var(--text); }
+:root[data-theme="dark"] .mt-chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* اجتماعات الفاخرة: cards, badges */
+:root[data-theme="dark"] .meeting-row-item { border-color: var(--border); color: var(--text); }
+:root[data-theme="dark"] .meeting-row-item:hover { background: rgba(255,255,255,0.03); }
+:root[data-theme="dark"] .meeting-row-actions button { background: var(--surface); border-color: var(--border); color: var(--text); }
+
+/* Bulk selection bar */
+:root[data-theme="dark"] .bulk-bar { background: var(--card-warm); border-color: var(--border); color: var(--text); }
+
+/* Reset filters button */
+:root[data-theme="dark"] .reset-filters-btn { background: transparent; color: var(--text-muted); border-color: var(--border); }
+:root[data-theme="dark"] .reset-filters-btn:hover { background: rgba(255,255,255,0.05); }
+
+/* Toolbar dividers */
+:root[data-theme="dark"] .toolbar-divider { background: var(--border); }
+
+/* Quick action buttons (Dashboard) */
+:root[data-theme="dark"] .quick-action-btn { background: var(--surface); border-color: var(--border); color: var(--text); }
+:root[data-theme="dark"] .quick-action-btn:hover { background: var(--card-warm); }
+
+/* Confirm modal / prompt */
+:root[data-theme="dark"] #confirmModalOverlay .panel { background: var(--surface); color: var(--text); border-color: var(--border); }
+
+/* Task columns and inline "field" blocks */
+:root[data-theme="dark"] .field label,
+:root[data-theme="dark"] .form-field label { color: var(--text-muted); }
+:root[data-theme="dark"] .field input,
+:root[data-theme="dark"] .field textarea,
+:root[data-theme="dark"] .field select { background: var(--input-bg); color: var(--text); border-color: var(--border); }
+
+/* Sidebar footer */
+:root[data-theme="dark"] .sidebar-footer,
+:root[data-theme="dark"] .sidebar-logout-btn { background: transparent; color: var(--text-muted); border-color: var(--border); }
+:root[data-theme="dark"] .sidebar-logout-btn:hover { background: rgba(211,47,47,0.1); color: #FF6B6B; }
+
+/* Login page */
+:root[data-theme="dark"] .login-box { background: var(--surface); color: var(--text); border-color: var(--border); }
+:root[data-theme="dark"] .login-input-wrap { background: var(--input-bg); border-color: var(--border); }
+:root[data-theme="dark"] .login-input-wrap input { background: transparent; color: var(--text); }
+:root[data-theme="dark"] .login-input-wrap input::placeholder { color: var(--text-muted); }
+
+/* Success/warning/error toasts respect dark surface */
+:root[data-theme="dark"] .toast { color: #fff; }
+
+/* Empty state text */
+:root[data-theme="dark"] .empty-illust { color: var(--text-muted); }
+:root[data-theme="dark"] .empty-illust h4 { color: var(--text); }
+
+/* Skeleton loaders */
+:root[data-theme="dark"] .skeleton,
+:root[data-theme="dark"] .skeleton-row { background: linear-gradient(90deg, #232F29, #2A3831, #232F29); }
+
+/* Text inside inline styled sections — fallback for common hardcoded colors */
+:root[data-theme="dark"] [style*="color:#24352E"],
+:root[data-theme="dark"] [style*="color: #24352E"],
+:root[data-theme="dark"] [style*="color:#212121"],
+:root[data-theme="dark"] [style*="color: #212121"] { color: var(--text) !important; }
+:root[data-theme="dark"] [style*="color:#6B756F"],
+:root[data-theme="dark"] [style*="color: #6B756F"],
+:root[data-theme="dark"] [style*="color:#757575"],
+:root[data-theme="dark"] [style*="color: #757575"] { color: var(--text-muted) !important; }
+:root[data-theme="dark"] [style*="background:#FFFDF7"],
+:root[data-theme="dark"] [style*="background: #FFFDF7"],
+:root[data-theme="dark"] [style*="background:#fffdf7"],
+:root[data-theme="dark"] [style*="background: #fffdf7"] { background: var(--card-cream) !important; }
+:root[data-theme="dark"] [style*="background:var(--bg)"] { background: var(--card-warm) !important; }
+:root[data-theme="dark"] [style*="background:#F7F8F5"],
+:root[data-theme="dark"] [style*="background: #F7F8F5"] { background: var(--hard-bg-1) !important; }
+:root[data-theme="dark"] [style*="background:#F1EEE2"],
+:root[data-theme="dark"] [style*="background: #F1EEE2"] { background: var(--card-warm) !important; }
+:root[data-theme="dark"] [style*="border:1px solid var(--border)"],
+:root[data-theme="dark"] [style*="border-color:var(--border)"] { border-color: var(--border) !important; }
+
 /* أزرار التبديل */
 .theme-toggle-btn { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); cursor: pointer; color: var(--text); }
 .theme-toggle-btn:hover { background: rgba(214,164,55,0.10); }
@@ -3904,6 +4012,8 @@ async function pageMeetingDetail(body, meetingId) {
           <div class="error-msg" id="newDecisionError"></div>
           <form id="newDecisionForm">
             <div class="field"><label>نص القرار</label><textarea id="ndText" rows="2" required></textarea></div>
+            <!-- الحقول الأخرى مخففة الإلزام حتى يمكن إنشاء قرار سريع -->
+
             <div class="field"><label>المسؤول عن التنفيذ</label><select id="ndResponsible">${(allUsers||[]).map(u => `<option value="${u.id}">${esc(u.full_name)}</option>`).join('')}</select></div>
             <div class="field"><label>مسؤولون فرعيون (اختياري)</label>
               <select id="ndSubResponsibles" multiple size="5" style="width:100%; padding:6px;">
@@ -3928,7 +4038,7 @@ async function pageMeetingDetail(body, meetingId) {
             <div class="field"><label>وصف المهمة</label><textarea id="ntDesc" rows="2"></textarea></div>
             <div class="field"><label>المسؤول الرئيسي</label><select id="ntAssignee" required>${(allUsers||[]).map(u => `<option value="${u.id}">${esc(u.full_name)}</option>`).join('')}</select></div>
             <div class="field"><label>مرتبطة بقرار (اختياري)</label><select id="ntDecision"><option value="">بدون قرار</option>${(decisions||[]).map(d => `<option value="${d.id}">${esc(d.decision_text.slice(0,40))}</option>`).join('')}</select></div>
-            <div class="field"><label>موعد الانتهاء</label><input type="date" id="ntDueDate" required></div>
+            <div class="field"><label>موعد الانتهاء <span style="font-size:10.5px;color:#9aa39c;font-weight:400;">(اختياري — لو فارغ: بعد 7 أيام)</span></label><input type="date" id="ntDueDate"></div>
             <div class="field"><label>الأولوية</label><select id="ntPriority"><option value="high">عالية</option><option value="medium" selected>متوسطة</option><option value="low">منخفضة</option></select></div>
             <button type="submit" class="btn btn-primary btn-sm">حفظ المهمة</button>
           </form>
@@ -4000,7 +4110,7 @@ async function pageMeetingDetail(body, meetingId) {
           decision_id: document.getElementById('ntDecision').value ? Number(document.getElementById('ntDecision').value) : null,
           assigned_to: Number(document.getElementById('ntAssignee').value),
           department_id: m.department_id,
-          due_date: document.getElementById('ntDueDate').value,
+          due_date: document.getElementById('ntDueDate').value || new Date(Date.now()+7*86400000).toISOString().slice(0,10),
           priority: document.getElementById('ntPriority').value,
           status: 'not_started'
         });
@@ -4945,7 +5055,7 @@ async function pageDepartmentTasks(body, urlQuery) {
           <div class="mform-field"><label>المسؤول عن المهمة</label><select class="meeting-select" id="dtAssignee" required><option value="">اختر الموظف</option>${(allUsers||[]).filter(u=>u.id!==CURRENT_USER.id).map(u => `<option value="${u.id}">${esc(u.full_name)}</option>`).join('')}</select></div>
           <div class="mform-field"><label>الأولوية</label><select class="meeting-select" id="dtPriority"><option value="high">عالية</option><option value="medium" selected>متوسطة</option><option value="low">منخفضة</option></select></div>
           <div class="mform-field"><label>عنوان المهمة</label><input type="text" class="meeting-input" id="dtTitle" placeholder="اكتب عنوان المهمة" required></div>
-          <div class="mform-field"><label>الموعد النهائي</label><input type="datetime-local" class="meeting-input" id="dtDue" required></div>
+          <div class="mform-field"><label>الموعد النهائي <span style="font-size:10.5px;color:#9aa39c;font-weight:400;">(اختياري — لو فارغ: بعد 7 أيام)</span></label><input type="datetime-local" class="meeting-input" id="dtDue"></div>
           <div class="mform-field full"><label>التفاصيل</label><textarea class="meeting-input" id="dtDesc" rows="3" placeholder="اكتب تفاصيل المهمة وأهدافها والمتطلبات..."></textarea></div>
           <div class="mform-field full"><label>مرفق (اختياري)</label>
             <div class="task-upload-box">
@@ -5005,7 +5115,7 @@ async function pageDepartmentTasks(body, urlQuery) {
     try {
       const assigneeId = Number(document.getElementById('dtAssignee').value);
       const title = document.getElementById('dtTitle').value;
-      const dueVal = document.getElementById('dtDue').value;
+      const dueVal = document.getElementById('dtDue').value || new Date(Date.now()+7*86400000).toISOString().slice(0,16);
       const priority = document.getElementById('dtPriority').value;
       const fileInput = document.getElementById('dtFile');
 
@@ -10742,16 +10852,16 @@ async function pageMaintenanceNew(body, param) {
               </select>
             </div>
             <div class="form-field">
-              <label>القسم المتضرر *</label>
-              <select name="affected_area" required class="form-select">
-                <option value="">اختر القسم</option>
+              <label>القسم المتضرر <span style="font-size:10.5px;color:#9aa39c;font-weight:400;">(اختياري)</span></label>
+              <select name="affected_area" class="form-select">
+                <option value="">— اختياري —</option>
                 ${areas.map(a => `<option value="${a}" ${draft && draft.affected_area===a?'selected':''}>${label('maint_area', a)}</option>`).join('')}
               </select>
             </div>
             <div class="form-field">
-              <label>نوع الصيانة *</label>
-              <select name="maintenance_type" required class="form-select">
-                <option value="">اختر نوع الصيانة</option>
+              <label>نوع الصيانة <span style="font-size:10.5px;color:#9aa39c;font-weight:400;">(اختياري)</span></label>
+              <select name="maintenance_type" class="form-select">
+                <option value="">— اختياري —</option>
                 ${types.map(t => `<option value="${t}" ${draft && draft.maintenance_type===t?'selected':''}>${label('maint_type', t)}</option>`).join('')}
               </select>
             </div>
@@ -10763,8 +10873,8 @@ async function pageMaintenanceNew(body, param) {
               </select>
             </div>
             <div class="form-field full">
-              <label>عنوان مختصر للمشكلة *</label>
-              <input type="text" name="issue_title" required class="form-input" maxlength="120" placeholder="مثال: تعطل مكيف الصالة الرئيسية" value="${esc(draft?.issue_title || '')}">
+              <label>عنوان مختصر للمشكلة <span style="font-size:10.5px;color:#9aa39c;font-weight:400;">(اختياري — لو فارغ نستخدم أول سطر من الوصف)</span></label>
+              <input type="text" name="issue_title" class="form-input" maxlength="120" placeholder="مثال: تعطل مكيف الصالة الرئيسية" value="${esc(draft?.issue_title || '')}">
             </div>
           </div>
         </div>
@@ -10774,8 +10884,8 @@ async function pageMaintenanceNew(body, param) {
           <div class="meeting-section-title"><span class="mst-accent"></span><span data-lucide="file-text" style="width:17px;height:17px;"></span> تفاصيل المشكلة</div>
           <div class="mform-grid">
             <div class="form-field full">
-              <label>وصف المشكلة *</label>
-              <textarea name="description" required rows="3" class="form-input" maxlength="1000" placeholder="اكتب وصف المشكلة بالتفصيل (ماذا حدث؟ أين حدث؟ متى حدث؟)">${esc(draft?.description || '')}</textarea>
+              <label>وصف المشكلة <span style="font-size:10.5px;color:#9aa39c;font-weight:400;">(اكتب وصف أو عنوان — واحد على الأقل)</span></label>
+              <textarea name="description" rows="3" class="form-input" maxlength="1000" placeholder="اكتب وصف المشكلة بالتفصيل (ماذا حدث؟ أين حدث؟ متى حدث؟)">${esc(draft?.description || '')}</textarea>
               <div style="font-size:10.5px;color:#9aa39c;text-align:left;margin-top:3px;"><span id="mtDescCount">${(draft?.description||'').length}</span> / 1000</div>
             </div>
             <div class="form-field full">
@@ -11006,12 +11116,23 @@ async function pageMaintenanceNew(body, param) {
 
   async function submitRequest(isDraft) {
     const payload = buildPayload(isDraft);
+    // متطلبات مخففة: الفرع فقط + نص المشكلة (وصف أو عنوان)
     if (!isDraft) {
-      if (!payload.branch_id || !payload.affected_area || !payload.maintenance_type || !payload.issue_title || !payload.description) {
-        toast('يرجى تعبئة جميع الحقول الإلزامية', 'error'); return;
+      if (!payload.branch_id) { toast('يرجى اختيار الفرع', 'error'); return; }
+      if (!payload.description && !payload.issue_title) {
+        toast('اكتب وصف المشكلة أو عنوانها على الأقل', 'error'); return;
       }
-    } else if (!payload.branch_id && !payload.issue_title) {
-      toast('أدخل الفرع أو عنوان المشكلة على الأقل للحفظ كمسودة', 'warning'); return;
+    } else if (!payload.branch_id && !payload.issue_title && !payload.description) {
+      toast('أدخل الفرع أو نص المشكلة على الأقل للحفظ كمسودة', 'warning'); return;
+    }
+    // قيم افتراضية ذكية للحقول المخففة
+    if (!payload.affected_area) payload.affected_area = 'other';
+    if (!payload.maintenance_type) payload.maintenance_type = 'other';
+    if (!payload.issue_title && payload.description) {
+      payload.issue_title = payload.description.split('\n')[0].slice(0, 100);
+    }
+    if (!payload.description && payload.issue_title) {
+      payload.description = payload.issue_title;
     }
     const submitBtn = form.querySelector('button[type="submit"]');
     const draftBtn = document.getElementById('mtSaveDraft');
