@@ -2283,7 +2283,7 @@ const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة ال
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
-const MeetingsState = { all: [], page: 1, pageSize: 10, sortKey: 'meeting_datetime', sortDir: 'desc', search: '', statusFilter: '', typeFilter: '', selected: new Set() };
+const MeetingsState = { all: [], page: 1, pageSize: 10, sortKey: 'meeting_datetime', sortDir: 'desc', search: '', statusFilter: '', typeFilter: '', archiveOnly: false, selected: new Set() };
 
 function confirmModal(message, onConfirm, danger = true) {
   const host = document.createElement('div');
@@ -2379,6 +2379,10 @@ function applyMeetingsFilters() {
   }
   if (MeetingsState.statusFilter) rows = rows.filter(m => m.status === MeetingsState.statusFilter);
   if (MeetingsState.typeFilter) rows = rows.filter(m => m.meeting_type === MeetingsState.typeFilter);
+  if (MeetingsState.archiveOnly) {
+    const cutoff = new Date(Date.now() - 90 * 86400000);
+    rows = rows.filter(m => m.meeting_datetime && new Date(m.meeting_datetime) < cutoff);
+  }
   rows.sort((a, b) => {
     let va = a[MeetingsState.sortKey] || '', vb = b[MeetingsState.sortKey] || '';
     if (va < vb) return MeetingsState.sortDir === 'asc' ? -1 : 1;
@@ -2424,6 +2428,8 @@ function renderMeetingsShell(body) {
             <option value="25" ${MeetingsState.pageSize===25?'selected':''}>25 / صفحة</option>
             <option value="50" ${MeetingsState.pageSize===50?'selected':''}>50 / صفحة</option>
           </select></div>
+          <button type="button" class="btn btn-outline btn-sm" id="mArchiveToggleBtn" style="${MeetingsState.archiveOnly?'background:#0F3D2E;color:#fff;border-color:#0F3D2E;':''}"><span data-lucide="archive" style="width:13px;height:13px;"></span> الأرشيف (+90 يوم)</button>
+          <button type="button" class="btn btn-outline btn-sm" id="mExportCsvBtn"><span data-lucide="download" style="width:13px;height:13px;"></span> تصدير Excel</button>
         </div>
         <div class="bulk-bar" id="mBulkBar">
           <span id="mBulkCount">0 محدد</span>
@@ -2765,8 +2771,18 @@ function wireMeetingsToolbar() {
   document.getElementById('mTypeFilter').addEventListener('change', (e) => { MeetingsState.typeFilter = e.target.value; MeetingsState.page = 1; renderMeetingsTableBody(); });
   document.getElementById('mPageSize').addEventListener('change', (e) => { MeetingsState.pageSize = Number(e.target.value); MeetingsState.page = 1; renderMeetingsTableBody(); });
   document.getElementById('mResetFiltersBtn').addEventListener('click', () => {
-    MeetingsState.search = ''; MeetingsState.statusFilter = ''; MeetingsState.typeFilter = ''; MeetingsState.page = 1;
+    MeetingsState.search = ''; MeetingsState.statusFilter = ''; MeetingsState.typeFilter = ''; MeetingsState.archiveOnly = false; MeetingsState.page = 1;
     renderMeetingsShell(document.getElementById('pageBody'));
+  });
+  document.getElementById('mArchiveToggleBtn').addEventListener('click', () => {
+    MeetingsState.archiveOnly = !MeetingsState.archiveOnly; MeetingsState.page = 1;
+    renderMeetingsShell(document.getElementById('pageBody'));
+  });
+  document.getElementById('mExportCsvBtn').addEventListener('click', () => {
+    const rows = applyMeetingsFilters();
+    if (!rows.length) { toast('لا توجد بيانات لتصديرها', 'warning'); return; }
+    repDownloadCSV('الاجتماعات', ['العنوان','القسم','المنظم','النوع','التاريخ والوقت','الحالة'],
+      rows.map(m => [m.title, m.departments?.name || '', m.users?.full_name || '', label('meeting_type', m.meeting_type), fmtDate(m.meeting_datetime), label('meeting_status', m.status)]));
   });
   document.getElementById('mBulkClearBtn').addEventListener('click', () => { MeetingsState.selected.clear(); renderMeetingsTableBody(); });
   document.getElementById('mBulkDeleteBtn').addEventListener('click', () => {
