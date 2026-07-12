@@ -1234,6 +1234,33 @@ textarea.form-input { resize: vertical; min-height: 44px; line-height: 1.6; }
   .q-status-btn { min-width: 0; padding: 10px 4px; font-size: 11px; }
   .q-progress-bar { top: 0; }
 }
+
+/* ============ جدول متابعة البنود والإجراءات التصحيحية ============ */
+.qtbl-hint { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #9A6B12; background: rgba(214,164,55,0.12); border: 1px solid rgba(214,164,55,0.3); border-radius: 10px; padding: 8px 12px; margin-bottom: 10px; }
+.qtbl-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid #E8E3D6; border-radius: 14px; background: #fff; }
+.qtbl { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 12.5px; }
+.qtbl th, .qtbl td { padding: 9px 10px; border-bottom: 1px solid #f0ede0; border-left: 1px solid #f4f2ea; text-align: right; vertical-align: middle; white-space: nowrap; }
+.qtbl thead th { position: sticky; top: 0; z-index: 5; background: #0F3D2E; color: #FFFDF7; font-weight: 700; font-size: 11.5px; border-left-color: rgba(255,255,255,0.12); }
+.qtbl tbody tr:hover td { background: #FBFAF4; }
+.qtbl .col-num { position: sticky; right: 0; z-index: 4; background: #FFFDF7; font-weight: 800; color: #0F3D2E; min-width: 46px; box-shadow: 1px 0 0 #E8E3D6; }
+.qtbl thead .col-num { z-index: 6; background: #0F3D2E; color: #fff; }
+.qtbl .col-item { position: sticky; right: 46px; z-index: 4; background: #FFFDF7; min-width: 200px; max-width: 260px; white-space: normal; box-shadow: 1px 0 0 #E8E3D6; font-weight: 600; color: #24352E; line-height: 1.5; }
+.qtbl thead .col-item { z-index: 6; background: #0F3D2E; color: #fff; }
+.qtbl tbody tr:hover .col-num, .qtbl tbody tr:hover .col-item { background: #FBFAF4; }
+.qtbl select, .qtbl input, .qtbl textarea { font-family: inherit; font-size: 12px; border: 1.5px solid #E8E3D6; border-radius: 8px; padding: 7px 9px; color: #24352E; background: #fff; box-sizing: border-box; }
+.qtbl select:focus, .qtbl input:focus, .qtbl textarea:focus { outline: none; border-color: #D6A437; box-shadow: 0 0 0 2px rgba(214,164,55,0.15); }
+.qtbl select.qt-status { min-width: 128px; font-weight: 700; }
+.qtbl select.qt-corr { min-width: 150px; }
+.qtbl input.qt-notes, .qtbl input.qt-custom { min-width: 170px; }
+.qtbl input.qt-resp { min-width: 130px; }
+.qtbl .qt-prev { min-width: 150px; white-space: normal; color: #6B756F; font-size: 11.5px; line-height: 1.5; background: #FAFAF6; }
+.qtbl select.qt-status[data-v="conform"] { color: #1F7A3A; border-color: #1F7A3A; }
+.qtbl select.qt-status[data-v="non_conform"] { color: #D32F2F; border-color: #D32F2F; }
+.qtbl select.qt-status[data-v="follow_up"] { color: #9A6B12; border-color: #D6A437; }
+.qtbl select.qt-status[data-v="na"] { color: #6B756F; }
+.qtbl select.qt-status[data-v="fixed_on_site"] { color: #2F80C9; border-color: #2F80C9; }
+.qtbl tr.qt-sec-row td { background: #F1EEE2; font-weight: 800; color: #24352E; position: sticky; right: 0; }
+.q-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 10px; font-size: 10.5px; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -1319,7 +1346,9 @@ const LABELS = {
   maint_location: { kitchen: 'المطبخ', hall: 'الصالة', store: 'المخزن', office: 'المكتب', bathroom: 'الحمام', outdoor: 'خارجية', other: 'أخرى' },
   maint_impact: { none: 'لا يؤثر', partial: 'يؤثر جزئيًا', full: 'يوقف التشغيل بالكامل' },
   maint_stoppage: { none: 'لا يوجد', partial: 'توقف جزئي', full: 'توقف كامل' },
-  quality_status: { conform: 'مطابق', follow_up: 'يحتاج متابعة', non_conform: 'غير مطابق', na: 'لا ينطبق' },
+  quality_status: { conform: 'مطابق', non_conform: 'غير مطابق', follow_up: 'يحتاج متابعة', na: 'غير قابل للتطبيق', fixed_on_site: 'تم التصحيح أثناء الزيارة' },
+  quality_corrective: { none: 'لا يوجد إجراء', verbal_warning: 'تنبيه شفهي', retrain: 'إعادة تدريب الموظف', immediate_cleaning: 'تنظيف فوري', urgent_maintenance: 'صيانة عاجلة', replace_tool: 'استبدال أداة / معدة', temp_stop: 'إيقاف استخدام مؤقت', fix_on_visit: 'تصحيح فوري أثناء الزيارة', raise_maintenance: 'رفع طلب صيانة', escalate: 'تصعيد للإدارة', custom: 'إجراء مخصص' },
+  quality_action_status: { not_started: 'لم يبدأ', in_progress: 'قيد التنفيذ', done: 'تم التنفيذ', overdue: 'متأخر', cancelled: 'ملغي' },
   quality_visit_type: { daily: 'يومية', weekly: 'أسبوعية', monthly: 'شهرية', surprise: 'مفاجئة' },
   quality_severity: { low: 'منخفض', medium: 'متوسط', high: 'عالي', immediate: 'خطر فوري' },
   quality_exec: { done: 'تم التنفيذ', in_progress: 'تحت الإجراء', not_started: 'لم يبدأ' },
@@ -7812,7 +7841,8 @@ async function pageInstallApp(body) {
    ============  سيكشن الجودة (Quality Module)  ================
    ============================================================ */
 
-const Q_STATUS_COLOR = { conform: '#1F7A3A', follow_up: '#D6A437', non_conform: '#D32F2F', na: '#6B756F' };
+const Q_STATUS_COLOR = { conform: '#1F7A3A', follow_up: '#D6A437', non_conform: '#D32F2F', na: '#6B756F', fixed_on_site: '#2F80C9' };
+const Q_CORRECTIVE_OPTS = ['none','verbal_warning','retrain','immediate_cleaning','urgent_maintenance','replace_tool','temp_stop','fix_on_visit','raise_maintenance','escalate','custom'];
 function qScoreColor(pct) { return pct >= 90 ? '#1F7A3A' : pct >= 75 ? '#D6A437' : pct >= 50 ? '#F2994A' : '#D32F2F'; }
 
 /* ---------- لوحة الجودة + قائمة الزيارات ---------- */
@@ -7908,41 +7938,47 @@ async function pageQuality(body, query) {
   document.getElementById('qStatusFilter').addEventListener('change', e => { state.status = e.target.value; renderRows(); });
 }
 
-/* ---------- زيارة جودة جديدة (الشيك ليست) ---------- */
+/* ---------- زيارة جودة جديدة (جدول البنود والإجراءات التصحيحية) ---------- */
 async function pageQualityVisitNew(body, param) {
   const resumeId = param ? Number(param) : null;
-  const [{ data: sections }, { data: items }, { data: branches }] = await Promise.all([
+  const [{ data: sections }, { data: items }, { data: branches }, { data: users }] = await Promise.all([
     sb.from('quality_sections').select('*').eq('is_active', true).order('sort_order'),
     sb.from('quality_items').select('*').eq('is_active', true).order('sort_order'),
-    sb.from('branches').select('*').eq('is_active', true).order('name')
+    sb.from('branches').select('*').eq('is_active', true).order('name'),
+    sb.from('users').select('id, full_name').eq('is_active', true).order('full_name')
   ]);
   const secs = sections || [];
+  const secTitle = {}; secs.forEach(s => secTitle[s.id] = s.title);
   const itemsBySec = {};
   (items || []).forEach(it => { (itemsBySec[it.section_id] = itemsBySec[it.section_id] || []).push(it); });
-  const totalItems = (items || []).length;
+  const flat = [];
+  secs.forEach(s => (itemsBySec[s.id] || []).forEach(it => flat.push(it)));
+  const totalItems = flat.length;
+  const usersList = users || [];
 
-  const Q = { statuses: {}, sections: {}, meta: { branch_id: '', inspector_name: CURRENT_USER.full_name, visit_type: 'daily', visit_date: new Date().toISOString().slice(0, 10) } };
-  secs.forEach(s => { Q.sections[s.id] = { corr: new Set(), severity: '', execution: '', notes: '', photos: [] }; });
+  // الحالة: بيانات كل بند
+  const Q = { items: {}, meta: { branch_id: '', inspector_name: CURRENT_USER.full_name, visit_type: 'daily', visit_date: new Date().toISOString().slice(0, 10) } };
+  flat.forEach(it => { Q.items[it.id] = { status: '', corrective: '', custom: '', notes: '', responsible: '', due: '', action_status: '' }; });
+  let prevByItem = {};
 
   if (resumeId) {
-    const [{ data: v }, { data: vi }, { data: vs }] = await Promise.all([
+    const [{ data: v }, { data: vi }] = await Promise.all([
       sb.from('quality_visits').select('*').eq('id', resumeId).single(),
-      sb.from('quality_visit_items').select('*').eq('visit_id', resumeId),
-      sb.from('quality_visit_sections').select('*').eq('visit_id', resumeId)
+      sb.from('quality_visit_items').select('*').eq('visit_id', resumeId)
     ]);
     if (v) { Q.meta.branch_id = String(v.branch_id || ''); Q.meta.inspector_name = v.inspector_name || Q.meta.inspector_name; Q.meta.visit_type = v.visit_type || 'daily'; Q.meta.visit_date = (v.visit_date || '').slice(0, 10) || Q.meta.visit_date; }
-    (vi || []).forEach(r => { if (r.item_id && r.status) Q.statuses[r.item_id] = r.status; });
-    (vs || []).forEach(r => { const t = Q.sections[r.section_id]; if (t) { t.corr = new Set((r.corrective_actions || '').split('،').map(x => x.trim()).filter(Boolean)); t.severity = r.severity || ''; t.execution = r.execution_status || ''; t.notes = r.notes || ''; } });
+    (vi || []).forEach(r => { const d = Q.items[r.item_id]; if (d) { d.status = r.status || ''; d.corrective = r.corrective_action || ''; d.custom = r.custom_corrective_action || ''; d.notes = r.notes || ''; d.responsible = r.responsible_user_id ? String(r.responsible_user_id) : ''; d.due = (r.due_date || '').slice(0, 10); d.action_status = r.action_status || ''; } });
   }
 
   const noBranches = !branches || !branches.length;
-  const statusDefs = [['conform','مطابق'],['follow_up','متابعة'],['non_conform','غير مطابق'],['na','لا ينطبق']];
+  const statusOpts = ['conform','non_conform','follow_up','na','fixed_on_site'];
+  const optHtml = (group, list, sel) => list.map(v => `<option value="${v}" ${sel===v?'selected':''}>${label(group, v)}</option>`).join('');
 
   body.innerHTML = `
     <a href="#quality" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لزيارات الجودة</a>
     <div class="mt-hero-header">
-      <div><h2><span class="mt-accent"></span> <span data-lucide="clipboard-check" style="width:22px;height:22px;color:#0F3D2E;"></span> زيارة جودة جديدة</h2>
-        <p>قيّم كل بند بلمسة واحدة. استخدم «الكل مطابق» ثم غيّر الاستثناءات فقط.</p></div>
+      <div><h2><span class="mt-accent"></span> <span data-lucide="clipboard-check" style="width:22px;height:22px;color:#0F3D2E;"></span> متابعة الزيارات والإجراءات التصحيحية</h2>
+        <p>كل بند في صف مستقل، بجانبه الإجراء التصحيحي وملاحظات الزيارة الحالية وملخص الزيارة السابقة. اسحب الجدول يمينًا ويسارًا لعرض باقي الأعمدة.</p></div>
     </div>
 
     ${noBranches ? '<div class="panel" style="border:1.5px solid #F2C94C;background:#FFFBEF;margin-bottom:14px;"><div class="panel-body" style="font-size:13px;color:#7A4E0E;">لا توجد فروع مسجلة. أضف فرعًا أولًا من قسم الصيانة → الفروع.</div></div>' : ''}
@@ -7952,7 +7988,7 @@ async function pageQualityVisitNew(body, param) {
       <div class="mform-grid">
         <div class="form-field"><label>الفرع *</label>
           <select id="qBranch" class="form-select" ${noBranches?'disabled':''}><option value="">اختر الفرع</option>${(branches||[]).map(b => `<option value="${b.id}" ${Q.meta.branch_id==String(b.id)?'selected':''}>${esc(b.name)}</option>`).join('')}</select></div>
-        <div class="form-field"><label>اسم المقيّم</label><input id="qInspector" class="form-input" value="${esc(Q.meta.inspector_name)}"></div>
+        <div class="form-field"><label>اسم المفتش / المسؤول</label><input id="qInspector" class="form-input" value="${esc(Q.meta.inspector_name)}"></div>
         <div class="form-field"><label>نوع الزيارة</label>
           <select id="qType" class="form-select">${['daily','weekly','monthly','surprise'].map(t => `<option value="${t}" ${Q.meta.visit_type===t?'selected':''}>${label('quality_visit_type', t)}</option>`).join('')}</select></div>
         <div class="form-field"><label>تاريخ الزيارة</label><input id="qDate" type="date" class="form-input" value="${Q.meta.visit_date}"></div>
@@ -7965,42 +8001,53 @@ async function pageQualityVisitNew(body, param) {
       <div class="q-counters" id="qCounters"></div>
     </div>
 
-    <div class="q-jump" id="qJump">${secs.map((s, i) => `<button type="button" data-jump="${s.id}">${i+1}. ${esc(s.title)}</button>`).join('')}</div>
+    <div class="table-toolbar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
+      <div class="search-wrap" style="flex:1;min-width:170px;"><input type="text" id="qtSearch" class="search-input" placeholder="بحث في البنود..."></div>
+      <select id="qtSecFilter" class="form-select"><option value="">كل الأقسام</option>${secs.map(s => `<option value="${s.id}">${esc(s.title)}</option>`).join('')}</select>
+      <select id="qtStatusFilter" class="form-select"><option value="">كل الحالات</option>${statusOpts.map(s => `<option value="${s}">${label('quality_status', s)}</option>`).join('')}</select>
+      <button type="button" class="btn btn-outline" id="qtAllConform" style="font-size:12px;"><span data-lucide="check-check" style="width:14px;height:14px;"></span> تعليم الكل «مطابق»</button>
+    </div>
 
-    <div id="qSections">
-      ${secs.map((s, i) => `
-        <div class="q-section" data-sec="${s.id}">
-          <div class="q-sec-head" data-toggle="${s.id}">
-            <span class="q-sec-num">${i+1}</span>
-            <div style="flex:1;"><div class="q-sec-title">${esc(s.title)}</div><div class="q-sec-mini" id="qMini-${s.id}">${(itemsBySec[s.id]||[]).length} بنود</div></div>
-            <span class="q-sec-chevron" data-lucide="chevron-down" style="width:18px;height:18px;"></span>
-          </div>
-          <div class="q-sec-body">
-            <button type="button" class="q-sec-allbtn" data-allconform="${s.id}"><span data-lucide="check-check" style="width:14px;height:14px;"></span> تعليم كل البنود «مطابق»</button>
-            ${(itemsBySec[s.id]||[]).map((it, idx) => `
-              <div class="q-item" data-item="${it.id}" data-secref="${s.id}">
-                <div class="q-item-text"><span class="n">${idx+1}.</span> ${esc(it.text)}</div>
-                <div class="q-status-row">
-                  ${statusDefs.map(([v,lbl]) => `<button type="button" class="q-status-btn ${Q.statuses[it.id]===v?'active':''}" data-s="${v}" data-for="${it.id}">${lbl}</button>`).join('')}
-                </div>
-              </div>
-            `).join('')}
-            <div class="q-sec-extras" id="qExtras-${s.id}">
-              <div style="font-size:12px;font-weight:700;color:#6B756F;margin-bottom:8px;">الإجراءات التصحيحية</div>
-              <div class="q-corr-chips" data-corr="${s.id}">${(s.corrective_options||[]).map(c => `<button type="button" class="q-corr-chip ${Q.sections[s.id].corr.has(c)?'active':''}" data-corrval="${esc(c)}">${esc(c)}</button>`).join('') || '<span style="font-size:11.5px;color:#9aa39c;">لا توجد إجراءات معرّفة</span>'}</div>
-              <div class="mform-grid" style="margin-top:12px;">
-                <div class="form-field"><label>مستوى الخطورة</label><select class="form-select" data-sev="${s.id}"><option value="">—</option>${['low','medium','high','immediate'].map(x => `<option value="${x}" ${Q.sections[s.id].severity===x?'selected':''}>${label('quality_severity', x)}</option>`).join('')}</select></div>
-                <div class="form-field"><label>حالة التنفيذ</label><select class="form-select" data-exec="${s.id}"><option value="">—</option>${['done','in_progress','not_started'].map(x => `<option value="${x}" ${Q.sections[s.id].execution===x?'selected':''}>${label('quality_exec', x)}</option>`).join('')}</select></div>
-              </div>
-              <div class="form-field" style="margin-top:10px;"><label>ملاحظات / الإجراء المطلوب</label><textarea class="form-input" rows="2" data-notes="${s.id}" placeholder="اكتب الملاحظات أو الإجراء التصحيحي...">${esc(Q.sections[s.id].notes)}</textarea></div>
-              <div class="form-field" style="margin-top:10px;"><label>رفع صور</label>
-                <div class="mt-upload"><input type="file" accept="image/*" multiple data-photo="${s.id}"><span data-lucide="image-plus" class="u-ic" style="width:24px;height:24px;"></span><div class="u-t">اضغط لرفع صور القسم</div></div>
-                <div class="mt-thumbs" data-thumbs="${s.id}"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      `).join('')}
+    <div class="qtbl-hint"><span data-lucide="move-horizontal" style="width:15px;height:15px;"></span> اسحب الجدول يمينًا ويسارًا لعرض الإجراء التصحيحي والملاحظات وملخص الزيارة السابقة.</div>
+
+    <div class="qtbl-scroll">
+      <table class="qtbl">
+        <thead><tr>
+          <th class="col-num">#</th>
+          <th class="col-item">البند</th>
+          <th>القسم</th>
+          <th>الحالة الحالية</th>
+          <th>الإجراء التصحيحي</th>
+          <th>إجراء مخصص</th>
+          <th>المسؤول</th>
+          <th>تاريخ الاستحقاق</th>
+          <th>حالة الإجراء</th>
+          <th>ملاحظات الزيارة الحالية</th>
+          <th>حالة الزيارة السابقة</th>
+          <th>الإجراء السابق</th>
+          <th>ملاحظات سابقة</th>
+          <th>تاريخ آخر زيارة</th>
+        </tr></thead>
+        <tbody id="qtBody">
+          ${flat.map((it, i) => { const d = Q.items[it.id]; return `
+            <tr data-row data-item="${it.id}" data-sec="${it.section_id}">
+              <td class="col-num">${i+1}</td>
+              <td class="col-item">${esc(it.text)}</td>
+              <td>${esc(secTitle[it.section_id] || '')}</td>
+              <td><select class="qt-status" data-item="${it.id}" data-v="${d.status}"><option value="">—</option>${optHtml('quality_status', statusOpts, d.status)}</select></td>
+              <td><select class="qt-corr" data-item="${it.id}"><option value="">—</option>${optHtml('quality_corrective', Q_CORRECTIVE_OPTS, d.corrective)}</select></td>
+              <td><input class="qt-custom" data-item="${it.id}" value="${esc(d.custom)}" placeholder="اكتب الإجراء" style="display:${d.corrective==='custom'?'block':'none'};"></td>
+              <td><select class="qt-resp" data-item="${it.id}"><option value="">—</option>${usersList.map(u => `<option value="${u.id}" ${d.responsible==String(u.id)?'selected':''}>${esc(u.full_name)}</option>`).join('')}</select></td>
+              <td><input type="date" class="qt-due" data-item="${it.id}" value="${d.due}"></td>
+              <td><select class="qt-act" data-item="${it.id}"><option value="">—</option>${optHtml('quality_action_status', ['not_started','in_progress','done','overdue','cancelled'], d.action_status)}</select></td>
+              <td><input class="qt-notes" data-item="${it.id}" value="${esc(d.notes)}" placeholder="ملاحظات..."></td>
+              <td class="qt-prev" id="qprev-status-${it.id}">—</td>
+              <td class="qt-prev" id="qprev-corr-${it.id}">—</td>
+              <td class="qt-prev" id="qprev-notes-${it.id}">—</td>
+              <td class="qt-prev" id="qprev-date-${it.id}">—</td>
+            </tr>`; }).join('')}
+        </tbody>
+      </table>
     </div>
 
     <div class="mt-submit-bar">
@@ -8011,100 +8058,103 @@ async function pageQualityVisitNew(body, param) {
   `;
   if (window.lucide) lucide.createIcons();
 
-  // meta bindings
-  document.getElementById('qBranch').addEventListener('change', e => Q.meta.branch_id = e.target.value);
+  // meta
+  const qBranch = document.getElementById('qBranch');
+  qBranch.addEventListener('change', async e => { Q.meta.branch_id = e.target.value; await loadPrev(e.target.value); });
   document.getElementById('qInspector').addEventListener('input', e => Q.meta.inspector_name = e.target.value);
   document.getElementById('qType').addEventListener('change', e => Q.meta.visit_type = e.target.value);
   document.getElementById('qDate').addEventListener('change', e => Q.meta.visit_date = e.target.value);
 
-  // accordion toggle
-  body.querySelectorAll('[data-toggle]').forEach(h => h.addEventListener('click', () => h.closest('.q-section').classList.toggle('open')));
-  if (secs[0]) body.querySelector('.q-section')?.classList.add('open');
-
-  // jump
-  body.querySelectorAll('[data-jump]').forEach(b => b.addEventListener('click', () => {
-    const sec = body.querySelector('.q-section[data-sec="' + b.dataset.jump + '"]');
-    if (sec) { sec.classList.add('open'); sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-  }));
-
-  function refreshSection(sid) {
-    const secItems = itemsBySec[sid] || [];
-    let c = 0, f = 0, n = 0, na = 0, answered = 0;
-    secItems.forEach(it => { const s = Q.statuses[it.id]; if (!s) return; answered++; if (s==='conform') c++; else if (s==='follow_up') f++; else if (s==='non_conform') n++; else if (s==='na') na++; });
-    const mini = document.getElementById('qMini-' + sid);
-    if (mini) mini.innerHTML = `${answered}/${secItems.length} — <span style="color:#1F7A3A;">${c} مطابق</span>${n?` · <span style="color:#D32F2F;">${n} غير مطابق</span>`:''}${f?` · <span style="color:#9A6B12;">${f} متابعة</span>`:''}`;
-    const secEl = body.querySelector('.q-section[data-sec="' + sid + '"]');
-    if (secEl) secEl.classList.toggle('has-issues', (f + n) > 0);
-    const jbtn = body.querySelector('[data-jump="' + sid + '"]');
-    if (jbtn) jbtn.classList.toggle('done', answered === secItems.length && secItems.length > 0);
-  }
-
   function refreshProgress() {
-    let c = 0, f = 0, n = 0, na = 0, answered = 0;
-    (items || []).forEach(it => { const s = Q.statuses[it.id]; if (!s) return; answered++; if (s==='conform') c++; else if (s==='follow_up') f++; else if (s==='non_conform') n++; else if (s==='na') na++; });
+    let c = 0, fx = 0, f = 0, n = 0, na = 0, answered = 0;
+    flat.forEach(it => { const s = Q.items[it.id].status; if (!s) return; answered++; if (s==='conform') c++; else if (s==='fixed_on_site') fx++; else if (s==='follow_up') f++; else if (s==='non_conform') n++; else if (s==='na') na++; });
     const pct = totalItems ? Math.round(answered / totalItems * 100) : 0;
     document.getElementById('qProgPct').textContent = pct + '%';
     document.getElementById('qProgFill').style.width = pct + '%';
     document.getElementById('qCounters').innerHTML = `
       <span class="q-counter c-total">الكل ${totalItems}</span>
       <span class="q-counter c-conform">مطابق ${c}</span>
+      <span class="q-counter" style="background:rgba(47,128,201,0.12);color:#2F80C9;">مُصحّح ${fx}</span>
       <span class="q-counter c-follow">متابعة ${f}</span>
       <span class="q-counter c-non">غير مطابق ${n}</span>
       <span class="q-counter c-na">لا ينطبق ${na}</span>`;
   }
 
-  // status buttons
-  body.querySelectorAll('.q-status-btn').forEach(btn => btn.addEventListener('click', () => {
-    const id = btn.dataset.for, val = btn.dataset.s;
-    const row = btn.closest('.q-item');
-    row.querySelectorAll('.q-status-btn').forEach(x => x.classList.remove('active'));
-    if (Q.statuses[id] === val) { delete Q.statuses[id]; } else { Q.statuses[id] = val; btn.classList.add('active'); }
-    refreshSection(row.dataset.secref); refreshProgress();
+  // status
+  body.querySelectorAll('.qt-status').forEach(sel => sel.addEventListener('change', e => {
+    Q.items[sel.dataset.item].status = e.target.value; sel.dataset.v = e.target.value; refreshProgress();
   }));
+  // corrective + custom toggle
+  body.querySelectorAll('.qt-corr').forEach(sel => sel.addEventListener('change', e => {
+    Q.items[sel.dataset.item].corrective = e.target.value;
+    const ci = body.querySelector('.qt-custom[data-item="' + sel.dataset.item + '"]');
+    if (ci) ci.style.display = e.target.value === 'custom' ? 'block' : 'none';
+  }));
+  body.querySelectorAll('.qt-custom').forEach(i => i.addEventListener('input', e => Q.items[i.dataset.item].custom = e.target.value));
+  body.querySelectorAll('.qt-resp').forEach(s => s.addEventListener('change', e => Q.items[s.dataset.item].responsible = e.target.value));
+  body.querySelectorAll('.qt-due').forEach(i => i.addEventListener('change', e => Q.items[i.dataset.item].due = e.target.value));
+  body.querySelectorAll('.qt-act').forEach(s => s.addEventListener('change', e => Q.items[s.dataset.item].action_status = e.target.value));
+  body.querySelectorAll('.qt-notes').forEach(i => i.addEventListener('input', e => Q.items[i.dataset.item].notes = e.target.value));
 
   // mark all conform
-  body.querySelectorAll('[data-allconform]').forEach(b => b.addEventListener('click', () => {
-    const sid = b.dataset.allconform;
-    (itemsBySec[sid] || []).forEach(it => { Q.statuses[it.id] = 'conform'; });
-    const secEl = body.querySelector('.q-section[data-sec="' + sid + '"]');
-    secEl.querySelectorAll('.q-item').forEach(row => { row.querySelectorAll('.q-status-btn').forEach(x => x.classList.toggle('active', x.dataset.s === 'conform')); });
-    refreshSection(sid); refreshProgress();
-  }));
+  document.getElementById('qtAllConform').addEventListener('click', () => {
+    flat.forEach(it => { Q.items[it.id].status = 'conform'; });
+    body.querySelectorAll('.qt-status').forEach(sel => { sel.value = 'conform'; sel.dataset.v = 'conform'; });
+    refreshProgress();
+  });
 
-  // corrective chips
-  body.querySelectorAll('[data-corr] .q-corr-chip').forEach(chip => chip.addEventListener('click', () => {
-    const sid = chip.closest('[data-corr]').dataset.corr, val = chip.dataset.corrval;
-    const set = Q.sections[sid].corr;
-    if (set.has(val)) { set.delete(val); chip.classList.remove('active'); } else { set.add(val); chip.classList.add('active'); }
-  }));
-  body.querySelectorAll('[data-sev]').forEach(s => s.addEventListener('change', e => Q.sections[s.dataset.sev].severity = e.target.value));
-  body.querySelectorAll('[data-exec]').forEach(s => s.addEventListener('change', e => Q.sections[s.dataset.exec].execution = e.target.value));
-  body.querySelectorAll('[data-notes]').forEach(t => t.addEventListener('input', e => Q.sections[t.dataset.notes].notes = e.target.value));
+  // filters
+  const fSearch = document.getElementById('qtSearch'), fSec = document.getElementById('qtSecFilter'), fStatus = document.getElementById('qtStatusFilter');
+  function applyFilters() {
+    const q = fSearch.value.trim().toLowerCase(), sec = fSec.value, stt = fStatus.value;
+    body.querySelectorAll('#qtBody tr[data-row]').forEach(tr => {
+      const it = flat.find(x => String(x.id) === tr.dataset.item);
+      let show = true;
+      if (q && !(it.text || '').toLowerCase().includes(q)) show = false;
+      if (sec && tr.dataset.sec !== sec) show = false;
+      if (stt && Q.items[tr.dataset.item].status !== stt) show = false;
+      tr.style.display = show ? '' : 'none';
+    });
+  }
+  fSearch.addEventListener('input', applyFilters);
+  fSec.addEventListener('change', applyFilters);
+  fStatus.addEventListener('change', applyFilters);
 
-  // photos per section
-  body.querySelectorAll('[data-photo]').forEach(inp => inp.addEventListener('change', async () => {
-    const sid = inp.dataset.photo;
-    for (const f of Array.from(inp.files || [])) {
-      if (Q.sections[sid].photos.length >= 6) { toast('حد أقصى 6 صور للقسم', 'warning'); break; }
-      try { Q.sections[sid].photos.push(await compressImage(f, 1000, 0.6)); } catch (e) {}
-    }
-    inp.value = '';
-    const tw = body.querySelector('[data-thumbs="' + sid + '"]');
-    tw.innerHTML = Q.sections[sid].photos.map((src, i) => `<div class="mt-thumb"><img src="${src}"><button type="button" class="rm" data-rmphoto="${i}">×</button></div>`).join('');
-    tw.querySelectorAll('[data-rmphoto]').forEach(b => b.addEventListener('click', () => { Q.sections[sid].photos.splice(Number(b.dataset.rmphoto), 1); inp.dispatchEvent(new Event('change')); }));
-  }));
+  // جلب ملخص الزيارة السابقة لنفس الفرع
+  async function loadPrev(branchId) {
+    prevByItem = {};
+    flat.forEach(it => { ['status','corr','notes','date'].forEach(k => { const el = document.getElementById('qprev-' + k + '-' + it.id); if (el) { el.textContent = '—'; el.style.color = ''; } }); });
+    if (!branchId) return;
+    let query = sb.from('quality_visits').select('id, visit_date').eq('branch_id', branchId).eq('status', 'completed').order('visit_date', { ascending: false }).order('created_at', { ascending: false }).limit(1);
+    if (resumeId) query = query.neq('id', resumeId);
+    const { data: pv } = await query;
+    if (!pv || !pv.length) return;
+    const pvisit = pv[0];
+    const { data: pit } = await sb.from('quality_visit_items').select('*').eq('visit_id', pvisit.id);
+    (pit || []).forEach(r => { prevByItem[r.item_id] = { status: r.status, corrective: r.corrective_action, custom: r.custom_corrective_action, notes: r.notes, date: pvisit.visit_date }; });
+    flat.forEach(it => {
+      const p = prevByItem[it.id]; if (!p) return;
+      const st = document.getElementById('qprev-status-' + it.id);
+      if (st && p.status) { st.textContent = label('quality_status', p.status); st.style.color = Q_STATUS_COLOR[p.status] || ''; st.style.fontWeight = '700'; }
+      const co = document.getElementById('qprev-corr-' + it.id);
+      if (co) co.textContent = p.corrective ? (p.corrective === 'custom' ? (p.custom || 'مخصص') : label('quality_corrective', p.corrective)) : '—';
+      const no = document.getElementById('qprev-notes-' + it.id);
+      if (no) no.textContent = p.notes || '—';
+      const dt = document.getElementById('qprev-date-' + it.id);
+      if (dt) dt.textContent = (p.date || '').slice(0, 10) || '—';
+    });
+  }
 
-  // initial refresh (for resumed drafts)
-  secs.forEach(s => refreshSection(s.id));
   refreshProgress();
+  if (Q.meta.branch_id) loadPrev(Q.meta.branch_id);
 
   async function persist(isFinish) {
     if (!Q.meta.branch_id) { toast('اختر الفرع أولًا', 'error'); return; }
-    let c = 0, f = 0, n = 0, na = 0;
-    (items || []).forEach(it => { const s = Q.statuses[it.id]; if (s==='conform') c++; else if (s==='follow_up') f++; else if (s==='non_conform') n++; else if (s==='na') na++; });
-    const evaluated = c + f + n;
+    let c = 0, fx = 0, f = 0, n = 0, na = 0;
+    flat.forEach(it => { const s = Q.items[it.id].status; if (s==='conform') c++; else if (s==='fixed_on_site') fx++; else if (s==='follow_up') f++; else if (s==='non_conform') n++; else if (s==='na') na++; });
+    const compliant = c + fx, evaluated = c + fx + f + n;
     if (isFinish && evaluated === 0) { toast('قيّم بندًا واحدًا على الأقل قبل الإنهاء', 'error'); return; }
-    const compliance = evaluated ? Math.round(c / evaluated * 100) : 0;
+    const compliance = evaluated ? Math.round(compliant / evaluated * 100) : 0;
 
     const btn = isFinish ? document.getElementById('qFinish') : document.getElementById('qSaveDraft');
     const other = isFinish ? document.getElementById('qSaveDraft') : document.getElementById('qFinish');
@@ -8113,7 +8163,7 @@ async function pageQualityVisitNew(body, param) {
     const payload = {
       branch_id: Number(Q.meta.branch_id), inspector_id: CURRENT_USER.id, inspector_name: Q.meta.inspector_name || CURRENT_USER.full_name,
       visit_type: Q.meta.visit_type, visit_date: Q.meta.visit_date, status: isFinish ? 'completed' : 'draft',
-      total_items: totalItems, conform_count: c, follow_up_count: f, non_conform_count: n, na_count: na, compliance_pct: compliance,
+      total_items: totalItems, conform_count: c + fx, follow_up_count: f, non_conform_count: n, na_count: na, compliance_pct: compliance,
       ended_at: isFinish ? new Date().toISOString() : null, updated_at: new Date().toISOString()
     };
 
@@ -8121,8 +8171,6 @@ async function pageQualityVisitNew(body, param) {
     if (visitId) {
       await sb.from('quality_visits').update(payload).eq('id', visitId);
       await sb.from('quality_visit_items').delete().eq('visit_id', visitId);
-      await sb.from('quality_visit_sections').delete().eq('visit_id', visitId);
-      await sb.from('quality_attachments').delete().eq('visit_id', visitId);
     } else {
       payload.started_at = new Date().toISOString();
       const { data: created, error } = await sb.from('quality_visits').insert(payload).select().single();
@@ -8131,18 +8179,15 @@ async function pageQualityVisitNew(body, param) {
     }
 
     const itemRows = [];
-    (items || []).forEach(it => { if (Q.statuses[it.id]) itemRows.push({ visit_id: visitId, section_id: it.section_id, item_id: it.id, item_text: it.text, status: Q.statuses[it.id] }); });
-    if (itemRows.length) await sb.from('quality_visit_items').insert(itemRows);
-
-    const secRows = [], photoRows = [];
-    secs.forEach(s => {
-      const t = Q.sections[s.id];
-      const hasData = t.corr.size || t.severity || t.execution || t.notes || t.photos.length;
-      if (hasData) secRows.push({ visit_id: visitId, section_id: s.id, section_title: s.title, corrective_actions: [...t.corr].join('، ') || null, severity: t.severity || null, execution_status: t.execution || null, notes: t.notes || null });
-      t.photos.forEach((src, i) => photoRows.push({ visit_id: visitId, section_id: s.id, file_url: src, file_name: 'صورة ' + (i+1), file_type: 'image', uploaded_by: CURRENT_USER.id }));
+    flat.forEach(it => {
+      const d = Q.items[it.id];
+      if (d.status || d.corrective || d.notes || d.responsible || d.due || d.action_status) {
+        itemRows.push({ visit_id: visitId, section_id: it.section_id, item_id: it.id, item_text: it.text, status: d.status || null,
+          corrective_action: d.corrective || null, custom_corrective_action: d.corrective === 'custom' ? (d.custom || null) : null,
+          notes: d.notes || null, responsible_user_id: d.responsible ? Number(d.responsible) : null, due_date: d.due || null, action_status: d.action_status || null });
+      }
     });
-    if (secRows.length) await sb.from('quality_visit_sections').insert(secRows);
-    if (photoRows.length) await sb.from('quality_attachments').insert(photoRows);
+    if (itemRows.length) await sb.from('quality_visit_items').insert(itemRows);
 
     toast(isFinish ? `تم إنهاء الزيارة — الالتزام ${compliance}%` : 'تم حفظ المسودة', 'success');
     location.hash = isFinish ? '#quality_detail/' + visitId : '#quality';
@@ -8204,7 +8249,14 @@ async function pageQualityVisitDetail(body, id) {
     ${issues.length ? `
       <div class="panel" style="margin-top:14px;"><div class="panel-header"><h3 class="panel-title"><span data-lucide="alert-triangle" style="width:17px;height:17px;color:#D32F2F;"></span> البنود المخالفة والمتابعة (${issues.length})</h3></div>
       <div class="panel-body">
-        ${issues.map(it => `<div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12.5px;"><span style="width:9px;height:9px;border-radius:50%;background:${Q_STATUS_COLOR[it.status]};margin-top:5px;flex-shrink:0;"></span><div><div>${esc(it.item_text)}</div><div style="font-size:11px;color:${Q_STATUS_COLOR[it.status]};font-weight:700;margin-top:2px;">${label('quality_status', it.status)}</div></div></div>`).join('')}
+        ${issues.map(it => {
+          const corr = it.corrective_action ? (it.corrective_action === 'custom' ? (it.custom_corrective_action || 'إجراء مخصص') : label('quality_corrective', it.corrective_action)) : '';
+          return `<div style="display:flex;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);font-size:12.5px;"><span style="width:9px;height:9px;border-radius:50%;background:${Q_STATUS_COLOR[it.status]};margin-top:5px;flex-shrink:0;"></span><div style="flex:1;">
+            <div style="font-weight:600;">${esc(it.item_text)}</div>
+            <div style="font-size:11px;margin-top:3px;display:flex;gap:8px;flex-wrap:wrap;"><span style="color:${Q_STATUS_COLOR[it.status]};font-weight:700;">${label('quality_status', it.status)}</span>${corr?`<span style="color:#2F80C9;">↩ ${esc(corr)}</span>`:''}${it.action_status?`<span style="color:#6B756F;">(${label('quality_action_status', it.action_status)})</span>`:''}</div>
+            ${it.notes ? `<div style="font-size:11.5px;color:#24352E;margin-top:4px;background:var(--bg);padding:6px 9px;border-radius:6px;">${esc(it.notes)}</div>` : ''}
+          </div></div>`;
+        }).join('')}
       </div></div>
     ` : `<div class="panel" style="margin-top:14px;"><div class="panel-body" style="text-align:center;color:#1F7A3A;font-weight:700;font-size:13px;padding:20px;"><span data-lucide="check-circle-2" style="width:20px;height:20px;vertical-align:-4px;"></span> لا توجد بنود مخالفة 🎉</div></div>`}
 
@@ -8212,15 +8264,12 @@ async function pageQualityVisitDetail(body, id) {
     <div class="panel-body">
       ${secOrder.map(sd => {
         const list = bySec[sd.id] || [];
-        if (!list.length && !secExtra[sd.id]) return '';
-        const cc = list.filter(x => x.status==='conform').length;
-        const ex = secExtra[sd.id];
+        if (!list.length) return '';
+        const cc = list.filter(x => x.status==='conform' || x.status==='fixed_on_site').length;
+        const nn = list.filter(x => x.status==='non_conform').length;
         const photos = attBySec[sd.id] || [];
         return `<div style="border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;"><strong style="font-size:13px;">${esc(sd.title)}</strong><span style="font-size:12px;color:#1F7A3A;font-weight:700;">${cc}/${list.length} مطابق</span></div>
-          ${ex && ex.corrective_actions ? `<div style="font-size:11.5px;color:#6B756F;margin-top:6px;"><b>إجراءات:</b> ${esc(ex.corrective_actions)}</div>` : ''}
-          ${ex && ex.severity ? `<div style="font-size:11.5px;color:#6B756F;margin-top:3px;"><b>الخطورة:</b> ${label('quality_severity', ex.severity)}${ex.execution_status?` · <b>التنفيذ:</b> ${label('quality_exec', ex.execution_status)}`:''}</div>` : ''}
-          ${ex && ex.notes ? `<div style="font-size:11.5px;color:#24352E;margin-top:5px;background:var(--bg);padding:7px 9px;border-radius:6px;">${esc(ex.notes)}</div>` : ''}
+          <div style="display:flex;justify-content:space-between;align-items:center;"><strong style="font-size:13px;">${esc(sd.title)}</strong><span style="font-size:12px;font-weight:700;"><span style="color:#1F7A3A;">${cc} مطابق</span>${nn?` · <span style="color:#D32F2F;">${nn} غير مطابق</span>`:''} <span style="color:#6B756F;">/ ${list.length}</span></span></div>
           ${photos.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">${photos.map(p => `<a href="${esc(p.file_url)}" target="_blank" style="width:56px;height:56px;border-radius:8px;overflow:hidden;border:1px solid var(--border);"><img src="${esc(p.file_url)}" style="width:100%;height:100%;object-fit:cover;"></a>`).join('')}</div>` : ''}
         </div>`;
       }).join('')}

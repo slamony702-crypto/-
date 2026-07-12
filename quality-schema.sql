@@ -74,6 +74,14 @@ create table if not exists quality_visit_items (
 );
 create index if not exists idx_qvi_visit on quality_visit_items(visit_id);
 
+-- 4b) Per-item corrective/notes columns (safe migration)
+alter table quality_visit_items add column if not exists corrective_action text;
+alter table quality_visit_items add column if not exists custom_corrective_action text;
+alter table quality_visit_items add column if not exists notes text;
+alter table quality_visit_items add column if not exists responsible_user_id bigint references users(id) on delete set null;
+alter table quality_visit_items add column if not exists due_date date;
+alter table quality_visit_items add column if not exists action_status text;
+
 -- 5) Per-section extras in a visit
 create table if not exists quality_visit_sections (
   id bigserial primary key,
