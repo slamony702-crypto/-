@@ -2323,7 +2323,7 @@ async function pageMeetings(body, urlQuery) {
     <div class="panel"><div class="panel-body"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
   `;
 
-  let query = sb.from('meetings').select('*, departments(name), users(full_name)').order('meeting_datetime', { ascending: false });
+  let query = sb.from('meetings').select('*, departments(name), users!organizer_id(full_name)').order('meeting_datetime', { ascending: false });
   if (CURRENT_USER.role === 'meeting_organizer') {
     query = query.or(`department_id.eq.${CURRENT_USER.department_id},organizer_id.eq.${CURRENT_USER.id}`);
   } else if (!isAdmin) {
@@ -3322,7 +3322,7 @@ function wireMeetingCreateForm(departments, allUsersForMeeting) {
 // ============ تفاصيل الاجتماع ============
 async function pageMeetingDetail(body, meetingId) {
   const canManage = can('meetings', 'manage');
-  const { data: m, error } = await sb.from('meetings').select('*, departments(name), users(full_name)').eq('id', meetingId).single();
+  const { data: m, error } = await sb.from('meetings').select('*, departments(name), users!organizer_id(full_name)').eq('id', meetingId).single();
   if (error || !m) { body.innerHTML = '<p class="error-msg show">الاجتماع غير موجود</p>'; return; }
 
   const [{ data: attendees }, { data: agenda }, { data: decisions }, { data: tasks }, { data: conv }, { data: allUsers }, { data: prepReports }] = await Promise.all([
