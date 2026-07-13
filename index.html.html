@@ -3799,7 +3799,8 @@ function renderLogin() {
       CURRENT_USER = {
         id: user.id, username: user.username, full_name: user.full_name,
         role: user.role, department_id: user.department_id,
-        department_name: user.departments ? user.departments.name : null
+        department_name: user.departments ? user.departments.name : null,
+        avatar_url: user.avatar_url || null
       };
       localStorage.setItem('food_affairs_user', JSON.stringify(CURRENT_USER));
       await loadPermissions();
@@ -10611,12 +10612,15 @@ async function pageMyProfile(body) {
   const uid = CURRENT_USER.id;
   body.innerHTML = `<p class="empty-state">جاري التحميل...</p>`;
 
-  const [{ data: myTasks }, { data: myDeptTasksAssigned }, { data: myDecisions }, { data: myMeetings }] = await Promise.all([
+  const [{ data: myTasks }, { data: myDeptTasksAssigned }, { data: myDecisions }, { data: myMeetings }, { data: freshUser }] = await Promise.all([
     sb.from('action_items').select('*').eq('assigned_to', uid),
     sb.from('department_tasks').select('*').eq('assigned_to', uid),
     sb.from('decisions').select('*').eq('responsible_user_id', uid),
-    sb.from('meeting_attendees').select('*, meetings(title, meeting_datetime, status)').eq('user_id', uid)
+    sb.from('meeting_attendees').select('*, meetings(title, meeting_datetime, status)').eq('user_id', uid),
+    sb.from('users').select('avatar_url').eq('id', uid).maybeSingle()
   ]);
+  const avatarUrl = freshUser?.avatar_url || '';
+  CURRENT_USER.avatar_url = avatarUrl;
 
   const allTasks = [...(myTasks||[]), ...(myDeptTasksAssigned||[])];
   const completedTasks = allTasks.filter(t => t.status === 'completed').length;
@@ -10629,10 +10633,19 @@ async function pageMyProfile(body) {
   body.innerHTML = `
     <div class="panel" style="background:linear-gradient(135deg, var(--primary-dark), var(--primary)); color:#fff;">
       <div class="panel-body" style="display:flex; align-items:center; gap:16px;">
-        <div class="user-avatar" style="width:64px; height:64px; font-size:22px;">${esc(initials)}</div>
+        <div class="profile-avatar-wrap" style="position:relative;">
+          ${avatarUrl
+            ? `<img id="profileAvatarImg" src="${esc(avatarUrl)}" style="width:76px;height:76px;border-radius:50%;object-fit:cover;border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,0.2);">`
+            : `<div id="profileAvatarInit" class="user-avatar" style="width:76px; height:76px; font-size:26px; border:3px solid #fff; box-shadow:0 3px 10px rgba(0,0,0,0.2);">${esc(initials)}</div>`}
+          <button type="button" id="profileAvatarChangeBtn" title="تغيير الصورة" style="position:absolute;bottom:-2px;left:-2px;background:#fff;color:var(--primary-dark);width:28px;height:28px;border-radius:50%;border:2px solid var(--primary);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.2);">
+            <span data-lucide="camera" style="width:14px;height:14px;"></span>
+          </button>
+          <input type="file" id="profileAvatarInput" accept="image/*" style="display:none;">
+        </div>
         <div>
           <h2 style="font-size:18px;">${esc(CURRENT_USER.full_name)}</h2>
           <p style="opacity:0.9; font-size:13px;">${esc(CURRENT_USER.department_name || '')} · ${label('role', CURRENT_USER.role)}</p>
+          ${avatarUrl ? `<button type="button" id="profileAvatarRemoveBtn" style="margin-top:6px;background:transparent;border:1px solid rgba(255,255,255,0.4);color:#fff;font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer;">حذف الصورة</button>` : ''}
         </div>
       </div>
     </div>
@@ -10673,6 +10686,41 @@ async function pageMyProfile(body) {
   if (window.lucide) lucide.createIcons();
   wireSearchIcons();
   initPremiumDateFields();
+
+  // رفع صورة الملف الشخصي
+  const changeBtn = document.getElementById('profileAvatarChangeBtn');
+  const fileInput = document.getElementById('profileAvatarInput');
+  const removeBtn = document.getElementById('profileAvatarRemoveBtn');
+  if (changeBtn) changeBtn.addEventListener('click', () => fileInput.click());
+  if (fileInput) fileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    if (!file.type.startsWith('image/')) { toast('اختر ملف صورة', 'error'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast('حجم الصورة يجب أن يقل عن 5 ميجا', 'error'); return; }
+    toast('جاري رفع الصورة...', 'success');
+    try {
+      const ext = file.name.split('.').pop().toLowerCase();
+      const path = `user-${uid}-${Date.now()}.${ext}`;
+      const { error: upErr } = await sb.storage.from('user-avatars').upload(path, file, { cacheControl: '3600', upsert: true });
+      if (upErr) { toast('فشل الرفع: ' + upErr.message, 'error'); return; }
+      const { data: pub } = sb.storage.from('user-avatars').getPublicUrl(path);
+      const url = pub.publicUrl;
+      const { error: updErr } = await sb.from('users').update({ avatar_url: url }).eq('id', uid);
+      if (updErr) { toast('تم رفع الصورة لكن فشل الحفظ: ' + updErr.message, 'error'); return; }
+      CURRENT_USER.avatar_url = url;
+      toast('تم تحديث صورة الملف الشخصي', 'success');
+      pageMyProfile(body);
+    } catch (err) {
+      toast('حدث خطأ: ' + err.message, 'error');
+    }
+  });
+  if (removeBtn) removeBtn.addEventListener('click', async () => {
+    if (!confirm('حذف صورة الملف الشخصي؟')) return;
+    const { error } = await sb.from('users').update({ avatar_url: null }).eq('id', uid);
+    if (error) { toast(error.message, 'error'); return; }
+    CURRENT_USER.avatar_url = null;
+    toast('تم حذف الصورة', 'success');
+    pageMyProfile(body);
+  });
 }
 
 async function pageSettings(body) {
