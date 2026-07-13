@@ -33,7 +33,8 @@ export default async function handler(req, res) {
 
   try {
     // نجرّب موديلات بالترتيب — أول واحد شغال بيتم استخدامه
-    const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b', 'gemini-pro'];
+    // نبدأ باللي شغال ومدعوم مع حساباتك، ثم fallback
+    const models = ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-2.0-flash', 'gemini-1.5-flash'];
     let gRes, gData, usedModel;
     for (const model of models) {
       gRes = await fetch(
