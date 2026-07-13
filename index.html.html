@@ -4358,7 +4358,22 @@ function renderMeetingsTableBody() {
   if (!wrap) return;
 
   if (!rows.length) {
-    wrap.innerHTML = `<div class="empty-illust"><div class="icon"><span data-lucide="calendar-x" style="width:44px;height:44px;"></span></div><h4>لا توجد اجتماعات مطابقة</h4><p>${MeetingsState.search || MeetingsState.statusFilter || MeetingsState.typeFilter ? 'جرّب تغيير الفلاتر أو مصطلح البحث' : 'ابدأ بجدولة أول اجتماع'}</p></div>`;
+    const hasFilters = MeetingsState.search || MeetingsState.statusFilter || MeetingsState.typeFilter;
+    const emptyActions = hasFilters ? [{
+      label: 'إزالة كل الفلاتر', icon: 'x', onClick: () => {
+        MeetingsState.search = ''; MeetingsState.statusFilter = ''; MeetingsState.typeFilter = '';
+        MeetingsState.page = 1; renderMeetingsTable();
+      }
+    }] : [{
+      label: 'جدولة اجتماع جديد', icon: 'plus', primary: true, onClick: () => document.getElementById('toggleCreateBtn')?.click()
+    }];
+    wrap.innerHTML = premiumEmptyState({
+      icon: 'calendar-x',
+      title: hasFilters ? 'لا توجد اجتماعات مطابقة' : 'لا توجد اجتماعات بعد',
+      subtitle: hasFilters ? 'جرّب تغيير الفلاتر أو مصطلح البحث.' : 'ابدأ بجدولة أول اجتماع لتتبع اللقاءات والقرارات.',
+      actions: emptyActions
+    });
+    wireEmptyStateActions(wrap, emptyActions);
     return;
   }
 
@@ -5599,7 +5614,20 @@ function renderTasksTableBody() {
   if (!wrap) return;
 
   if (!rows.length) {
-    wrap.innerHTML = `<div class="empty-illust"><div class="icon"><span data-lucide="check-circle-2" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;color:var(--success);"></span></div><h4>لا توجد مهام مطابقة</h4><p>${TasksState.search || TasksState.statusFilter || TasksState.priorityFilter ? 'جرّب تغيير الفلاتر' : 'المهام تُضاف من داخل تفاصيل الاجتماع'}</p></div>`;
+    const hasTaskFilters = TasksState.search || TasksState.statusFilter || TasksState.priorityFilter;
+    const tasksActions = hasTaskFilters ? [{
+      label: 'إزالة كل الفلاتر', icon: 'x', onClick: () => {
+        TasksState.search = ''; TasksState.statusFilter = ''; TasksState.priorityFilter = '';
+        TasksState.page = 1; renderTasksTable();
+      }
+    }] : [];
+    wrap.innerHTML = premiumEmptyState({
+      icon: 'clipboard-check',
+      title: hasTaskFilters ? 'لا توجد مهام مطابقة' : 'لا توجد مهام بعد',
+      subtitle: hasTaskFilters ? 'جرّب تغيير الفلاتر أو مصطلح البحث.' : 'المهام تُضاف من داخل تفاصيل الاجتماع.',
+      actions: tasksActions
+    });
+    if (tasksActions.length) wireEmptyStateActions(wrap, tasksActions);
     return;
   }
 
@@ -9043,10 +9071,19 @@ async function pageCustomChat(body, convId) {
     renderApp();
   });
   body.querySelectorAll('[data-remove-member]').forEach(btn => btn.addEventListener('click', async () => {
-    if (!confirm('إزالة هذا العضو من الشات؟')) return;
-    await sb.from('conversation_members').delete().eq('conversation_id', cid).eq('user_id', Number(btn.dataset.removeMember));
-    toast('تمت الإزالة', 'success');
-    renderApp();
+    const userId = Number(btn.dataset.removeMember);
+    const member = members.find(m => m.id === userId);
+    const name = member?.full_name || 'العضو';
+    undoableAction({
+      message: `تمت إزالة "${name}" من الشات — تراجع خلال 5 ثوانٍ`,
+      action: () => sb.from('conversation_members').delete().eq('conversation_id', cid).eq('user_id', userId),
+      undo: async () => {
+        await sb.from('conversation_members').insert({ conversation_id: cid, user_id: userId });
+        renderApp();
+      },
+      timeout: 5000
+    });
+    setTimeout(() => renderApp(), 300);
   }));
 
   // زر إضافة عضو
@@ -11810,11 +11847,21 @@ async function pageNotifications(body, query) {
     pageNotifications(body, query);
   });
   document.getElementById('notifDeleteRead').addEventListener('click', async () => {
-    if (!confirm('حذف كل الإشعارات المقروءة؟ لا يمكن التراجع.')) return;
-    const { error } = await sb.from('notifications').delete().eq('user_id', CURRENT_USER.id).eq('is_read', true);
-    if (error) { toast(error.message, 'error'); return; }
-    toast('تم حذف الإشعارات المقروءة', 'success');
-    pageNotifications(body, query);
+    // نجيب الإشعارات المقروءة كاملة قبل الحذف عشان نقدر نرجّعها
+    const { data: readNotifs } = await sb.from('notifications')
+      .select('*').eq('user_id', CURRENT_USER.id).eq('is_read', true);
+    if (!readNotifs || !readNotifs.length) { toast('لا توجد إشعارات مقروءة', 'warning'); return; }
+    const backups = readNotifs.map(n => { const b = { ...n }; delete b.id; return b; });
+    undoableAction({
+      message: `تم حذف ${readNotifs.length} إشعار مقروء — تراجع خلال 5 ثوانٍ`,
+      action: () => sb.from('notifications').delete().eq('user_id', CURRENT_USER.id).eq('is_read', true),
+      undo: async () => {
+        await sb.from('notifications').insert(backups);
+        pageNotifications(body, query);
+      },
+      timeout: 5000
+    });
+    setTimeout(() => pageNotifications(body, query), 300);
   });
 }
 
