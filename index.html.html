@@ -1123,8 +1123,30 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
   content: ''; position: absolute; bottom: 70px; left: -30px; width: 160px; height: 160px;
   background: radial-gradient(circle, rgba(249,168,37,0.08) 0%, transparent 70%); pointer-events: none;
 }
-.sidebar .brand { padding: 10px !important; margin: 16px 14px 10px !important; background: #d4dfbc !important; border: 1px solid rgba(0,0,0,0.04); box-shadow: 0 2px 6px rgba(0,0,0,0.1); height: 92px; box-sizing: border-box; border-radius: 46px !important; }
-.sidebar .brand img { height: 100%; width: 100%; object-fit: contain; display: block; border-radius: 40px; }
+.sidebar .brand {
+  padding: 14px 16px !important;
+  margin: 18px 14px 14px !important;
+  background: linear-gradient(135deg, #FFFFFF 0%, #FDFAF0 100%) !important;
+  border: 1px solid rgba(214,164,55,0.25);
+  box-shadow: 0 3px 10px rgba(15,61,46,0.08), 0 1px 3px rgba(15,61,46,0.05);
+  height: 78px;
+  box-sizing: border-box;
+  border-radius: 16px !important;
+  transition: transform .2s ease;
+}
+.sidebar .brand:hover { transform: translateY(-1px); }
+.sidebar .brand img {
+  height: 100%;
+  width: 100%;
+  object-fit: contain;
+  display: block;
+  border-radius: 8px;
+  filter: drop-shadow(0 1px 2px rgba(15,61,46,0.1));
+}
+:root[data-theme="dark"] .sidebar .brand {
+  background: linear-gradient(135deg, #333828 0%, #2A2E24 100%) !important;
+  border-color: rgba(214,164,55,0.3);
+}
 .sidebar nav { flex: 1; overflow-y: auto; padding-bottom: 10px; }
 .sidebar nav a {
   margin: 2px 10px; border-radius: 10px; font-size: 13.5px; padding: 11px 14px;
@@ -2345,6 +2367,14 @@ const LABELS = {
   maint_impact: { none: 'لا يؤثر', partial: 'يؤثر جزئيًا', full: 'يوقف التشغيل بالكامل' },
   maint_stoppage: { none: 'لا يوجد', partial: 'توقف جزئي', full: 'توقف كامل' },
   quality_status: { conform: 'مطابق', non_conform: 'غير مطابق', follow_up: 'يحتاج متابعة', na: 'غير قابل للتطبيق', fixed_on_site: 'تم التصحيح أثناء الزيارة' },
+  quality_severity: { critical: 'حرج (24 ساعة)', medium: 'متوسط (72 ساعة)', low: 'بسيط (أسبوع)' },
+  quality_responsible_role: {
+    branch_manager: 'مدير الفرع',
+    maintenance_dept: 'قسم الصيانة',
+    chef: 'شيف القسم',
+    quality_officer: 'مسؤول الجودة',
+    quality_maint_manager: 'مدير الجودة والصيانة'
+  },
   quality_corrective: { none: 'لا يوجد إجراء', verbal_warning: 'تنبيه شفهي', retrain: 'إعادة تدريب الموظف', immediate_cleaning: 'تنظيف فوري', urgent_maintenance: 'صيانة عاجلة', replace_tool: 'استبدال أداة / معدة', temp_stop: 'إيقاف استخدام مؤقت', fix_on_visit: 'تصحيح فوري أثناء الزيارة', raise_maintenance: 'رفع طلب صيانة', escalate: 'تصعيد للإدارة', custom: 'إجراء مخصص' },
   quality_action_status: { not_started: 'لم يبدأ', in_progress: 'قيد التنفيذ', done: 'تم التنفيذ', overdue: 'متأخر', cancelled: 'ملغي' },
   quality_visit_type: { daily: 'يومية', weekly: 'أسبوعية', monthly: 'شهرية', surprise: 'مفاجئة' },
@@ -12506,7 +12536,7 @@ async function pageQualityVisitNew(body, param) {
 
   // الحالة: بيانات كل بند + صور لكل قسم
   const Q = { items: {}, secPhotos: {}, meta: { branch_id: '', inspector_name: CURRENT_USER.full_name, visit_type: 'daily', visit_date: new Date().toISOString().slice(0, 10) } };
-  flat.forEach(it => { Q.items[it.id] = { status: '', corrective: '', custom: '', notes: '', responsible: '', due: '', action_status: '' }; });
+  flat.forEach(it => { Q.items[it.id] = { status: '', corrective: '', custom: '', notes: '', responsible: '', responsible_role: '', due: '', action_status: '', severity: '' }; });
   secs.forEach(s => { Q.secPhotos[s.id] = []; });
   let prevByItem = {};
 
@@ -12516,7 +12546,23 @@ async function pageQualityVisitNew(body, param) {
       sb.from('quality_visit_items').select('*').eq('visit_id', resumeId)
     ]);
     if (v) { Q.meta.branch_id = String(v.branch_id || ''); Q.meta.inspector_name = v.inspector_name || Q.meta.inspector_name; Q.meta.visit_type = v.visit_type || 'daily'; Q.meta.visit_date = (v.visit_date || '').slice(0, 10) || Q.meta.visit_date; }
-    (vi || []).forEach(r => { const d = Q.items[r.item_id]; if (d) { d.status = r.status || ''; d.corrective = r.corrective_action || ''; d.custom = r.custom_corrective_action || ''; d.notes = r.notes || ''; d.responsible = r.responsible_user_id ? String(r.responsible_user_id) : ''; d.due = (r.due_date || '').slice(0, 10); d.action_status = r.action_status || ''; } });
+    (vi || []).forEach(r => {
+      const d = Q.items[r.item_id]; if (!d) return;
+      d.status = r.status || ''; d.corrective = r.corrective_action || '';
+      d.custom = r.custom_corrective_action || ''; d.notes = r.notes || '';
+      d.responsible = r.responsible_user_id ? String(r.responsible_user_id) : '';
+      d.due = (r.due_date || '').slice(0, 10); d.action_status = r.action_status || '';
+      // نستخرج شدة المخالفة ومسؤول الإصلاح من ملاحظات الحفظ (backward compat لو الأعمدة مش موجودة)
+      d.severity = r.severity || '';
+      d.responsible_role = r.responsible_role || '';
+      // fallback: parse من custom لو ما كانتش موجودة في أعمدة مستقلة
+      if (!d.severity && d.custom && d.custom.includes('[شدة:')) {
+        const m = d.custom.match(/\[شدة:([^\]]+)\]/); if (m) d.severity = m[1].trim();
+      }
+      if (!d.responsible_role && d.custom && d.custom.includes('[مسؤول:')) {
+        const m = d.custom.match(/\[مسؤول:([^\]]+)\]/); if (m) d.responsible_role = m[1].trim();
+      }
+    });
   }
 
   const noBranches = !branches || !branches.length;
@@ -12569,8 +12615,9 @@ async function pageQualityVisitNew(body, param) {
           <th>الحالة الحالية</th>
           <th>الإجراء التصحيحي</th>
           <th>إجراء مخصص</th>
-          <th>المسؤول</th>
-          <th>تاريخ الاستحقاق</th>
+          <th>شدّة المخالفة</th>
+          <th>مسؤول الإصلاح</th>
+          <th>فترة الإصلاح</th>
           <th>حالة الإجراء</th>
           <th>ملاحظات الزيارة الحالية</th>
           <th>حالة الزيارة السابقة</th>
@@ -12587,8 +12634,9 @@ async function pageQualityVisitNew(body, param) {
               <td><select class="qt-status" data-item="${it.id}" data-v="${d.status}"><option value="">—</option>${optHtml('quality_status', statusOpts, d.status)}</select></td>
               <td><select class="qt-corr" data-item="${it.id}"><option value="">—</option>${optHtml('quality_corrective', Q_CORRECTIVE_OPTS, d.corrective)}</select></td>
               <td><input class="qt-custom" data-item="${it.id}" value="${esc(d.custom)}" placeholder="اكتب الإجراء" style="display:${d.corrective==='custom'?'block':'none'};"></td>
-              <td><input class="qt-resp" list="qUsersDL" data-item="${it.id}" value="${esc((usersList.find(u => String(u.id) === d.responsible) || {}).full_name || '')}" placeholder="اسم المسؤول"></td>
-              <td><input type="date" class="qt-due" data-item="${it.id}" value="${d.due}"></td>
+              <td><select class="qt-sev" data-item="${it.id}"><option value="">—</option>${['critical','medium','low'].map(v => `<option value="${v}" ${d.severity===v?'selected':''}>${label('quality_severity', v)}</option>`).join('')}</select></td>
+              <td><select class="qt-role" data-item="${it.id}"><option value="">—</option>${['branch_manager','maintenance_dept','chef','quality_officer','quality_maint_manager'].map(v => `<option value="${v}" ${d.responsible_role===v?'selected':''}>${label('quality_responsible_role', v)}</option>`).join('')}</select></td>
+              <td><input type="date" class="qt-due" data-item="${it.id}" value="${d.due}" title="يُحسب تلقائيًا من شدّة المخالفة، أو غيّره يدويًا"></td>
               <td><select class="qt-act" data-item="${it.id}"><option value="">—</option>${optHtml('quality_action_status', ['not_started','in_progress','done','overdue','cancelled'], d.action_status)}</select></td>
               <td><input class="qt-notes" data-item="${it.id}" value="${esc(d.notes)}" placeholder="ملاحظات..."></td>
               <td class="qt-prev" id="qprev-status-${it.id}">—</td>
@@ -12641,10 +12689,29 @@ async function pageQualityVisitNew(body, param) {
     if (ci) ci.style.display = e.target.value === 'custom' ? 'block' : 'none';
   }));
   body.querySelectorAll('.qt-custom').forEach(i => i.addEventListener('input', e => Q.items[i.dataset.item].custom = e.target.value));
-  body.querySelectorAll('.qt-resp').forEach(s => s.addEventListener('input', e => {
-    const u = usersList.find(x => x.full_name === e.target.value.trim());
-    Q.items[s.dataset.item].responsible = u ? String(u.id) : '';
+
+  // شدّة المخالفة → تحسب فترة الإصلاح تلقائيًا
+  body.querySelectorAll('.qt-sev').forEach(sel => sel.addEventListener('change', e => {
+    const itemId = sel.dataset.item;
+    const sev = e.target.value;
+    Q.items[itemId].severity = sev;
+    if (sev) {
+      const days = sev === 'critical' ? 1 : sev === 'medium' ? 3 : 7;
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + days);
+      const dueISO = dueDate.toISOString().slice(0, 10);
+      Q.items[itemId].due = dueISO;
+      const dueInput = body.querySelector('.qt-due[data-item="' + itemId + '"]');
+      if (dueInput) dueInput.value = dueISO;
+      toast(`فترة الإصلاح: ${sev==='critical'?'خلال 24 ساعة':sev==='medium'?'خلال 72 ساعة':'خلال أسبوع'} (${fmtDateAr(dueISO)})`, 'success');
+    }
   }));
+
+  // مسؤول الإصلاح (دور بدل اسم موظف)
+  body.querySelectorAll('.qt-role').forEach(sel => sel.addEventListener('change', e => {
+    Q.items[sel.dataset.item].responsible_role = e.target.value;
+  }));
+
   body.querySelectorAll('.qt-due').forEach(i => i.addEventListener('change', e => Q.items[i.dataset.item].due = e.target.value));
   body.querySelectorAll('.qt-act').forEach(s => s.addEventListener('change', e => Q.items[s.dataset.item].action_status = e.target.value));
   body.querySelectorAll('.qt-notes').forEach(i => i.addEventListener('input', e => Q.items[i.dataset.item].notes = e.target.value));
@@ -12755,9 +12822,17 @@ async function pageQualityVisitNew(body, param) {
     const itemRows = [];
     flat.forEach(it => {
       const d = Q.items[it.id];
-      if (d.status || d.corrective || d.notes || d.responsible || d.due || d.action_status) {
+      if (d.status || d.corrective || d.notes || d.responsible || d.responsible_role || d.severity || d.due || d.action_status) {
+        // نضم شدة المخالفة ومسؤول الإصلاح في custom_corrective_action كـ prefix
+        // لضمان الاسترجاع لو أعمدة severity/responsible_role ما اتضافتش لجدول DB
+        let customField = d.corrective === 'custom' ? (d.custom || '') : (d.custom || '');
+        const meta = [];
+        if (d.severity) meta.push(`[شدة:${d.severity}]`);
+        if (d.responsible_role) meta.push(`[مسؤول:${d.responsible_role}]`);
+        if (meta.length) customField = meta.join(' ') + (customField ? ' ' + customField : '');
         itemRows.push({ visit_id: visitId, section_id: it.section_id, item_id: it.id, item_text: it.text, status: d.status || null,
-          corrective_action: d.corrective || null, custom_corrective_action: d.corrective === 'custom' ? (d.custom || null) : null,
+          corrective_action: d.corrective || null,
+          custom_corrective_action: customField || null,
           notes: d.notes || null, responsible_user_id: d.responsible ? Number(d.responsible) : null, due_date: d.due || null, action_status: d.action_status || null });
       }
     });
