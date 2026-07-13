@@ -90,30 +90,35 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 .login-box .subtitle { text-align: center; color: var(--text-muted); font-size: 13px; margin-bottom: 26px; line-height: 1.7; }
 .login-field { margin-bottom: 18px; }
 .login-field label { display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 7px; color: #4d5750; }
-.login-input-wrap { position: relative; }
-.login-input-wrap .login-input-icon {
-  position: absolute !important; top: 50% !important; right: 14px !important; transform: translateY(-50%) !important;
-  width: 18px !important; height: 18px !important; color: #8b968f; pointer-events: none; transition: color .15s ease;
-  flex-shrink: 0;
+/* حل نهائي: flexbox — الأيقونة والمكرفون والحقل في صف واحد بدون تراكب */
+.login-input-wrap {
+  display: flex; align-items: center; gap: 8px;
+  background: #F9FAF8; border: 1.5px solid #E3E7E2; border-radius: 14px;
+  height: 56px; padding: 0 14px; overflow: hidden;
+  transition: border-color .18s ease, background .18s ease, box-shadow .18s ease;
 }
-.login-input-wrap svg.login-input-icon { width: 18px !important; height: 18px !important; }
+.login-input-wrap:focus-within { border-color: #2E7D32; background: #fff; box-shadow: 0 0 0 4px rgba(46,125,50,0.1); }
+.login-input-wrap .login-input-icon {
+  width: 18px; height: 18px; color: #8b968f; flex-shrink: 0;
+  pointer-events: none; transition: color .15s ease;
+  display: flex; align-items: center; justify-content: center;
+}
+.login-input-wrap svg.login-input-icon,
+.login-input-wrap .login-input-icon svg { width: 18px !important; height: 18px !important; }
 .login-input-wrap .login-eye-toggle {
-  position: absolute; top: 50%; left: 10px; transform: translateY(-50%);
   width: 26px; height: 26px; color: #8b968f; background: none; border: none; padding: 0;
-  cursor: pointer; display: flex; align-items: center; justify-content: center; transition: color .15s ease;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: color .15s ease; flex-shrink: 0;
 }
 .login-input-wrap .login-eye-toggle svg { width: 18px !important; height: 18px !important; }
 .login-input-wrap .login-eye-toggle:hover { color: #14431a; }
 .login-input-wrap input {
-  width: 100%; box-sizing: border-box; height: 56px; padding: 0 44px 0 16px; border: 1.5px solid #E3E7E2;
-  border-radius: 14px; outline: none; font-size: 14px; background: #F9FAF8; color: var(--text);
-  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
-  text-align: right; direction: rtl;
+  flex: 1; min-width: 0; height: 100%; padding: 0; border: none; outline: none;
+  background: transparent; font-size: 14px; color: var(--text);
+  text-align: right; direction: rtl; font-family: inherit;
 }
-.login-input-wrap input[type="password"] { padding-left: 44px; }
 .login-input-wrap input::placeholder { text-align: right; color: #a1aca4; }
-.login-input-wrap input:focus { border-color: #2E7D32; background: #fff; box-shadow: 0 0 0 4px rgba(46,125,50,0.1); }
-.login-input-wrap input:focus ~ .login-input-icon { color: #2E7D32; }
+.login-input-wrap:focus-within .login-input-icon { color: #2E7D32; }
 .login-options-row { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 22px; font-size: 12.5px; }
 .login-remember { display: flex; align-items: center; gap: 7px; color: #4d5750; cursor: pointer; user-select: none; }
 .login-remember input[type=checkbox] { width: 16px; height: 16px; accent-color: #1B5E20; cursor: pointer; }
@@ -713,11 +718,12 @@ tr:hover td { background: var(--primary-light); }
   .login-box { padding: 28px 18px 22px; border-radius: 22px; }
   .login-logo-wrap img { max-width: 160px; }
   .login-box h1 { font-size: 19px; }
-  .login-input-wrap input { height: 52px; padding: 0 42px 0 14px; font-size: 13.5px; }
-  .login-input-wrap input[type="password"] { padding-left: 42px; }
-  .login-input-wrap .login-input-icon { right: 12px !important; width: 16px !important; height: 16px !important; }
-  .login-input-wrap svg.login-input-icon { width: 16px !important; height: 16px !important; }
-  .login-input-wrap .login-eye-toggle { left: 8px; width: 24px; height: 24px; }
+  .login-input-wrap { height: 52px; padding: 0 12px; gap: 8px; }
+  .login-input-wrap input { font-size: 13.5px; }
+  .login-input-wrap .login-input-icon { width: 16px; height: 16px; }
+  .login-input-wrap svg.login-input-icon,
+  .login-input-wrap .login-input-icon svg { width: 16px !important; height: 16px !important; }
+  .login-input-wrap .login-eye-toggle { width: 24px; height: 24px; }
   .login-input-wrap .login-eye-toggle svg { width: 16px !important; height: 16px !important; }
   .login-submit-btn { height: 54px; }
   .row-actions { opacity: 1; }
