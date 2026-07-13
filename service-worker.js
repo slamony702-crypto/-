@@ -1,5 +1,5 @@
 // نسخة المسجّل — تُبدَّل عند كل تحديث لضمان تنشيط SW جديد
-const SW_VERSION = 'v4-2026-07-13-m';
+const SW_VERSION = 'v5-2026-07-13-n';
 const STATIC_CACHE = 'sg-static-' + SW_VERSION;
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -48,15 +48,29 @@ self.addEventListener('fetch', (e) => {
 
   // Supabase وأي API: مباشرة من الشبكة
   if (url.href.includes('supabase.co')) return;
+  // API endpoints المحلية: بلا كاش
+  if (url.pathname.startsWith('/api/')) return;
 
   const sameOrigin = url.origin === self.location.origin;
   const isHtml = url.pathname.endsWith('.html') || url.pathname === '/' || url.pathname.endsWith('/');
   const isJs = url.pathname.endsWith('.js') && sameOrigin;
   const isJson = url.pathname.endsWith('.json') && sameOrigin;
 
-  // HTML و JS/JSON محلي: دايمًا من الشبكة (بلا كاش) عشان يوصل التحديث فورًا
+  // HTML و JS/JSON محلي: Stale-While-Revalidate
+  // - نرجّع من الكاش فورًا (سرعة!)
+  // - نحدّث الكاش من الشبكة في الخلفية للمرة الجاية
+  // - لو حدث تغيير في SW_VERSION، بيتم اكتشافه ويظهر بانر التحديث
   if (isHtml || isJs || isJson) {
-    e.respondWith(fetch(e.request, { cache: 'no-store' }).catch(() => caches.match(e.request)));
+    e.respondWith((async () => {
+      const cache = await caches.open(STATIC_CACHE);
+      const cached = await cache.match(e.request);
+      const fetchPromise = fetch(e.request).then(res => {
+        if (res && res.ok) cache.put(e.request, res.clone()).catch(() => {});
+        return res;
+      }).catch(() => cached);
+      // لو عندنا نسخة مكاشة: نرجّعها فورًا، والتحديث في الخلفية
+      return cached || fetchPromise;
+    })());
     return;
   }
 

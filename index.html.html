@@ -14,6 +14,10 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://dfuqmmagtteemtpywody.supabase.co" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
+<link rel="dns-prefetch" href="https://api.qrserver.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Tajawal:wght@400;500;700&family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
@@ -12319,11 +12323,14 @@ async function bootApp() {
       } catch (e) { /* لو Auth غير متاح، استمر بالنمط القديم */ }
       try { await loadPermissions(); } catch (e) { fwReport('loadPermissions', e); }
       await renderApp();
-      // مهام خلفية — فشل أي منها ما يوقفش التطبيق
-      try { checkTaskReminders(); } catch (e) { fwReport('checkTaskReminders', e); }
-      try { checkMeetingReminders(); } catch (e) { fwReport('checkMeetingReminders', e); }
-      try { startHeartbeat(); } catch (e) { fwReport('startHeartbeat', e); }
-      try { subscribeToUserNotifications(); } catch (e) { fwReport('subscribeToUserNotifications', e); }
+      // مهام خلفية — تُؤجّل لثانية كاملة عشان الواجهة تظهر أسرع
+      // المستخدم يقدر يستخدم التطبيق فورًا، والمهام تشتغل في الخلفية
+      setTimeout(() => {
+        try { checkTaskReminders(); } catch (e) { fwReport('checkTaskReminders', e); }
+        try { checkMeetingReminders(); } catch (e) { fwReport('checkMeetingReminders', e); }
+        try { startHeartbeat(); } catch (e) { fwReport('startHeartbeat', e); }
+        try { subscribeToUserNotifications(); } catch (e) { fwReport('subscribeToUserNotifications', e); }
+      }, 1000);
     } else {
       renderLogin();
     }
