@@ -2378,6 +2378,12 @@ const LABELS = {
   quality_corrective: { none: 'لا يوجد إجراء', verbal_warning: 'تنبيه شفهي', retrain: 'إعادة تدريب الموظف', immediate_cleaning: 'تنظيف فوري', urgent_maintenance: 'صيانة عاجلة', replace_tool: 'استبدال أداة / معدة', temp_stop: 'إيقاف استخدام مؤقت', fix_on_visit: 'تصحيح فوري أثناء الزيارة', raise_maintenance: 'رفع طلب صيانة', escalate: 'تصعيد للإدارة', custom: 'إجراء مخصص' },
   quality_action_status: { not_started: 'لم يبدأ', in_progress: 'قيد التنفيذ', done: 'تم التنفيذ', overdue: 'متأخر', cancelled: 'ملغي' },
   quality_visit_type: { daily: 'يومية', weekly: 'أسبوعية', monthly: 'شهرية', surprise: 'مفاجئة' },
+  asset_category: {
+    kitchen_equipment: 'معدات المطبخ', hall_furniture: 'أثاث الصالة', electric_appliances: 'أجهزة كهربائية',
+    ac_units: 'وحدات تكييف', pos_computers: 'كاشير / حاسوب', refrigerators: 'ثلاجات وحفظ',
+    cleaning_tools: 'أدوات نظافة', decoration: 'ديكور وإضاءة', kitchenware: 'أواني وأدوات مطبخ', other: 'أخرى'
+  },
+  asset_condition: { excellent: 'ممتازة', good: 'جيدة', fair: 'متوسطة', poor: 'ضعيفة', broken: 'معطلة' },
   quality_severity: { low: 'منخفض', medium: 'متوسط', high: 'عالي', immediate: 'خطر فوري' },
   quality_exec: { done: 'تم التنفيذ', in_progress: 'تحت الإجراء', not_started: 'لم يبدأ' },
   maint_status: { new: 'طلب جديد', under_review: 'تحت المراجعة', awaiting_inspection: 'بانتظار الفحص', inspection_reported: 'تم رفع تقرير الفحص', awaiting_approval: 'بانتظار الاعتماد', awaiting_quotes: 'بانتظار عروض الأسعار', awaiting_finance: 'بانتظار موافقة المالية', in_progress: 'قيد التنفيذ', awaiting_receipt: 'بانتظار استلام الفرع', closed: 'مغلق', rejected: 'مرفوض' },
@@ -8276,6 +8282,7 @@ async function route() {
     else if (page === 'search') await pageGlobalSearch(body, query);
     else if (page === 'maintenance_equipment') await pageMaintenanceEquipment(body);
     else if (page === 'maintenance_preventive') await pageMaintenancePreventive(body, query);
+    else if (page === 'maintenance_assets') await pageMaintenanceAssets(body, query);
     else if (page === 'install_app') await pageInstallApp(body);
     else if (page === 'reports') await pageReports(body);
     else if (page === 'users') await pageUsers(body);
@@ -8400,6 +8407,7 @@ const CMD_PALETTE_ITEMS = [
   { label: 'مخرجات الاجتماعات', icon: 'check-square', hash: '#tasks' },
   { label: 'القرارات', icon: 'pin', hash: '#decisions' },
   { label: 'الصيانة', icon: 'wrench', hash: '#maintenance' },
+  { label: 'جرد الأصول', icon: 'clipboard-list', hash: '#maintenance_assets', keys: ['جرد','أصول','معدات'] },
   { label: 'طلب صيانة جديد', icon: 'plus-circle', hash: '#maintenance_new' },
   { label: 'الجودة', icon: 'shield-check', hash: '#quality' },
   { label: 'زيارة جودة جديدة', icon: 'plus-circle', hash: '#quality_new' },
@@ -13492,6 +13500,7 @@ async function pageMaintenance(body, urlQuery) {
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <a href="#maintenance_reports" class="btn btn-outline" style="font-size:12.5px;border-color:#D6A437;color:#9A6B12;"><span data-lucide="bar-chart-3" style="width:15px;height:15px;"></span> تقارير الصيانة</a>
+        <a href="#maintenance_assets" class="btn btn-outline" style="font-size:12.5px;border-color:#1F7A3A;color:#1F7A3A;"><span data-lucide="clipboard-list" style="width:15px;height:15px;"></span> جرد الأصول</a>
         <a href="#maintenance_preventive" class="btn btn-outline" style="font-size:12.5px;"><span data-lucide="calendar-check-2" style="width:15px;height:15px;"></span> الصيانة الوقائية</a>
         <a href="#maintenance_equipment" class="btn btn-outline" style="font-size:12.5px;"><span data-lucide="package" style="width:15px;height:15px;"></span> المعدات</a>
         <a href="#maintenance_suppliers" class="btn btn-outline" style="font-size:12.5px;"><span data-lucide="briefcase" style="width:15px;height:15px;"></span> الموردون</a>
@@ -14808,6 +14817,266 @@ async function openBranchesModal(onChange) {
     changed = true; toast('تم إضافة الفرع', 'success');
     e.target.reset();
     refresh();
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   جرد أصول الفرع — يعبّيه مدير الفرع بيانات كل الأصول الموجودة
+   ═══════════════════════════════════════════════════════════ */
+async function pageMaintenanceAssets(body, query) {
+  const isAdmin = ['admin','company_manager','operations_manager','maintenance_officer'].includes(CURRENT_USER.role);
+  const isBranchMgr = CURRENT_USER.role === 'department_manager';
+  const { data: branches } = await sb.from('branches').select('*').eq('is_active', true).order('name');
+
+  const state = {
+    branch: query?.branch || (isBranchMgr ? '' : ''),
+    category: '', condition: '', search: ''
+  };
+
+  body.innerHTML = `
+    <a href="#maintenance" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لطلبات الصيانة</a>
+
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span> <span data-lucide="clipboard-list" style="width:22px;height:22px;color:#0F3D2E;"></span> جرد أصول الفروع</h2>
+        <p>سجّل كل الأصول الموجودة في كل فرع: معدات المطبخ، الأثاث، الأجهزة الكهربائية، التكييف... إلخ. مدير كل فرع مسؤول عن جرد فرعه.</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn" id="assetAddBtn" style="background:var(--primary);color:#fff;font-size:12.5px;"><span data-lucide="plus" style="width:15px;height:15px;"></span> إضافة أصل جديد</button>
+      </div>
+    </div>
+
+    <div class="kpi-grid" id="assetsKpi">
+      <div class="kpi-card"><div class="skeleton skeleton-row" style="width:60%;"></div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><h3 class="panel-title"><span data-lucide="list" style="width:17px;height:17px;"></span> سجل الأصول</h3></div>
+      <div class="panel-body">
+        <div class="table-toolbar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+          <div class="search-wrap" style="flex:1;min-width:180px;"><input type="text" id="astSearch" class="search-input" placeholder="بحث بالاسم أو الماركة أو الموديل..."></div>
+          <select id="astBranch" class="form-select">
+            <option value="">كل الفروع</option>
+            ${(branches||[]).map(b => `<option value="${b.id}" ${String(state.branch)===String(b.id)?'selected':''}>${esc(b.name)}</option>`).join('')}
+          </select>
+          <select id="astCategory" class="form-select">
+            <option value="">كل الفئات</option>
+            ${Object.keys(LABELS.asset_category).map(k => `<option value="${k}">${LABELS.asset_category[k]}</option>`).join('')}
+          </select>
+          <select id="astCondition" class="form-select">
+            <option value="">كل الحالات</option>
+            ${Object.keys(LABELS.asset_condition).map(k => `<option value="${k}">${LABELS.asset_condition[k]}</option>`).join('')}
+          </select>
+        </div>
+        <div id="assetsListWrap"><p class="empty-state">جاري التحميل...</p></div>
+      </div>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  async function loadAndRender() {
+    let q = sb.from('branch_assets').select('*, branches(name)').order('created_at', { ascending: false });
+    if (state.branch) q = q.eq('branch_id', Number(state.branch));
+    if (state.category) q = q.eq('category', state.category);
+    if (state.condition) q = q.eq('current_condition', state.condition);
+    const { data, error } = await q;
+    if (error) { document.getElementById('assetsListWrap').innerHTML = `<p class="empty-state">خطأ: ${esc(error.message)}<br><small>هل شغّلت branch-assets-setup.sql؟</small></p>`; return; }
+    let rows = data || [];
+    if (state.search) {
+      const s = state.search.toLowerCase();
+      rows = rows.filter(r => ((r.item_name||'') + ' ' + (r.brand||'') + ' ' + (r.model||'') + ' ' + (r.serial_no||'')).toLowerCase().includes(s));
+    }
+    // KPIs
+    const totalCost = rows.reduce((s,r) => s + Number(r.purchase_cost||0) * Number(r.quantity||1), 0);
+    const brokenCount = rows.filter(r => r.current_condition === 'broken').length;
+    const poorCount = rows.filter(r => r.current_condition === 'poor').length;
+    document.getElementById('assetsKpi').innerHTML = `
+      <div class="kpi-card"><div class="kpi-icon c-blue"><span data-lucide="package" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${rows.length}</div><div class="kpi-label">إجمالي الأصول</div></div>
+      <div class="kpi-card"><div class="kpi-icon c-gold"><span data-lucide="banknote" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${totalCost.toLocaleString()}</div><div class="kpi-label">القيمة الإجمالية (ر.س)</div></div>
+      <div class="kpi-card"><div class="kpi-icon c-red"><span data-lucide="alert-triangle" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${brokenCount + poorCount}</div><div class="kpi-label">أصول تحتاج صيانة</div></div>
+      <div class="kpi-card"><div class="kpi-icon c-green"><span data-lucide="building-2" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${new Set(rows.map(r=>r.branch_id)).size}</div><div class="kpi-label">فروع فيها أصول</div></div>
+    `;
+    if (window.lucide) lucide.createIcons();
+
+    const wrap = document.getElementById('assetsListWrap');
+    if (!rows.length) {
+      wrap.innerHTML = premiumEmptyState({ icon: 'package', title: 'لا توجد أصول مسجّلة', subtitle: 'ابدأ الجرد بإضافة أول أصل. اضغط "إضافة أصل جديد" فوق.', actions: [] });
+      if (window.lucide) lucide.createIcons();
+      return;
+    }
+    wrap.innerHTML = `
+      <div style="overflow-x:auto;">
+        <table class="adv-table">
+          <thead><tr>
+            <th>الصورة</th><th>الفرع</th><th>الفئة</th><th>الاسم</th><th>الماركة</th>
+            <th>الموديل</th><th>الرقم التسلسلي</th><th>الكمية</th><th>الحالة</th>
+            <th>تاريخ الشراء</th><th>التكلفة</th><th></th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td>${r.photo_url ? `<img src="${esc(r.photo_url)}" style="width:44px;height:44px;object-fit:cover;border-radius:8px;cursor:pointer;" onclick="window.open('${esc(r.photo_url)}','_blank')">` : '<div style="width:44px;height:44px;border-radius:8px;background:#F4F1E6;display:flex;align-items:center;justify-content:center;"><span data-lucide="image" style="width:18px;height:18px;color:#B7B0A3;"></span></div>'}</td>
+                <td>${esc(r.branches?.name||'-')}</td>
+                <td>${label('asset_category', r.category)}</td>
+                <td style="font-weight:700;">${esc(r.item_name)}</td>
+                <td>${esc(r.brand||'-')}</td>
+                <td>${esc(r.model||'-')}</td>
+                <td class="mono-num">${esc(r.serial_no||'-')}</td>
+                <td class="mono-num">${r.quantity||1}</td>
+                <td><span class="badge-status" style="background:${r.current_condition==='excellent'?'#E8F5E9':r.current_condition==='good'?'#F0F7E8':r.current_condition==='fair'?'#FFF8E1':r.current_condition==='poor'?'#FFEBEE':'#FFCDD2'};color:${r.current_condition==='excellent'?'#1B5E20':r.current_condition==='good'?'#33691E':r.current_condition==='fair'?'#F57F17':r.current_condition==='poor'?'#C62828':'#B71C1C'};">${label('asset_condition', r.current_condition)||'-'}</span></td>
+                <td class="mono-num" style="font-size:11.5px;">${r.purchase_date||'-'}</td>
+                <td class="mono-num">${r.purchase_cost?Number(r.purchase_cost).toLocaleString():'-'}</td>
+                <td>
+                  <button class="btn btn-outline" style="padding:4px 8px;font-size:11px;" data-edit-asset="${r.id}"><span data-lucide="edit-3" style="width:12px;height:12px;"></span></button>
+                  <button class="btn btn-outline" style="padding:4px 8px;font-size:11px;color:var(--danger);border-color:var(--danger);" data-delete-asset="${r.id}"><span data-lucide="trash-2" style="width:12px;height:12px;"></span></button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+    if (window.lucide) lucide.createIcons();
+    wrap.querySelectorAll('[data-edit-asset]').forEach(b => b.addEventListener('click', () => {
+      const asset = rows.find(x => x.id === Number(b.dataset.editAsset));
+      openAssetModal(asset, branches, loadAndRender);
+    }));
+    wrap.querySelectorAll('[data-delete-asset]').forEach(b => b.addEventListener('click', async () => {
+      const asset = rows.find(x => x.id === Number(b.dataset.deleteAsset));
+      if (!asset) return;
+      const backup = { ...asset }; delete backup.id; delete backup.branches;
+      undoableAction({
+        message: `تم حذف "${esc(asset.item_name)}" — تراجع خلال 5 ثوانٍ`,
+        action: () => sb.from('branch_assets').delete().eq('id', asset.id),
+        undo: async () => { await sb.from('branch_assets').insert({ ...backup, id: asset.id }); loadAndRender(); },
+        timeout: 5000
+      });
+      setTimeout(loadAndRender, 300);
+    }));
+  }
+
+  document.getElementById('astSearch').addEventListener('input', e => { state.search = e.target.value; loadAndRender(); });
+  document.getElementById('astBranch').addEventListener('change', e => { state.branch = e.target.value; loadAndRender(); });
+  document.getElementById('astCategory').addEventListener('change', e => { state.category = e.target.value; loadAndRender(); });
+  document.getElementById('astCondition').addEventListener('change', e => { state.condition = e.target.value; loadAndRender(); });
+  document.getElementById('assetAddBtn').addEventListener('click', () => openAssetModal(null, branches, loadAndRender));
+
+  loadAndRender();
+}
+
+function openAssetModal(existing, branches, onSaved) {
+  const isEdit = !!existing;
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:640px;max-width:95%;max-height:92vh;overflow:auto;">
+      <div class="panel-header"><h3 class="panel-title">${isEdit ? 'تعديل أصل' : 'إضافة أصل جديد'}</h3></div>
+      <div class="panel-body">
+        <form id="assetForm" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-field" style="grid-column:1/-1;"><label>الفرع *</label>
+            <select name="branch_id" class="form-select" required>
+              <option value="">اختر الفرع</option>
+              ${(branches||[]).map(b => `<option value="${b.id}" ${existing?.branch_id===b.id?'selected':''}>${esc(b.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>الفئة *</label>
+            <select name="category" class="form-select" required>
+              <option value="">اختر</option>
+              ${Object.keys(LABELS.asset_category).map(k => `<option value="${k}" ${existing?.category===k?'selected':''}>${LABELS.asset_category[k]}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>اسم الأصل *</label>
+            <input name="item_name" class="form-input" required value="${esc(existing?.item_name||'')}" placeholder="مثلاً: فرن غاز 6 عيون">
+          </div>
+          <div class="form-field"><label>الماركة</label>
+            <input name="brand" class="form-input" value="${esc(existing?.brand||'')}" placeholder="LG، Samsung...">
+          </div>
+          <div class="form-field"><label>الموديل</label>
+            <input name="model" class="form-input" value="${esc(existing?.model||'')}">
+          </div>
+          <div class="form-field"><label>الرقم التسلسلي</label>
+            <input name="serial_no" class="form-input" value="${esc(existing?.serial_no||'')}">
+          </div>
+          <div class="form-field"><label>الكمية</label>
+            <input type="number" name="quantity" min="1" class="form-input" value="${existing?.quantity||1}">
+          </div>
+          <div class="form-field"><label>الحالة الحالية *</label>
+            <select name="current_condition" class="form-select" required>
+              <option value="">اختر</option>
+              ${Object.keys(LABELS.asset_condition).map(k => `<option value="${k}" ${existing?.current_condition===k?'selected':''}>${LABELS.asset_condition[k]}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>تاريخ الشراء</label>
+            <input type="date" name="purchase_date" class="form-input" value="${existing?.purchase_date||''}">
+          </div>
+          <div class="form-field"><label>سعر الشراء (ر.س)</label>
+            <input type="number" step="0.01" name="purchase_cost" class="form-input" value="${existing?.purchase_cost||''}">
+          </div>
+          <div class="form-field" style="grid-column:1/-1;"><label>الموقع داخل الفرع</label>
+            <input name="location_in_branch" class="form-input" value="${esc(existing?.location_in_branch||'')}" placeholder="مثل: المطبخ الخلفي، الصالة الرئيسية...">
+          </div>
+          <div class="form-field" style="grid-column:1/-1;"><label>ملاحظات</label>
+            <textarea name="notes" rows="2" class="form-input">${esc(existing?.notes||'')}</textarea>
+          </div>
+          <div class="form-field" style="grid-column:1/-1;"><label>صورة (اختيارية)</label>
+            <input type="file" id="assetPhotoFile" accept="image/*" class="form-input">
+            ${existing?.photo_url ? `<div style="margin-top:6px;"><img src="${esc(existing.photo_url)}" style="max-width:120px;border-radius:8px;"></div>` : ''}
+          </div>
+          <div style="grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="assetCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:var(--primary);color:#fff;">${isEdit ? 'حفظ التعديل' : 'إضافة'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  host.querySelector('#assetCancel').addEventListener('click', () => host.remove());
+  host.querySelector('#assetForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = {
+      branch_id: Number(fd.get('branch_id')),
+      category: fd.get('category'),
+      item_name: fd.get('item_name'),
+      brand: fd.get('brand') || null,
+      model: fd.get('model') || null,
+      serial_no: fd.get('serial_no') || null,
+      quantity: Number(fd.get('quantity')) || 1,
+      current_condition: fd.get('current_condition'),
+      purchase_date: fd.get('purchase_date') || null,
+      purchase_cost: fd.get('purchase_cost') ? Number(fd.get('purchase_cost')) : null,
+      location_in_branch: fd.get('location_in_branch') || null,
+      notes: fd.get('notes') || null,
+      updated_at: new Date().toISOString()
+    };
+
+    // رفع الصورة لو موجودة
+    const fileInput = host.querySelector('#assetPhotoFile');
+    const file = fileInput.files[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) { toast('حجم الصورة يجب أن يقل عن 10 ميجا', 'error'); return; }
+      toast('جاري رفع الصورة...', 'success');
+      const ext = file.name.split('.').pop().toLowerCase();
+      const path = `asset-${Date.now()}-${Math.random().toString(36).slice(2,7)}.${ext}`;
+      const { error: upErr } = await sb.storage.from('branch-assets').upload(path, file, { upsert: true });
+      if (upErr) { toast('فشل الرفع: ' + upErr.message, 'error'); return; }
+      payload.photo_url = sb.storage.from('branch-assets').getPublicUrl(path).data.publicUrl;
+    }
+
+    if (isEdit) {
+      const { error } = await sb.from('branch_assets').update(payload).eq('id', existing.id);
+      if (error) { toast(error.message, 'error'); return; }
+      toast('تم التعديل', 'success');
+    } else {
+      payload.created_by = CURRENT_USER.id;
+      const { error } = await sb.from('branch_assets').insert(payload);
+      if (error) { toast(error.message, 'error'); return; }
+      toast('تمت إضافة الأصل', 'success');
+    }
+    host.remove();
+    onSaved && onSaved();
   });
 }
 
