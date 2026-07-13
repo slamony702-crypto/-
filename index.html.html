@@ -1872,6 +1872,43 @@ textarea.form-input { resize: vertical; min-height: 44px; line-height: 1.6; }
 .mt-back-link { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: #6B756F; margin-bottom: 12px; text-decoration: none; }
 .mt-back-link:hover { color: #0F3D2E; }
 
+/* ═══ Stepper مرحلة الصيانة ═══ */
+.maint-stepper {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #FFFDF7; border: 1px solid rgba(214,164,55,0.25);
+  border-radius: 14px; padding: 14px 18px; margin-bottom: 14px;
+  box-shadow: 0 2px 8px rgba(15,61,46,0.05); gap: 4px;
+  overflow-x: auto;
+}
+.ms-step { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; min-width: 72px; }
+.ms-circle {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: #E8E3D6; color: #6B756F;
+  transition: all .2s ease;
+}
+.ms-label { font-size: 11px; color: #6B756F; font-weight: 700; white-space: nowrap; }
+.ms-line { flex: 1; height: 2px; background: #E8E3D6; min-width: 16px; margin-top: 20px; align-self: flex-start; }
+.ms-line-done { background: #1F7A3A; }
+.ms-done .ms-circle { background: #1F7A3A; color: #fff; }
+.ms-done .ms-label { color: #1F7A3A; }
+.ms-active .ms-circle {
+  background: linear-gradient(135deg, #D6A437, #9A6B12); color: #fff;
+  box-shadow: 0 0 0 4px rgba(214,164,55,0.2);
+  animation: msPulse 1.8s ease-in-out infinite;
+}
+.ms-active .ms-label { color: #9A6B12; font-weight: 800; }
+@keyframes msPulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(214,164,55,0.2); }
+  50%      { box-shadow: 0 0 0 8px rgba(214,164,55,0.1); }
+}
+@media (max-width: 768px) {
+  .maint-stepper { padding: 10px 8px; }
+  .ms-step { min-width: 58px; }
+  .ms-circle { width: 28px; height: 28px; }
+  .ms-label { font-size: 10px; }
+}
+
 /* ============ فورم رفع طلب الصيانة (Request Center) ============ */
 .mt-stepper { display: flex; align-items: center; overflow-x: auto; padding: 6px 2px 12px; margin-bottom: 18px; -webkit-overflow-scrolling: touch; }
 .mt-step { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -13614,6 +13651,42 @@ async function pageMaintenanceDetail(body, id) {
 
   const actionsHtml = renderMaintActions(currentStatus, req, { isAdmin, isMgr, isFinance, isBranchMgr, isRequester });
 
+  // ═══ Stepper مرئي: يوضح موقع الطلب الحالي في دورة الصيانة ═══
+  const WORKFLOW_STEPS = [
+    { key: 'new', label: 'رفع الطلب', icon: 'file-plus' },
+    { key: 'awaiting_inspection', label: 'الفحص', icon: 'search' },
+    { key: 'awaiting_quotes', label: 'عروض أسعار', icon: 'file-text' },
+    { key: 'awaiting_finance', label: 'اعتماد المالية', icon: 'banknote' },
+    { key: 'in_progress', label: 'الإصلاح', icon: 'hammer' },
+    { key: 'awaiting_receipt', label: 'الاستلام', icon: 'check-circle-2' },
+    { key: 'closed', label: 'مغلق', icon: 'lock' }
+  ];
+  const stepIdx = (() => {
+    if (currentStatus === 'closed') return WORKFLOW_STEPS.length - 1;
+    if (currentStatus === 'rejected') return -1; // مرفوض
+    if (currentStatus === 'inspection_reported') return 1; // نفس مرحلة الفحص
+    const i = WORKFLOW_STEPS.findIndex(s => s.key === currentStatus);
+    return i >= 0 ? i : 0;
+  })();
+  const stepperHtml = currentStatus === 'rejected' ? `
+    <div style="background:rgba(211,47,47,0.08);border:1px solid rgba(211,47,47,0.25);border-radius:12px;padding:10px 14px;margin-bottom:14px;color:#D32F2F;font-weight:700;font-size:13px;text-align:center;">
+      <span data-lucide="x-circle" style="width:15px;height:15px;vertical-align:-2px;"></span> تم رفض الطلب${req.reject_reason?' — السبب: '+esc(req.reject_reason):''}
+    </div>
+  ` : `
+    <div class="maint-stepper">
+      ${WORKFLOW_STEPS.map((s, i) => {
+        const state = i < stepIdx ? 'done' : (i === stepIdx ? 'active' : 'pending');
+        return `
+          <div class="ms-step ms-${state}" title="${esc(s.label)}">
+            <div class="ms-circle"><span data-lucide="${s.icon}" style="width:14px;height:14px;"></span></div>
+            <div class="ms-label">${esc(s.label)}</div>
+          </div>
+          ${i < WORKFLOW_STEPS.length - 1 ? `<div class="ms-line ${i < stepIdx ? 'ms-line-done' : ''}"></div>` : ''}
+        `;
+      }).join('')}
+    </div>
+  `;
+
   const timelineHtml = (timeline || []).length ? timeline.map(t => {
     const c = MAINT_STATUS_COLOR[t.to_status] || '#666';
     return `
@@ -13629,6 +13702,8 @@ async function pageMaintenanceDetail(body, id) {
 
   body.innerHTML = `
     <a href="#maintenance" style="display:inline-flex;align-items:center;gap:4px;font-size:12.5px;color:var(--text-muted);margin-bottom:10px;"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لقائمة الطلبات</a>
+
+    ${stepperHtml}
 
     <div class="panel">
       <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -13876,7 +13951,15 @@ async function handleMaintAction(action, req) {
     if (last?.[0]?.fix_type === 'external') return advance('awaiting_quotes', 'اعتُمدت الحالة — بانتظار عروض الأسعار');
     return advance('in_progress', 'اعتُمدت الحالة للإصلاح المباشر');
   }
-  if (action === 'send_finance') return advance('awaiting_finance', 'أُرسل الطلب للمالية');
+  if (action === 'send_finance') {
+    // تحقق: يفضّل توفير 3 عروض أسعار للمقارنة قبل الإرسال للمالية
+    const { data: quotes } = await sb.from('maintenance_quotes').select('id').eq('request_id', rid);
+    const n = (quotes || []).length;
+    if (n < 3) {
+      if (!confirm(`لديك ${n} عرض سعر فقط — الموصى به 3 عروض للمقارنة.\n\nهل تريد الإرسال للمالية على أي حال؟`)) return;
+    }
+    return advance('awaiting_finance', 'أُرسل الطلب للمالية');
+  }
 
   if (action === 'reject') {
     const host = document.createElement('div');
