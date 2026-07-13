@@ -11076,13 +11076,22 @@ window.closeGoalNotesDrawer = function() {
   document.getElementById('gDrawer')?.classList.remove('show');
 };
 
-window.deleteGoal = function(goalId) {
-  confirmModal('هل تريد حذف هذا الهدف نهائيًا؟', async () => {
-    const { error } = await sb.from('department_goals').delete().eq('id', goalId);
-    if (error) { toast(error.message, 'error'); return; }
-    toast('تم حذف الهدف', 'success');
-    renderApp();
+window.deleteGoal = async function(goalId) {
+  // نجيب النسخة الكاملة قبل الحذف عشان نقدر نرجّعها
+  const { data: goal } = await sb.from('department_goals').select('*').eq('id', goalId).maybeSingle();
+  if (!goal) return;
+  const backup = { ...goal }; delete backup.id;
+  undoableAction({
+    message: `تم حذف الهدف — تراجع خلال 5 ثوانٍ`,
+    action: () => sb.from('department_goals').delete().eq('id', goalId),
+    undo: async () => {
+      await sb.from('department_goals').insert({ ...backup, id: goalId });
+      renderApp();
+    },
+    timeout: 5000
   });
+  // احذف الصف من الواجهة فورًا
+  setTimeout(() => renderApp(), 200);
 };
 
 function showDeptGoalsReport() {
@@ -14912,11 +14921,17 @@ function renderCafeManage(host, items) {
       ${items.length ? `
         <div class="cafe-manage-grid">
           ${items.map(it => cafeManageCard(it)).join('')}
-        </div>` : '<p class="empty-state">لا توجد منتجات — ابدأ بإضافة أول منتج</p>'}
+        </div>` : premiumEmptyState({
+          icon: 'coffee',
+          title: 'لا توجد منتجات في الكافيه بعد',
+          subtitle: 'ابدأ بإضافة أول منتج ليظهر للموظفين ويقدروا يطلبوه.',
+          actions: [{ label: 'إضافة منتج جديد', icon: 'plus', primary: true, onClick: () => openCafeItemModal(null) }]
+        })}
     </div></div>
   `;
   if (window.lucide) lucide.createIcons();
-  document.getElementById('cafeAddItemBtn').addEventListener('click', () => openCafeItemModal(null));
+  wireEmptyStateActions(host, [{ label: 'إضافة منتج جديد', icon: 'plus', primary: true, onClick: () => openCafeItemModal(null) }]);
+  document.getElementById('cafeAddItemBtn')?.addEventListener('click', () => openCafeItemModal(null));
   host.querySelectorAll('[data-edit-item]').forEach(b => b.addEventListener('click', () => {
     const it = items.find(x => x.id === Number(b.dataset.editItem));
     openCafeItemModal(it);
@@ -14928,11 +14943,26 @@ function renderCafeManage(host, items) {
     toast('تم التحديث', 'success');
     renderApp();
   }));
+  // حذف مع خاصية التراجع (Undo Toast)
   host.querySelectorAll('[data-delete-item]').forEach(b => b.addEventListener('click', async () => {
-    if (!confirm('حذف هذا المنتج نهائيًا؟')) return;
-    await sb.from('cafe_items').delete().eq('id', Number(b.dataset.deleteItem));
-    toast('تم الحذف', 'success');
-    renderApp();
+    const id = Number(b.dataset.deleteItem);
+    const it = items.find(x => x.id === id);
+    if (!it) return;
+    // نحتفظ بنسخة كاملة عشان نقدر نرجّعها
+    const backup = { ...it }; delete backup.id;
+    b.disabled = true;
+    const card = b.closest('.cafe-manage-card');
+    if (card) card.style.opacity = '0.35';
+    undoableAction({
+      message: `تم حذف "${it.name}" — تراجع خلال 5 ثوانٍ`,
+      action: () => sb.from('cafe_items').delete().eq('id', id),
+      undo: async () => {
+        await sb.from('cafe_items').insert({ ...backup, id });
+        renderApp();
+      },
+      timeout: 5000
+    });
+    setTimeout(() => card?.remove(), 400);
   }));
 }
 
