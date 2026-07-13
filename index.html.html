@@ -1869,6 +1869,96 @@ textarea.form-input { resize: vertical; min-height: 44px; line-height: 1.6; }
 .mt-hero-header h2 { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 800; color: #24352E; }
 .mt-hero-header .mt-accent { width: 4px; height: 26px; background: #D6A437; border-radius: 3px; }
 .mt-hero-header p { font-size: 12.5px; color: #6B756F; margin-top: 5px; }
+/* ═══════ صفحة "شغلي اليوم" ═══════ */
+.myday-hero {
+  background: linear-gradient(135deg, #FFFDF7 0%, #FDF8EA 100%);
+  border: 1px solid rgba(214,164,55,0.25);
+  border-radius: 16px; padding: 20px; margin-bottom: 16px;
+  box-shadow: 0 3px 12px rgba(15,61,46,0.06);
+}
+.myday-greeting { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.myday-time-icon {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: linear-gradient(135deg, #D6A437, #F4C542);
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 12px rgba(214,164,55,0.35);
+}
+.myday-quick-stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;
+}
+.myday-stat {
+  background: #fff; border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px 14px;
+  display: flex; align-items: center; gap: 10px;
+  cursor: pointer; transition: transform .15s, box-shadow .15s;
+}
+.myday-stat:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(15,61,46,0.08); }
+.myday-stat.ms-danger { border-color: rgba(211,47,47,0.3); }
+.ms-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ms-num { font-size: 20px; font-weight: 800; color: #0F3D2E; line-height: 1; }
+.ms-lbl { font-size: 11px; color: #6B756F; margin-top: 3px; font-weight: 600; }
+.myday-stat-loading { grid-column: 1/-1; text-align: center; font-size: 12px; color: var(--text-muted); padding: 12px; }
+
+.myday-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
+.myday-loading { grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted); font-size: 13px; }
+.myday-section .panel-header { border-bottom: 1px solid var(--border); }
+.myday-section .panel-body { padding: 12px 14px !important; }
+
+.myday-subheader {
+  font-size: 11.5px; font-weight: 800; color: #24352E;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 8px 0 6px; text-transform: none;
+}
+.myday-subheader.md-danger { color: #D32F2F; }
+.myday-subheader.md-muted { color: #6B756F; }
+
+.myday-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.myday-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 10px;
+  background: #FBFAF6; border: 1px solid transparent;
+  text-decoration: none; color: #24352E;
+  transition: background .15s, border-color .15s, transform .1s;
+  cursor: pointer;
+}
+.myday-item:hover { background: #F4F1E6; border-color: rgba(214,164,55,0.3); }
+.myday-item:active { transform: scale(0.98); }
+.myday-item.md-past { opacity: 0.55; }
+.myday-item.md-overdue { background: rgba(211,47,47,0.05); border-color: rgba(211,47,47,0.2); }
+.md-time {
+  font-size: 12px; font-weight: 800; color: #0F3D2E;
+  background: #fff; padding: 6px 8px; border-radius: 8px;
+  min-width: 56px; text-align: center;
+  border: 1px solid var(--border);
+}
+.md-body { flex: 1; min-width: 0; }
+.md-title { font-size: 13px; font-weight: 700; color: #24352E; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-sub { font-size: 11px; color: #6B756F; margin-top: 2px; }
+.md-priority { width: 4px; height: 32px; border-radius: 2px; flex-shrink: 0; background: #6B756F; }
+.md-pri-high { background: #D32F2F; }
+.md-pri-medium { background: #F2994A; }
+.md-pri-low { background: #1F7A3A; }
+.myday-more { display: block; text-align: center; padding: 8px; font-size: 12px; color: var(--primary); font-weight: 700; text-decoration: none; margin-top: 4px; }
+.myday-more:hover { text-decoration: underline; }
+
+:root[data-theme="dark"] .myday-hero { background: linear-gradient(135deg, #2A2E24 0%, #333828 100%); border-color: rgba(214,164,55,0.25); }
+:root[data-theme="dark"] .myday-stat { background: #2C2F26; border-color: #3A3E31; }
+:root[data-theme="dark"] .myday-item { background: #2C2F26; }
+:root[data-theme="dark"] .myday-item:hover { background: #363A2E; }
+:root[data-theme="dark"] .md-time { background: #363A2E; border-color: #3A3E31; color: #E8E3D6; }
+:root[data-theme="dark"] .myday-hero h2 { color: #E8E3D6; }
+:root[data-theme="dark"] .md-title { color: #E8E3D6; }
+:root[data-theme="dark"] .ms-num { color: #E8E3D6; }
+
+@media (max-width: 640px) {
+  .myday-hero { padding: 14px; }
+  .myday-time-icon { width: 42px; height: 42px; }
+  .myday-hero h2 { font-size: 16px; }
+  .myday-quick-stats { grid-template-columns: repeat(2, 1fr); }
+  .ms-num { font-size: 17px; }
+  .myday-grid { grid-template-columns: 1fr; }
+}
+
 .mt-back-link { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: #6B756F; margin-bottom: 12px; text-decoration: none; }
 .mt-back-link:hover { color: #0F3D2E; }
 
@@ -4012,6 +4102,7 @@ async function logout() {
 // عناصر القائمة الجانبية — منظمة في مجموعات قابلة للطي
 const MENU_GROUPS = [
   { key: '__main', label: 'الأساسيات', icon: 'home', defaultOpen: true, items: [
+    { key: 'myday', label: 'شغلي اليوم', icon: 'sun' },
     { key: 'dashboard', label: 'لوحة التحكم', icon: 'layout-dashboard' },
     { key: 'vision', label: 'رؤية الشركة', icon: 'compass' },
   ]},
@@ -8129,6 +8220,7 @@ async function route() {
   try {
     if (isStaleRoute(myTk)) return;
     if (page === 'dashboard') await pageDashboard(body);
+    else if (page === 'myday') await pageMyDay(body);
     else if (page === 'vision') await pageVision(body, param);
     else if (page === 'meetings') await pageMeetings(body, query);
     else if (page === 'meeting_detail') await pageMeetingDetail(body, param, query);
@@ -8270,6 +8362,7 @@ function wireEmptyStateActions(host, actions) {
 // UX #5: Command Palette — Ctrl+K / Cmd+K للأدمن والباقي
 // ═══════════════════════════════════════════════════════════
 const CMD_PALETTE_ITEMS = [
+  { label: 'شغلي اليوم', icon: 'sun', hash: '#myday', keys: ['myday','اليوم','شغلي','مهامي'] },
   { label: 'لوحة التحكم', icon: 'layout-dashboard', hash: '#dashboard', keys: ['dashboard','لوحة','رئيسية'] },
   { label: 'الاجتماعات', icon: 'calendar', hash: '#meetings', keys: ['اجتماع','meetings'] },
   { label: 'المهام والتكليفات', icon: 'clipboard-list', hash: '#department_tasks', keys: ['مهام','tasks'] },
@@ -11320,6 +11413,208 @@ window.editGoalProgress = function(goalId, currentProgress, currentNotes, curren
     renderApp();
   });
 };
+
+/* ═══════════════════════════════════════════════════════════
+   شغلي اليوم — لوحة شخصية تجمع كل ما يحتاجه المستخدم النهارده
+   ═══════════════════════════════════════════════════════════ */
+async function pageMyDay(body) {
+  const uid = CURRENT_USER.id;
+  const today = new Date();
+  const todayISO = today.toISOString().slice(0, 10);
+  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowISO = tomorrow.toISOString().slice(0, 10);
+  const dayEnd = todayISO + 'T23:59:59';
+  const dayStart = todayISO + 'T00:00:00';
+
+  // تحيّة حسب الوقت
+  const h = today.getHours();
+  const greeting = h < 5 ? 'ليلة هادئة' : h < 12 ? 'صباح الخير' : h < 17 ? 'مساء النور' : h < 20 ? 'مساء الخير' : 'ليلة سعيدة';
+  const firstName = (CURRENT_USER.full_name || '').split(' ')[0] || 'يا صديق';
+
+  body.innerHTML = `
+    <div class="myday-hero">
+      <div class="myday-greeting">
+        <div class="myday-time-icon"><span data-lucide="sun" style="width:26px;height:26px;"></span></div>
+        <div>
+          <h2 style="margin:0;font-size:19px;font-weight:800;color:#0F3D2E;">${esc(greeting)}، ${esc(firstName)}</h2>
+          <p style="margin:4px 0 0;font-size:12.5px;color:#6B756F;">${fmtDateAr(todayISO)} · نظرة سريعة على شغلك النهارده</p>
+        </div>
+      </div>
+      <div class="myday-quick-stats" id="mydayStats"><div class="myday-stat-loading">جاري التحميل...</div></div>
+    </div>
+
+    <div id="mydayGrid" class="myday-grid">
+      <div class="myday-loading"><span data-lucide="loader" style="width:24px;height:24px;"></span> جاري تحميل بياناتك...</div>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  // نجيب البيانات كلها بشكل متوازي
+  const [meetsRes, tasksRes, decsRes, maintRes, notifsRes] = await Promise.all([
+    // اجتماعات اليوم اللي هو مدعو ليها أو منظمها
+    sb.from('meetings').select('id, title, meeting_datetime, meeting_type, status, organizer_id, departments(name), meeting_attendees(user_id)')
+      .gte('meeting_datetime', dayStart).lte('meeting_datetime', dayEnd).order('meeting_datetime'),
+    // مهامي المتأخرة والمستحقة قريبًا
+    sb.from('meeting_tasks').select('id, title, due_date, priority, status, meeting_id, meetings(title)')
+      .eq('assignee_id', uid).in('status', ['pending', 'in_progress']).order('due_date'),
+    // قراراتي المتأخرة أو اللي محتاجة اعتماد
+    sb.from('decisions').select('id, decision_text, due_date, status, priority, responsible_user_id')
+      .eq('responsible_user_id', uid).in('status', ['new', 'in_progress', 'delayed', 'pending_approval']),
+    // طلبات صيانة محتاجة تدخّل مني
+    sb.from('maintenance_requests').select('id, request_no, issue_title, status, severity, owner_id, requester_id')
+      .or(`owner_id.eq.${uid},requester_id.eq.${uid}`)
+      .not('status', 'in', '(closed,rejected)').limit(20),
+    // إشعارات غير مقروءة
+    sb.from('notifications').select('id, title, body, created_at, notif_type, target_url')
+      .eq('user_id', uid).eq('is_read', false).order('created_at', { ascending: false }).limit(5)
+  ]);
+
+  const meets = (meetsRes.data || []).filter(m => (m.organizer_id === uid) || (m.meeting_attendees || []).some(a => a.user_id === uid));
+  const overdueTasks = (tasksRes.data || []).filter(t => t.due_date && t.due_date < todayISO);
+  const todayTasks = (tasksRes.data || []).filter(t => t.due_date === todayISO);
+  const upcomingTasks = (tasksRes.data || []).filter(t => t.due_date > todayISO && t.due_date <= tomorrowISO);
+  const overdueDecs = (decsRes.data || []).filter(d => d.due_date && d.due_date < todayISO);
+  const pendingApproval = (decsRes.data || []).filter(d => d.status === 'pending_approval');
+  const maints = maintRes.data || [];
+  const notifs = notifsRes.data || [];
+
+  // العدّاد فوق
+  const statsEl = document.getElementById('mydayStats');
+  statsEl.innerHTML = `
+    <div class="myday-stat" onclick="document.getElementById('mydaySecMeetings')?.scrollIntoView({behavior:'smooth'})">
+      <div class="ms-icon" style="background:rgba(31,122,58,0.08);color:#1F7A3A;"><span data-lucide="calendar" style="width:18px;height:18px;"></span></div>
+      <div><div class="ms-num">${meets.length}</div><div class="ms-lbl">اجتماع اليوم</div></div>
+    </div>
+    <div class="myday-stat ${overdueTasks.length?'ms-danger':''}" onclick="document.getElementById('mydaySecTasks')?.scrollIntoView({behavior:'smooth'})">
+      <div class="ms-icon" style="background:${overdueTasks.length?'rgba(211,47,47,0.1)':'rgba(214,164,55,0.1)'};color:${overdueTasks.length?'#D32F2F':'#9A6B12'};"><span data-lucide="check-square" style="width:18px;height:18px;"></span></div>
+      <div><div class="ms-num">${overdueTasks.length + todayTasks.length}</div><div class="ms-lbl">${overdueTasks.length?`${overdueTasks.length} متأخرة`:'مهام اليوم'}</div></div>
+    </div>
+    <div class="myday-stat" onclick="document.getElementById('mydaySecDecs')?.scrollIntoView({behavior:'smooth'})">
+      <div class="ms-icon" style="background:rgba(66,133,244,0.08);color:#4285F4;"><span data-lucide="pin" style="width:18px;height:18px;"></span></div>
+      <div><div class="ms-num">${(decsRes.data||[]).length}</div><div class="ms-lbl">قرارات نشطة</div></div>
+    </div>
+    <div class="myday-stat" onclick="document.getElementById('mydaySecMaint')?.scrollIntoView({behavior:'smooth'})">
+      <div class="ms-icon" style="background:rgba(154,107,18,0.1);color:#9A6B12;"><span data-lucide="wrench" style="width:18px;height:18px;"></span></div>
+      <div><div class="ms-num">${maints.length}</div><div class="ms-lbl">طلبات صيانة</div></div>
+    </div>
+  `;
+
+  // الشبكة الرئيسية
+  const gridEl = document.getElementById('mydayGrid');
+  gridEl.innerHTML = `
+    ${myDaySection('mydaySecMeetings', 'calendar', 'اجتماعاتك اليوم', meets.length, meets.length ? `
+      <div class="myday-list">
+        ${meets.map(m => {
+          const t = new Date(m.meeting_datetime);
+          const timeStr = t.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+          const isPast = t < today;
+          return `
+            <a class="myday-item ${isPast?'md-past':''}" href="#meeting_detail/${m.id}">
+              <div class="md-time">${timeStr}</div>
+              <div class="md-body">
+                <div class="md-title">${esc(m.title)}</div>
+                <div class="md-sub">${m.departments?esc(m.departments.name):'-'} · ${label('meeting_type', m.meeting_type)||m.meeting_type}</div>
+              </div>
+              <span data-lucide="chevron-left" style="width:16px;height:16px;color:var(--text-muted);"></span>
+            </a>`;
+        }).join('')}
+      </div>
+    ` : premiumEmptyState({ icon:'coffee', title:'مافيش اجتماعات النهارده', subtitle:'يوم هادي، استغله في التنفيذ.', actions:[] }))}
+
+    ${myDaySection('mydaySecTasks', 'check-square', 'مهامك', overdueTasks.length + todayTasks.length + upcomingTasks.length, (overdueTasks.length + todayTasks.length + upcomingTasks.length) ? `
+      ${overdueTasks.length ? `
+        <div class="myday-subheader md-danger"><span data-lucide="alert-triangle" style="width:14px;height:14px;"></span> متأخرة (${overdueTasks.length})</div>
+        <div class="myday-list">${overdueTasks.map(t => myDayTaskItem(t, 'overdue')).join('')}</div>
+      ` : ''}
+      ${todayTasks.length ? `
+        <div class="myday-subheader"><span data-lucide="clock" style="width:14px;height:14px;"></span> مستحقة اليوم (${todayTasks.length})</div>
+        <div class="myday-list">${todayTasks.map(t => myDayTaskItem(t, 'today')).join('')}</div>
+      ` : ''}
+      ${upcomingTasks.length ? `
+        <div class="myday-subheader md-muted"><span data-lucide="calendar-clock" style="width:14px;height:14px;"></span> غدًا (${upcomingTasks.length})</div>
+        <div class="myday-list">${upcomingTasks.map(t => myDayTaskItem(t, 'upcoming')).join('')}</div>
+      ` : ''}
+    ` : premiumEmptyState({ icon:'check-circle-2', title:'لا مهام مستحقة اليوم أو الغد', subtitle:'شغلك تحت السيطرة. أحسنت!', actions:[] }))}
+
+    ${myDaySection('mydaySecDecs', 'pin', 'قراراتك النشطة', (decsRes.data||[]).length, (decsRes.data||[]).length ? `
+      ${overdueDecs.length ? `<div class="myday-subheader md-danger"><span data-lucide="alert-triangle" style="width:14px;height:14px;"></span> متأخرة (${overdueDecs.length})</div>` : ''}
+      ${pendingApproval.length ? `<div class="myday-subheader"><span data-lucide="user-check" style="width:14px;height:14px;"></span> بانتظار اعتماد (${pendingApproval.length})</div>` : ''}
+      <div class="myday-list">
+        ${(decsRes.data||[]).map(d => {
+          const overdue = d.due_date && d.due_date < todayISO;
+          return `
+            <a class="myday-item ${overdue?'md-overdue':''}" onclick="openDecisionDrawer(${d.id});event.preventDefault();" href="#decisions">
+              <div class="md-priority md-pri-${d.priority||'medium'}"></div>
+              <div class="md-body">
+                <div class="md-title">${esc((d.decision_text||'').slice(0,80))}${(d.decision_text||'').length>80?'…':''}</div>
+                <div class="md-sub">${d.due_date?fmtDateAr(d.due_date):'-'} · ${label('decision_status', d.status)}</div>
+              </div>
+              <span data-lucide="chevron-left" style="width:16px;height:16px;color:var(--text-muted);"></span>
+            </a>`;
+        }).join('')}
+      </div>
+    ` : premiumEmptyState({ icon:'check-circle', title:'لا قرارات نشطة', subtitle:'كل قراراتك منفذة أو مغلقة.', actions:[] }))}
+
+    ${myDaySection('mydaySecMaint', 'wrench', 'الصيانة', maints.length, maints.length ? `
+      <div class="myday-list">
+        ${maints.slice(0,8).map(r => `
+          <a class="myday-item" href="#maintenance_detail/${r.id}">
+            <div class="md-priority md-pri-${r.severity==='critical'?'high':r.severity==='high'?'high':r.severity==='medium'?'medium':'low'}"></div>
+            <div class="md-body">
+              <div class="md-title">${esc(r.request_no||'#'+r.id)} — ${esc(r.issue_title||'-')}</div>
+              <div class="md-sub">${label('maint_status', r.status)} · ${label('maint_severity', r.severity)||''}</div>
+            </div>
+            <span data-lucide="chevron-left" style="width:16px;height:16px;color:var(--text-muted);"></span>
+          </a>`).join('')}
+        ${maints.length > 8 ? `<a href="#maintenance" class="myday-more">عرض كل الطلبات (${maints.length}) →</a>` : ''}
+      </div>
+    ` : premiumEmptyState({ icon:'shield-check', title:'لا طلبات صيانة معلقة', subtitle:'كل حاجة تمام.', actions:[] }))}
+
+    ${notifs.length ? myDaySection('mydaySecNotifs', 'bell', 'إشعارات لم تُقرأ', notifs.length, `
+      <div class="myday-list">
+        ${notifs.map(n => `
+          <a class="myday-item" href="${esc(n.target_url||'#notifications')}">
+            <div class="md-body">
+              <div class="md-title">${esc(n.title||'-')}</div>
+              <div class="md-sub">${esc((n.body||'').slice(0,80))}</div>
+            </div>
+            <span data-lucide="chevron-left" style="width:16px;height:16px;color:var(--text-muted);"></span>
+          </a>`).join('')}
+        <a href="#notifications" class="myday-more">عرض كل الإشعارات →</a>
+      </div>
+    `) : ''}
+  `;
+  if (window.lucide) lucide.createIcons();
+}
+
+function myDaySection(id, icon, title, count, contentHtml) {
+  return `
+    <div class="panel myday-section" id="${id}">
+      <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span data-lucide="${icon}" style="width:17px;height:17px;color:var(--primary);"></span>
+          <h3 class="panel-title" style="margin:0;">${title}</h3>
+        </div>
+        ${count ? `<span style="background:rgba(31,122,58,0.1);color:#1F7A3A;font-size:11.5px;font-weight:800;padding:3px 10px;border-radius:10px;">${count}</span>` : ''}
+      </div>
+      <div class="panel-body">${contentHtml}</div>
+    </div>
+  `;
+}
+
+function myDayTaskItem(t, kind) {
+  const priColor = { high:'#D32F2F', medium:'#F2994A', low:'#1F7A3A' }[t.priority||'medium'];
+  return `
+    <a class="myday-item ${kind==='overdue'?'md-overdue':''}" href="#tasks">
+      <div class="md-priority" style="background:${priColor};"></div>
+      <div class="md-body">
+        <div class="md-title">${esc(t.title||'-')}</div>
+        <div class="md-sub">${t.meetings?esc(t.meetings.title)+' · ':''}${t.due_date?fmtDateAr(t.due_date):'-'}</div>
+      </div>
+      <span data-lucide="chevron-left" style="width:16px;height:16px;color:var(--text-muted);"></span>
+    </a>
+  `;
+}
 
 async function pageDashboard(body) {
   const isAdmin = ['admin','company_manager'].includes(CURRENT_USER.role);
