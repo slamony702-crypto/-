@@ -2731,36 +2731,291 @@ function exportToCsv(rows, filename) {
 
 function printMeetingMinutes(m) {
   const win = window.open('', '_blank');
-  const attendeesHtml = (m.attendees||[]).map(a => `<li>${esc(a.users ? a.users.full_name : '')} — ${label('attendance', a.attendance_status)}</li>`).join('') || '<li>لا يوجد</li>';
-  const agendaHtml = (m.agenda||[]).map(a => `<li>${esc(a.item_text)}</li>`).join('') || '<li>لا يوجد</li>';
-  const decisionsHtml = (m.decisions||[]).map(d => `<li>${esc(d.decision_text)} — المسؤول: ${d.users ? esc(d.users.full_name) : '-'} — الموعد: ${d.due_date || '-'}</li>`).join('') || '<li>لا توجد قرارات</li>';
-  const tasksHtml = (m.tasks||[]).map(t => `<li>${esc(t.title)} — المسؤول: ${t.users ? esc(t.users.full_name) : '-'} — الموعد: ${t.due_date || '-'}</li>`).join('') || '<li>لا توجد مهام</li>';
+  const refNo = `MIN-${m.id}-${new Date().getFullYear()}`;
+  const printedAt = new Date().toLocaleString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const attCounts = (m.attendees || []).reduce((acc, a) => { acc[a.attendance_status] = (acc[a.attendance_status] || 0) + 1; return acc; }, {});
 
-  win.document.write(`
-    <!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>محضر اجتماع - ${esc(m.title)}</title>
+  const attendeesRows = (m.attendees || []).length ? (m.attendees || []).map((a, i) => {
+    const st = a.attendance_status;
+    const stColor = st === 'present' ? '#1F7A3A' : st === 'absent' ? '#D32F2F' : st === 'late' ? '#F2994A' : '#6B756F';
+    const stLbl = label('attendance', st) || '-';
+    return `<tr>
+      <td class="num">${i + 1}</td>
+      <td>${esc(a.users ? a.users.full_name : '-')}</td>
+      <td>${esc(a.users?.role ? label('role', a.users.role) : '-')}</td>
+      <td><span class="pill" style="background:${stColor}18;color:${stColor};">${stLbl}</span></td>
+      <td class="sig"></td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="5" class="empty">لا يوجد حضور مسجّل</td></tr>`;
+
+  const agendaRows = (m.agenda || []).length ? (m.agenda || []).map((a, i) =>
+    `<tr><td class="num">${i + 1}</td><td>${esc(a.item_text)}</td></tr>`
+  ).join('') : `<tr><td colspan="2" class="empty">لا يوجد جدول أعمال</td></tr>`;
+
+  const decisionsRows = (m.decisions || []).length ? (m.decisions || []).map((d, i) =>
+    `<tr>
+      <td class="num">${i + 1}</td>
+      <td>${esc(d.decision_text)}</td>
+      <td>${esc(d.users ? d.users.full_name : '-')}</td>
+      <td class="mono">${d.due_date || '-'}</td>
+      <td><span class="pill pill-${d.priority || 'medium'}">${label('priority', d.priority || 'medium') || '-'}</span></td>
+    </tr>`
+  ).join('') : `<tr><td colspan="5" class="empty">لا توجد قرارات</td></tr>`;
+
+  const tasksRows = (m.tasks || []).length ? (m.tasks || []).map((t, i) =>
+    `<tr>
+      <td class="num">${i + 1}</td>
+      <td>${esc(t.title)}</td>
+      <td>${esc(t.users ? t.users.full_name : '-')}</td>
+      <td class="mono">${t.due_date || (t.due_datetime ? t.due_datetime.slice(0,10) : '-')}</td>
+      <td><span class="pill pill-${t.status || 'pending'}">${label('task_status', t.status) || '-'}</span></td>
+    </tr>`
+  ).join('') : `<tr><td colspan="5" class="empty">لا توجد مهام ناتجة</td></tr>`;
+
+  win.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8">
+    <title>محضر اجتماع — ${esc(m.title)}</title>
     <style>
-      body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; padding: 40px; color: #212121; line-height: 1.8; }
-      h1 { color: #1B5E20; border-bottom: 3px solid #F9A825; padding-bottom: 10px; }
-      h2 { color: #1B5E20; margin-top: 24px; font-size: 16px; }
-      .meta { color: #757575; font-size: 13px; margin-bottom: 20px; }
-      ul { padding-right: 20px; }
-      li { margin-bottom: 6px; }
-      .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #ddd; font-size: 11px; color: #999; text-align: center; }
-      @media print { body { padding: 15px; } }
+      * { box-sizing: border-box; }
+      body { font-family: 'Segoe UI', 'Tajawal', Tahoma, Arial, sans-serif; margin: 0; color: #24352E; line-height: 1.75; background: #fff; }
+      .page { max-width: 820px; margin: 0 auto; padding: 32px 40px; }
+
+      /* Header */
+      .doc-header {
+        display: flex; justify-content: space-between; align-items: center;
+        padding-bottom: 18px; border-bottom: 3px solid #0F3D2E; margin-bottom: 22px;
+      }
+      .brand { display: flex; align-items: center; gap: 14px; }
+      .brand-mark {
+        width: 58px; height: 58px; border-radius: 14px;
+        background: linear-gradient(135deg, #0F3D2E, #1F7A3A);
+        display: flex; align-items: center; justify-content: center;
+        color: #F4C542; font-size: 26px; font-weight: 900;
+        box-shadow: 0 3px 10px rgba(15,61,46,0.2);
+      }
+      .brand-name { font-size: 15px; font-weight: 800; color: #0F3D2E; margin: 0; }
+      .brand-sub { font-size: 11.5px; color: #6B756F; margin-top: 2px; }
+      .doc-ref { text-align: left; font-size: 11.5px; color: #6B756F; }
+      .doc-ref strong { color: #24352E; display: block; font-size: 13px; margin-bottom: 3px; }
+
+      /* Title bar */
+      .doc-title {
+        background: linear-gradient(135deg, #FDF8EA, #FFFFFF);
+        border: 1px solid rgba(214,164,55,0.3);
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
+      }
+      .doc-title h1 { margin: 0; font-size: 20px; color: #0F3D2E; }
+      .doc-title .lead { font-size: 12.5px; color: #6B756F; margin-top: 6px; }
+
+      /* Meta grid */
+      .meta-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin-bottom: 22px;
+      }
+      .meta-cell {
+        background: #F9F7EF; border: 1px solid #E8E3D6;
+        border-radius: 10px; padding: 10px 12px;
+      }
+      .meta-cell .k { font-size: 10.5px; color: #6B756F; font-weight: 700; }
+      .meta-cell .v { font-size: 12.5px; color: #24352E; font-weight: 700; margin-top: 3px; }
+
+      /* Section */
+      section { margin-bottom: 24px; page-break-inside: avoid; }
+      section h2 {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 14px; color: #0F3D2E; margin: 0 0 12px;
+        padding-right: 12px; border-right: 4px solid #D6A437;
+      }
+      section h2 .count {
+        margin-inline-start: auto;
+        background: #0F3D2E; color: #fff; font-size: 11px;
+        padding: 2px 10px; border-radius: 10px; font-weight: 800;
+      }
+
+      /* Summary */
+      .summary-box {
+        background: #F4F1E6; border-radius: 10px; padding: 14px 18px;
+        font-size: 12.5px; color: #24352E; line-height: 1.9;
+      }
+
+      /* Tables */
+      table { width: 100%; border-collapse: collapse; font-size: 12px; }
+      thead th {
+        background: #0F3D2E; color: #fff; text-align: right;
+        padding: 9px 10px; font-weight: 700; font-size: 11.5px;
+      }
+      tbody td {
+        padding: 9px 10px; border-bottom: 1px solid #E8E3D6;
+        vertical-align: top;
+      }
+      tbody tr:nth-child(even) td { background: #FBFAF6; }
+      td.num, td.mono { font-family: 'Courier New', monospace; text-align: center; width: 44px; color: #6B756F; }
+      td.mono { width: auto; text-align: right; }
+      td.empty { text-align: center; color: #B7B0A3; padding: 20px; font-style: italic; }
+      td.sig { width: 90px; border-bottom: 2px solid #0F3D2E !important; height: 34px; }
+
+      .pill {
+        display: inline-block; padding: 2px 10px;
+        border-radius: 20px; font-size: 11px; font-weight: 700;
+      }
+      .pill-high { background: #FFEBEE; color: #C62828; }
+      .pill-medium { background: #FFF8E1; color: #F57F17; }
+      .pill-low { background: #E8F5E9; color: #2E7D32; }
+      .pill-pending { background: #FFF3E0; color: #E65100; }
+      .pill-in_progress { background: #E3F2FD; color: #1565C0; }
+      .pill-completed { background: #E8F5E9; color: #2E7D32; }
+      .pill-cancelled { background: #EEEEEE; color: #616161; }
+
+      /* Attendance mini stats */
+      .att-stats {
+        display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;
+      }
+      .att-stat {
+        padding: 6px 12px; border-radius: 8px; font-size: 11.5px; font-weight: 700;
+      }
+      .att-stat.present { background: #E8F5E9; color: #1F7A3A; }
+      .att-stat.absent { background: #FFEBEE; color: #C62828; }
+      .att-stat.late { background: #FFF3E0; color: #E65100; }
+
+      /* Signatures */
+      .sig-grid {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+        margin-top: 40px; page-break-inside: avoid;
+      }
+      .sig-box {
+        border: 1.5px solid #E8E3D6; border-radius: 10px;
+        padding: 16px; text-align: center;
+      }
+      .sig-box .role { font-size: 11.5px; color: #6B756F; font-weight: 700; margin-bottom: 40px; }
+      .sig-box .line { border-top: 2px solid #24352E; padding-top: 8px; font-size: 12px; color: #24352E; font-weight: 700; }
+
+      /* Footer */
+      .doc-footer {
+        margin-top: 30px; padding-top: 14px;
+        border-top: 1px solid #E8E3D6;
+        display: flex; justify-content: space-between;
+        font-size: 10.5px; color: #6B756F;
+      }
+      .doc-footer .stamp {
+        color: #B7B0A3; font-style: italic;
+      }
+
+      @media print {
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .page { padding: 20px 24px; max-width: 100%; }
+        .no-print { display: none !important; }
+        section { page-break-inside: avoid; }
+        thead { display: table-header-group; }
+      }
+      .toolbar {
+        position: fixed; top: 12px; left: 12px; z-index: 100;
+        display: flex; gap: 8px;
+      }
+      .toolbar button {
+        padding: 8px 14px; border-radius: 8px; border: none; cursor: pointer;
+        font-size: 12.5px; font-weight: 700;
+        background: #0F3D2E; color: #fff;
+      }
+      .toolbar button.sec { background: #6B756F; }
     </style></head><body>
-      <h1>محضر اجتماع: ${esc(m.title)}</h1>
-      <p class="meta">النوع: ${label('meeting_type', m.meeting_type)} | القسم: ${m.departments ? esc(m.departments.name) : '-'} | المنظم: ${m.users ? esc(m.users.full_name) : '-'}<br>
-      الموعد: ${fmtDate(m.meeting_datetime)} | المكان: ${label('location_type', m.location_type)} ${m.location_detail ? '- ' + esc(m.location_detail) : ''} | الحالة: ${label('meeting_status', m.status)}</p>
-      ${m.summary ? `<h2>ملخص الاجتماع</h2><p>${esc(m.summary)}</p>` : ''}
-      <h2>جدول الأعمال</h2><ul>${agendaHtml}</ul>
-      <h2>الحضور والغياب</h2><ul>${attendeesHtml}</ul>
-      <h2>القرارات</h2><ul>${decisionsHtml}</ul>
-      <h2>المهام الناتجة</h2><ul>${tasksHtml}</ul>
-      <div class="footer">شركة شؤون الغذاء لتطوير وإدارة المطاعم — تم إصدار هذا المحضر تلقائيًا بتاريخ ${new Date().toLocaleDateString('ar-EG')}</div>
-    </body></html>
-  `);
+      <div class="toolbar no-print">
+        <button onclick="window.print()">🖨️ طباعة / حفظ PDF</button>
+        <button class="sec" onclick="window.close()">✕ إغلاق</button>
+      </div>
+
+      <div class="page">
+        <div class="doc-header">
+          <div class="brand">
+            <div class="brand-mark">ش</div>
+            <div>
+              <div class="brand-name">شركة شؤون الغذاء لتطوير وإدارة المطاعم</div>
+              <div class="brand-sub">Food Affairs Company — Meeting Minutes</div>
+            </div>
+          </div>
+          <div class="doc-ref">
+            <strong>${refNo}</strong>
+            صادر بتاريخ: ${printedAt}
+          </div>
+        </div>
+
+        <div class="doc-title">
+          <h1>محضر اجتماع: ${esc(m.title)}</h1>
+          <div class="lead">${label('meeting_type', m.meeting_type) || 'اجتماع'} · ${m.departments ? esc(m.departments.name) : 'عام'}</div>
+        </div>
+
+        <div class="meta-grid">
+          <div class="meta-cell"><div class="k">التاريخ والوقت</div><div class="v">${fmtDate(m.meeting_datetime)}</div></div>
+          <div class="meta-cell"><div class="k">المكان</div><div class="v">${label('location_type', m.location_type) || '-'}${m.location_detail ? ' — ' + esc(m.location_detail) : ''}</div></div>
+          <div class="meta-cell"><div class="k">المنظّم</div><div class="v">${m.users ? esc(m.users.full_name) : '-'}</div></div>
+          <div class="meta-cell"><div class="k">الحالة</div><div class="v">${label('meeting_status', m.status) || '-'}</div></div>
+        </div>
+
+        ${m.summary ? `
+          <section>
+            <h2><span>📝</span> ملخص الاجتماع</h2>
+            <div class="summary-box">${esc(m.summary).replace(/\n/g, '<br>')}</div>
+          </section>
+        ` : ''}
+
+        <section>
+          <h2><span>📋</span> جدول الأعمال <span class="count">${(m.agenda || []).length}</span></h2>
+          <table>
+            <thead><tr><th class="num">#</th><th>البند</th></tr></thead>
+            <tbody>${agendaRows}</tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2><span>👥</span> الحضور والغياب <span class="count">${(m.attendees || []).length}</span></h2>
+          <div class="att-stats">
+            ${attCounts.present ? `<div class="att-stat present">حاضر: ${attCounts.present}</div>` : ''}
+            ${attCounts.absent ? `<div class="att-stat absent">غائب: ${attCounts.absent}</div>` : ''}
+            ${attCounts.late ? `<div class="att-stat late">متأخر: ${attCounts.late}</div>` : ''}
+          </div>
+          <table>
+            <thead><tr><th class="num">#</th><th>الاسم</th><th>الدور</th><th>الحالة</th><th>التوقيع</th></tr></thead>
+            <tbody>${attendeesRows}</tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2><span>✅</span> القرارات <span class="count">${(m.decisions || []).length}</span></h2>
+          <table>
+            <thead><tr><th class="num">#</th><th>القرار</th><th>المسؤول</th><th>موعد التنفيذ</th><th>الأولوية</th></tr></thead>
+            <tbody>${decisionsRows}</tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2><span>📌</span> المهام الناتجة <span class="count">${(m.tasks || []).length}</span></h2>
+          <table>
+            <thead><tr><th class="num">#</th><th>المهمة</th><th>المكلَّف</th><th>الاستحقاق</th><th>الحالة</th></tr></thead>
+            <tbody>${tasksRows}</tbody>
+          </table>
+        </section>
+
+        <div class="sig-grid">
+          <div class="sig-box">
+            <div class="role">أمين السر</div>
+            <div class="line">التوقيع</div>
+          </div>
+          <div class="sig-box">
+            <div class="role">رئيس الاجتماع</div>
+            <div class="line">التوقيع</div>
+          </div>
+        </div>
+
+        <div class="doc-footer">
+          <div>شركة شؤون الغذاء لتطوير وإدارة المطاعم</div>
+          <div class="stamp">تم إصدار هذا المحضر تلقائيًا من نظام إدارة الاجتماعات</div>
+        </div>
+      </div>
+    </body></html>`);
   win.document.close();
-  setTimeout(() => win.print(), 400);
+  setTimeout(() => win.print(), 500);
 }
 
 // ============ تفعيل الضغط على أيقونات البحث (تركيز الحقل المجاور) ============
@@ -4761,6 +5016,9 @@ function wireMeetingCreateForm(departments, allUsersForMeeting) {
     document.getElementById('createPanel').classList.add('hidden');
   });
 
+  // حفظ تلقائي للمسودة
+  enableAutoSave('createPanel', 'newMeeting');
+
   function avatarInitials(name) { return (name||'').trim().split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join(''); }
 
   // ---------- نوع الانعقاد (Segmented Control) ----------
@@ -5162,6 +5420,8 @@ function wireMeetingCreateForm(departments, allUsersForMeeting) {
         }
       }
       toast(sendInvites ? 'تم جدولة الاجتماع وإرسال الدعوات بنجاح' : 'تم حفظ الاجتماع (بدون إرسال الدعوات الآن)', 'success');
+      // مسح المسودة المحفوظة تلقائيًا
+      window._autoSaveClear_newMeeting && window._autoSaveClear_newMeeting();
       location.hash = '#meetings';
       renderApp();
     } catch (err) {
@@ -5228,6 +5488,7 @@ async function pageMeetingDetail(body, meetingId, urlQuery) {
           </div>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="meeting-action-btn mab-secondary" onclick="copyItemLink('#meeting_detail/${m.id}','رابط الاجتماع')"><span data-lucide="link" style="width:15px;height:15px;"></span> نسخ رابط الاجتماع</button>
           <button class="meeting-action-btn mab-secondary" id="printMinutesBtn"><span data-lucide="printer" style="width:15px;height:15px;"></span> طباعة محضر الاجتماع</button>
         </div>
       </div>
@@ -7684,7 +7945,10 @@ window.openDecisionDrawer = async function(id, editMode = false) {
   drawer.innerHTML = `
     <div class="drawer-header">
       <h3>تفاصيل القرار</h3>
-      <button class="btn btn-sm btn-outline" onclick="closeDecisionDrawer()"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-sm btn-outline" title="نسخ رابط القرار" onclick="copyItemLink('#decisions?open=${d.id}','رابط القرار')"><span data-lucide="link" style="width:14px;height:14px;"></span></button>
+        <button class="btn btn-sm btn-outline" onclick="closeDecisionDrawer()"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
     </div>
     <div class="drawer-body">
       <p style="font-size:15px; font-weight:600; margin-bottom:14px;">${esc(d.decision_text)}</p>
@@ -8347,6 +8611,124 @@ function updateBackButtonVisibility(page) {
 // - action(): يشتغل فورًا (اللي بيحذف مثلاً)
 // - undo(): يشتغل لو الشخص ضغط "تراجع"
 // - timeout: مللي ثانية قبل التأكيد النهائي (default 5000)
+/* ═══ حفظ تلقائي للمسودات في localStorage ═══
+   الاستخدام: enableAutoSave('containerId', 'draftKey')
+   يحفظ كل نصف ثانية، ويعرض مؤشر صغير أعلى الحاوية.
+   يستعيد المسودة عند فتح الصفحة، مع تنبيه بزر "تجاهل". */
+function enableAutoSave(containerId, storageKey, opts = {}) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const key = 'as_' + storageKey + '_' + (CURRENT_USER?.id || 'anon');
+
+  // مؤشر الحفظ التلقائي
+  let indicator = container.querySelector('.autosave-indicator');
+  if (!indicator) {
+    indicator = document.createElement('div');
+    indicator.className = 'autosave-indicator';
+    indicator.style.cssText = 'position:sticky;top:0;z-index:20;background:rgba(31,122,58,0.08);color:#1F7A3A;border-radius:8px;padding:6px 12px;font-size:11.5px;font-weight:700;display:none;align-items:center;gap:6px;margin-bottom:10px;';
+    container.insertBefore(indicator, container.firstChild);
+  }
+  const flash = (msg, color = '#1F7A3A') => {
+    indicator.style.display = 'inline-flex';
+    indicator.style.color = color;
+    indicator.style.background = color === '#1F7A3A' ? 'rgba(31,122,58,0.08)' : 'rgba(214,164,55,0.15)';
+    indicator.innerHTML = msg;
+    clearTimeout(indicator._t);
+    indicator._t = setTimeout(() => { indicator.style.display = 'none'; }, 2500);
+  };
+
+  // استرجاع المسودة السابقة
+  try {
+    const saved = JSON.parse(localStorage.getItem(key) || 'null');
+    if (saved && saved.data && Object.keys(saved.data).length) {
+      const savedAt = new Date(saved.at).toLocaleString('ar-SA', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+      indicator.style.display = 'inline-flex';
+      indicator.style.color = '#9A6B12';
+      indicator.style.background = 'rgba(214,164,55,0.15)';
+      indicator.innerHTML = `📋 لديك مسودة محفوظة من (${savedAt}) — <button style="background:#0F3D2E;color:#fff;border:none;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:11px;margin:0 4px;" onclick="event.preventDefault();window._autoSaveRestore_${storageKey}()">استعادة</button> <button style="background:transparent;color:#9A6B12;border:1px solid rgba(214,164,55,0.5);border-radius:6px;padding:3px 10px;cursor:pointer;font-size:11px;" onclick="event.preventDefault();window._autoSaveDiscard_${storageKey}()">تجاهل</button>`;
+      window[`_autoSaveRestore_${storageKey}`] = () => {
+        Object.entries(saved.data).forEach(([selector, value]) => {
+          const el = container.querySelector('[name="' + selector + '"]') || container.querySelector('#' + selector);
+          if (el) {
+            if (el.type === 'checkbox' || el.type === 'radio') el.checked = !!value;
+            else el.value = value;
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        });
+        flash('✓ تم استعادة المسودة');
+      };
+      window[`_autoSaveDiscard_${storageKey}`] = () => {
+        localStorage.removeItem(key);
+        indicator.style.display = 'none';
+        flash('تم تجاهل المسودة', '#6B756F');
+      };
+    }
+  } catch (e) { /* ignore */ }
+
+  // حفظ debounced
+  let saveTimer;
+  const doSave = () => {
+    const data = {};
+    container.querySelectorAll('input, textarea, select').forEach(el => {
+      const nameOrId = el.name || el.id;
+      if (!nameOrId || el.type === 'file' || el.type === 'password') return;
+      if (el.type === 'checkbox' || el.type === 'radio') data[nameOrId] = el.checked;
+      else if (el.value !== '' && el.value != null) data[nameOrId] = el.value;
+    });
+    if (Object.keys(data).length) {
+      localStorage.setItem(key, JSON.stringify({ at: new Date().toISOString(), data }));
+      flash('💾 محفوظ تلقائيًا');
+    }
+  };
+  container.addEventListener('input', () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(doSave, 500);
+  });
+  container.addEventListener('change', () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(doSave, 500);
+  });
+
+  // للتنظيف يدويًا بعد إرسال الفورم
+  window[`_autoSaveClear_${storageKey}`] = () => localStorage.removeItem(key);
+}
+window.enableAutoSave = enableAutoSave;
+
+/* ═══ نسخ رابط مباشر لعنصر (اجتماع/قرار/طلب صيانة) ═══
+   الاستخدام: onclick="copyItemLink('#meeting_detail/123')"
+   ينسخ الرابط الكامل + يعرض Toast + يقترح النص للـ share اللي جاي */
+async function copyItemLink(hashOrPath, label = 'الرابط') {
+  const base = window.location.origin + window.location.pathname;
+  const url = base + (hashOrPath.startsWith('#') ? hashOrPath : '#' + hashOrPath);
+  try {
+    // ننسخ للـ clipboard
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      // fallback للمتصفحات القديمة
+      const ta = document.createElement('textarea');
+      ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    toast(`تم نسخ ${label} — الصقه في واتساب أو أي مكان`, 'success');
+    // Web Share API لو متاح (على الموبايل)
+    if (navigator.share) {
+      // ننتظر ربع ثانية عشان يشوف الـ toast الأول
+      setTimeout(() => {
+        if (confirm('تريد مشاركة الرابط مباشرة؟')) {
+          navigator.share({ title: label, url: url }).catch(() => {});
+        }
+      }, 200);
+    }
+  } catch (e) {
+    toast('فشل نسخ الرابط — انسخه يدويًا: ' + url, 'warning');
+  }
+}
+window.copyItemLink = copyItemLink;
+
 async function undoableAction({ message, action, undo, undoLabel = 'تراجع', timeout = 5000 }) {
   try { await action(); } catch (e) { toast('فشلت العملية: ' + (e.message||''), 'error'); return; }
   const stack = document.getElementById('toastStack') || (() => {
@@ -14221,6 +14603,7 @@ async function pageMaintenanceDetail(body, id) {
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
           ${maintStatusBadge(req.status)} ${maintSevBadge(req.severity)}
+          <button class="btn btn-outline" title="نسخ رابط الطلب" onclick="copyItemLink('#maintenance_detail/${req.id}','رابط طلب الصيانة')" style="font-size:12px;padding:6px 10px;"><span data-lucide="link" style="width:13px;height:13px;"></span></button>
           ${req.is_draft && req.requester_id===CURRENT_USER.id ? `<a href="#maintenance_new/${req.id}" class="btn" style="background:var(--primary);color:#fff;font-size:12px;padding:6px 14px;"><span data-lucide="edit-3" style="width:13px;height:13px;"></span> متابعة التعديل</a>` : ''}
         </div>
       </div>
