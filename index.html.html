@@ -852,6 +852,94 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
 }
 .employee-row:hover .chat-action-btn { opacity: 1; }
 @media (max-width: 768px) { .employee-row .chat-action-btn { opacity: 1; padding: 6px 10px; } }
+/* ============ ركن الكافيه — Café Corner ============ */
+.cafe-page { }
+.cafe-menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.cafe-manage-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.cafe-product-card {
+  background: #FFFDF7; border: 1px solid rgba(15,61,46,0.08); border-radius: 14px;
+  overflow: hidden; box-shadow: 0 2px 8px rgba(15,61,46,0.06);
+  transition: transform .15s ease, box-shadow .18s ease;
+  display: flex; flex-direction: column;
+}
+.cafe-product-card:hover { transform: translateY(-3px); box-shadow: 0 8px 22px rgba(15,61,46,0.12); }
+.cafe-product-card.is-out { opacity: 0.65; }
+.cpc-image { position: relative; height: 140px; background: linear-gradient(135deg, #F1EEE2, #FFFDF7); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.cpc-image img { width: 100%; height: 100%; object-fit: cover; }
+.cpc-noimg { display: flex; align-items: center; justify-content: center; }
+.cpc-badge {
+  position: absolute; top: 8px; left: 8px; padding: 3px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; backdrop-filter: blur(4px);
+}
+.cpc-badge-green { background: rgba(31,122,58,0.9); color: #fff; }
+.cpc-badge-red { background: rgba(211,47,47,0.9); color: #fff; }
+.cpc-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 5px; flex: 1; }
+.cpc-cat { font-size: 10.5px; color: #9A6B12; font-weight: 700; text-transform: uppercase; }
+.cpc-name { font-size: 14px; font-weight: 800; color: #24352E; }
+.cpc-desc { font-size: 11.5px; color: #6B756F; line-height: 1.5; }
+.cpc-price { font-size: 15px; font-weight: 800; color: #0F3D2E; margin-top: 4px; }
+.cpc-qty-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; justify-content: center; }
+.cpc-qty-btn {
+  width: 28px; height: 28px; border-radius: 7px; border: 1.5px solid #D6A437;
+  background: #FFFDF7; color: #9A6B12; font-size: 16px; font-weight: 800;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.cpc-qty-btn:hover:not(:disabled) { background: rgba(214,164,55,0.15); }
+.cpc-qty-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.cpc-qty-val { min-width: 24px; text-align: center; font-weight: 800; font-family: 'Tajawal', sans-serif; font-size: 15px; color: #24352E; }
+.cpc-notes {
+  width: 100%; box-sizing: border-box; padding: 6px 10px; border-radius: 8px;
+  border: 1px solid #E8E3D6; font-size: 11.5px; background: #FFFDF7;
+  font-family: 'Tajawal', sans-serif; outline: none;
+}
+.cpc-notes:focus { border-color: #D6A437; }
+.cpc-add-btn {
+  margin-top: 6px; padding: 8px; border: none; border-radius: 9px;
+  background: linear-gradient(90deg, #1F7A3A, #0F3D2E); color: #fff;
+  font-weight: 700; font-size: 12.5px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+}
+.cpc-add-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.cpc-add-btn:disabled { background: #B3B8B5; cursor: not-allowed; }
+
+.cafe-cart-panel .cafe-cart-row {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  background: #FFFDF7; border-radius: 8px; border: 1px solid #E8E3D6;
+}
+
+.cafe-manage-card {
+  background: #FFFDF7; border: 1px solid rgba(15,61,46,0.08); border-radius: 14px;
+  overflow: hidden; box-shadow: 0 2px 6px rgba(15,61,46,0.05);
+}
+.cmc-image { position: relative; height: 110px; background: linear-gradient(135deg, #F1EEE2, #FFFDF7); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.cmc-image img { width: 100%; height: 100%; object-fit: cover; }
+.cmc-cat { position: absolute; top: 6px; right: 6px; background: rgba(15,61,46,0.75); color: #fff; padding: 2px 8px; border-radius: 8px; font-size: 10px; font-weight: 700; }
+.cmc-body { padding: 10px 12px; }
+
+.cafe-order-card {
+  background: #FFFDF7; border: 1px solid rgba(15,61,46,0.08); border-radius: 12px;
+  padding: 12px; box-shadow: 0 2px 6px rgba(15,61,46,0.05);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.coc-head { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+.coc-num { font-weight: 800; font-family: 'Tajawal', sans-serif; color: #0F3D2E; font-size: 14px; }
+.coc-user { font-size: 11.5px; color: #6B756F; margin-top: 2px; }
+.coc-items { display: flex; flex-direction: column; gap: 3px; margin: 6px 0; }
+.coc-item { font-size: 12.5px; color: #24352E; }
+.coc-foot { display: flex; justify-content: space-between; align-items: center; padding-top: 6px; border-top: 1px dashed #E8E3D6; }
+
+.cafe-status-badge {
+  padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .cafe-menu-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+  .cpc-image { height: 110px; }
+  .cpc-name { font-size: 13px; }
+  .cafe-manage-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .cmc-image { height: 90px; }
+}
+
 /* ============ كروت الأقسام المضغوطة — التواصل الداخلي ============ */
 .dept-compact-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
 .dept-compact-card {
@@ -3722,6 +3810,7 @@ const MENU_GROUPS = [
   { key: '__ops', label: 'العمليات والجودة', icon: 'wrench', defaultOpen: false, items: [
     { key: 'maintenance', label: 'الصيانة', icon: 'wrench' },
     { key: 'quality', label: 'الجودة', icon: 'shield-check' },
+    { key: 'cafe', label: 'ركن الكافيه', icon: 'coffee' },
   ]},
   { key: '__comm', label: 'التواصل', icon: 'message-circle', defaultOpen: false, items: [
     { key: 'conversations', label: 'تواصل داخلي', icon: 'message-circle' },
@@ -3735,7 +3824,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم اللي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات' };
+const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -7723,6 +7812,7 @@ async function route() {
     else if (page === 'conversations') await pageConversations(body, query);
     else if (page === 'dept_chat') await pageDeptChat(body, param);
     else if (page === 'custom_chat') await pageCustomChat(body, param);
+    else if (page === 'cafe') await pageCafe(body, query);
     else if (page === 'emergency') await pageEmergency(body);
     else if (page === 'maintenance') await pageMaintenance(body, query);
     else if (page === 'maintenance_new') await pageMaintenanceNew(body, param);
@@ -13914,6 +14004,731 @@ async function pageMaintenanceSuppliers(body) {
       openSupplierModal(s);
     });
   });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ╔═══════════════════════════════════════════════════════════════╗
+// ║                   ركن الكافيه — Café Corner                   ║
+// ╚═══════════════════════════════════════════════════════════════╝
+// ═══════════════════════════════════════════════════════════════
+
+const CAFE_CATEGORIES = {
+  hot_drinks: 'مشروبات ساخنة',
+  cold_drinks: 'مشروبات باردة',
+  snacks: 'سناكس',
+  meals: 'وجبات خفيفة',
+  sweets: 'حلويات',
+  other: 'أخرى'
+};
+const CAFE_STATUS = {
+  new: { label: 'جديد', color: '#2F80C9', bg: 'rgba(47,128,201,0.12)' },
+  preparing: { label: 'جاري التحضير', color: '#D6A437', bg: 'rgba(214,164,55,0.15)' },
+  ready: { label: 'جاهز للاستلام', color: '#1F7A3A', bg: 'rgba(31,122,58,0.12)' },
+  delivered: { label: 'تم التسليم', color: '#0F3D2E', bg: 'rgba(15,61,46,0.12)' },
+  cancelled: { label: 'ملغي', color: '#D32F2F', bg: 'rgba(211,47,47,0.10)' }
+};
+const CAFE_DELIVERY_OPTIONS = ['المكتب', 'الاستقبال', 'قاعة الاجتماعات', 'استلام من الكافيه', 'أخرى'];
+
+// حالة عربة الطلب المؤقتة (في الذاكرة)
+const CafeCartState = { items: {}, notes: '', location: 'المكتب' };
+
+function isCafeStaff() {
+  const r = CURRENT_USER?.role;
+  return r === 'cafe_staff' || r === 'admin' || r === 'company_manager';
+}
+
+async function pageCafe(body, urlQuery) {
+  const activeTab = (urlQuery && urlQuery.tab) || 'menu';
+  const staff = isCafeStaff();
+
+  // جلب البيانات لكل التبويبات مرة واحدة
+  const [{ data: items }, { data: myOrders }, { data: todayOrders }] = await Promise.all([
+    sb.from('cafe_items').select('*').eq('is_draft', false).order('created_at', { ascending: false }),
+    sb.from('cafe_orders').select('*, cafe_order_items(*), users:requested_by(full_name), departments(name)').eq('requested_by', CURRENT_USER.id).order('created_at', { ascending: false }).limit(50),
+    staff ? sb.from('cafe_orders').select('*, cafe_order_items(*), users:requested_by(full_name), departments(name)').gte('created_at', new Date(new Date().setHours(0,0,0,0)).toISOString()).order('created_at', { ascending: false }) : Promise.resolve({ data: [] })
+  ]);
+
+  // إحصائيات
+  const availItems = (items||[]).filter(i => i.is_available && i.available_quantity > 0).length;
+  const newCnt = (todayOrders||[]).filter(o => o.status === 'new').length;
+  const prepCnt = (todayOrders||[]).filter(o => o.status === 'preparing').length;
+  const readyCnt = (todayOrders||[]).filter(o => o.status === 'ready').length;
+  const delivCnt = (todayOrders||[]).filter(o => o.status === 'delivered').length;
+  // الأكثر طلبًا اليوم
+  const itemCounts = {};
+  (todayOrders||[]).forEach(o => (o.cafe_order_items||[]).forEach(it => {
+    itemCounts[it.item_name || '-'] = (itemCounts[it.item_name || '-'] || 0) + (it.quantity || 0);
+  }));
+  const topName = Object.entries(itemCounts).sort((a,b)=>b[1]-a[1])[0]?.[0] || '-';
+
+  body.innerHTML = `
+    <div class="cafe-page">
+      <div class="task-page-header">
+        <div>
+          <h2><span class="tph-accent"></span><span data-lucide="coffee" style="width:22px;height:22px;color:#0F3D2E;"></span> ركن الكافيه</h2>
+          <p>اطلب من ركن الكافيه وتابع حالة طلبك بسهولة.</p>
+        </div>
+      </div>
+
+      <div class="kpi-grid" id="cafeKpis">
+        <div class="kpi-card clickable-stat-card" onclick="location.hash='#cafe?tab=menu'"><div class="kpi-icon c-gold"><span data-lucide="coffee" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${availItems}</div><div class="kpi-label">المنتجات المتاحة</div></div>
+        ${staff ? `
+          <div class="kpi-card clickable-stat-card" onclick="location.hash='#cafe?tab=orders&status=new'"><div class="kpi-icon c-blue"><span data-lucide="bell" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${newCnt}</div><div class="kpi-label">طلبات جديدة</div>${newCnt>0?'<span class="stat-badge">تحتاج متابعة</span>':''}</div>
+          <div class="kpi-card clickable-stat-card" onclick="location.hash='#cafe?tab=orders&status=preparing'"><div class="kpi-icon c-gold"><span data-lucide="timer" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${prepCnt}</div><div class="kpi-label">جاري التحضير</div></div>
+          <div class="kpi-card clickable-stat-card" onclick="location.hash='#cafe?tab=orders&status=ready'"><div class="kpi-icon c-green"><span data-lucide="package-check" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${readyCnt}</div><div class="kpi-label">جاهز للاستلام</div></div>
+          <div class="kpi-card clickable-stat-card" onclick="location.hash='#cafe?tab=orders&status=delivered'"><div class="kpi-icon c-green"><span data-lucide="check-circle-2" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${delivCnt}</div><div class="kpi-label">تم التسليم اليوم</div></div>
+          <div class="kpi-card"><div class="kpi-icon c-gold"><span data-lucide="trending-up" style="width:19px;height:19px;"></span></div><div class="kpi-value" style="font-size:14px;">${esc(topName)}</div><div class="kpi-label">الأكثر طلبًا</div></div>
+        ` : ''}
+      </div>
+
+      <div class="pill-tabs" style="margin-bottom:14px;">
+        <button class="pill-tab ${activeTab==='menu'?'active':''}" onclick="location.hash='#cafe?tab=menu'"><span data-lucide="coffee" style="width:13px;height:13px;"></span> قائمة الكافيه</button>
+        <button class="pill-tab ${activeTab==='my_orders'?'active':''}" onclick="location.hash='#cafe?tab=my_orders'"><span data-lucide="clipboard-list" style="width:13px;height:13px;"></span> طلباتي</button>
+        ${staff ? `
+          <button class="pill-tab ${activeTab==='manage'?'active':''}" onclick="location.hash='#cafe?tab=manage'"><span data-lucide="package" style="width:13px;height:13px;"></span> إدارة المنتجات</button>
+          <button class="pill-tab ${activeTab==='orders'?'active':''}" onclick="location.hash='#cafe?tab=orders'"><span data-lucide="clipboard-check" style="width:13px;height:13px;"></span> طلبات اليوم</button>
+          <button class="pill-tab ${activeTab==='reports'?'active':''}" onclick="location.hash='#cafe?tab=reports'"><span data-lucide="bar-chart-3" style="width:13px;height:13px;"></span> تقارير الكافيه</button>
+        ` : ''}
+      </div>
+
+      <div id="cafeTabContent"></div>
+    </div>
+  `;
+
+  if (window.lucide) lucide.createIcons();
+  renderCafeTab(activeTab, items||[], myOrders||[], todayOrders||[], urlQuery);
+}
+
+function renderCafeTab(tab, items, myOrders, todayOrders, urlQuery) {
+  const host = document.getElementById('cafeTabContent');
+  if (tab === 'menu') return renderCafeMenu(host, items);
+  if (tab === 'my_orders') return renderCafeMyOrders(host, myOrders);
+  if (tab === 'manage') return renderCafeManage(host, items);
+  if (tab === 'orders') return renderCafeOrders(host, todayOrders, urlQuery);
+  if (tab === 'reports') return renderCafeReports(host, todayOrders, items);
+}
+
+// ─── قائمة الكافيه (لكل الموظفين) ───
+function renderCafeMenu(host, items) {
+  const available = items.filter(i => i.is_available);
+  host.innerHTML = `
+    <div class="dash-two-col" style="display:grid;grid-template-columns:1fr 320px;gap:14px;">
+      <div>
+        <div class="panel"><div class="panel-header"><h3><span data-lucide="coffee" style="width:15px;height:15px;vertical-align:-2px;margin-left:5px;"></span>قائمة الكافيه اليوم</h3></div>
+        <div class="panel-body">
+          ${available.length ? `
+            <div class="cafe-menu-grid">
+              ${available.map(it => cafeItemCard(it)).join('')}
+            </div>` : '<p class="empty-state">لا توجد منتجات متاحة حاليًا</p>'}
+        </div></div>
+      </div>
+      <div id="cafeCartWrap">${renderCafeCartHtml(items)}</div>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  wireCafeMenuActions(items);
+}
+
+function cafeItemCard(it) {
+  const qty = CafeCartState.items[it.id]?.quantity || 0;
+  const outOfStock = it.available_quantity <= 0;
+  return `
+    <div class="cafe-product-card ${outOfStock?'is-out':''}" data-item-id="${it.id}">
+      <div class="cpc-image">
+        ${it.image_url ? `<img src="${esc(it.image_url)}" alt="${esc(it.name)}">` : `<div class="cpc-noimg"><span data-lucide="coffee" style="width:32px;height:32px;color:#D6A437;"></span></div>`}
+        ${outOfStock ? '<span class="cpc-badge cpc-badge-red">غير متاح</span>' : `<span class="cpc-badge cpc-badge-green">${it.available_quantity} متاح</span>`}
+      </div>
+      <div class="cpc-body">
+        <div class="cpc-cat">${esc(CAFE_CATEGORIES[it.category] || it.category)}</div>
+        <div class="cpc-name">${esc(it.name)}</div>
+        ${it.description ? `<div class="cpc-desc">${esc(it.description)}</div>` : ''}
+        <div class="cpc-price">${Number(it.price).toLocaleString('ar-EG')} ر.س</div>
+        <div class="cpc-qty-row">
+          <button type="button" class="cpc-qty-btn" data-qty-minus="${it.id}" ${outOfStock?'disabled':''}>−</button>
+          <span class="cpc-qty-val" id="cpcQty${it.id}">${qty}</span>
+          <button type="button" class="cpc-qty-btn" data-qty-plus="${it.id}" ${outOfStock?'disabled':''}>+</button>
+        </div>
+        <input type="text" class="cpc-notes" placeholder="ملاحظات: بدون سكر / ساخن جدًا..." data-notes-for="${it.id}" value="${esc(CafeCartState.items[it.id]?.notes || '')}">
+        <button type="button" class="cpc-add-btn" data-add-item="${it.id}" ${outOfStock?'disabled':''}>
+          <span data-lucide="shopping-bag" style="width:13px;height:13px;"></span> إضافة للطلب
+        </button>
+      </div>
+    </div>`;
+}
+
+function renderCafeCartHtml(items) {
+  const entries = Object.entries(CafeCartState.items);
+  const total = entries.reduce((s, [id, v]) => {
+    const it = items.find(x => x.id === Number(id));
+    return s + (it ? Number(it.price) * v.quantity : 0);
+  }, 0);
+  return `
+    <div class="panel cafe-cart-panel" style="position:sticky;top:12px;">
+      <div class="panel-header"><h3><span data-lucide="shopping-cart" style="width:15px;height:15px;vertical-align:-2px;margin-left:5px;"></span>ملخص الطلب</h3></div>
+      <div class="panel-body">
+        ${entries.length ? `
+          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
+            ${entries.map(([id, v]) => {
+              const it = items.find(x => x.id === Number(id));
+              if (!it) return '';
+              return `
+                <div class="cafe-cart-row">
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-weight:700;font-size:13px;">${esc(it.name)}</div>
+                    <div style="font-size:11px;color:var(--text-muted);">${v.quantity} × ${Number(it.price).toLocaleString('ar-EG')} ر.س${v.notes?` · ${esc(v.notes)}`:''}</div>
+                  </div>
+                  <div style="font-weight:700;color:#0F3D2E;">${(Number(it.price)*v.quantity).toLocaleString('ar-EG')}</div>
+                  <button type="button" data-remove-cart="${id}" style="background:none;border:none;color:#D32F2F;cursor:pointer;padding:0 4px;font-size:16px;line-height:1;">×</button>
+                </div>`;
+            }).join('')}
+          </div>
+          <div class="form-field" style="margin-bottom:8px;"><label>مكان التسليم</label>
+            <select id="cafeDeliverySelect" class="form-select">
+              ${CAFE_DELIVERY_OPTIONS.map(o => `<option ${CafeCartState.location===o?'selected':''}>${o}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field" style="margin-bottom:12px;"><label>ملاحظات على الطلب</label>
+            <textarea id="cafeOrderNotes" class="form-input" rows="2" placeholder="ملاحظات إضافية">${esc(CafeCartState.notes || '')}</textarea>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-weight:800;font-size:15px;color:#0F3D2E;background:rgba(214,164,55,0.1);padding:10px 12px;border-radius:10px;margin-bottom:12px;">
+            <span>الإجمالي</span><span>${total.toLocaleString('ar-EG')} ر.س</span>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button type="button" id="cafeClearCart" class="btn btn-outline" style="flex:1;">تفريغ الطلب</button>
+            <button type="button" id="cafeSendOrder" class="btn" style="flex:2;background:linear-gradient(90deg,#1F7A3A,#0F3D2E);color:#fff;"><span data-lucide="send" style="width:13px;height:13px;"></span> إرسال الطلب</button>
+          </div>
+        ` : `
+          <div style="text-align:center;padding:24px 12px;color:var(--text-muted);">
+            <span data-lucide="shopping-cart" style="width:34px;height:34px;color:#E8E3D6;"></span>
+            <p style="margin-top:8px;font-size:12.5px;">اختر منتجات من القائمة لتظهر هنا</p>
+          </div>
+        `}
+      </div>
+    </div>`;
+}
+
+function wireCafeMenuActions(items) {
+  const refresh = () => {
+    document.getElementById('cafeCartWrap').innerHTML = renderCafeCartHtml(items);
+    if (window.lucide) lucide.createIcons();
+    wireCafeCartActions(items);
+  };
+  document.querySelectorAll('[data-qty-plus]').forEach(b => b.addEventListener('click', () => {
+    const id = Number(b.dataset.qtyPlus);
+    const it = items.find(x => x.id === id);
+    const cur = CafeCartState.items[id]?.quantity || 0;
+    if (cur >= it.available_quantity) return;
+    CafeCartState.items[id] = { quantity: cur+1, notes: CafeCartState.items[id]?.notes || '' };
+    document.getElementById('cpcQty'+id).textContent = cur+1;
+    refresh();
+  }));
+  document.querySelectorAll('[data-qty-minus]').forEach(b => b.addEventListener('click', () => {
+    const id = Number(b.dataset.qtyMinus);
+    const cur = CafeCartState.items[id]?.quantity || 0;
+    if (cur <= 0) return;
+    const next = cur - 1;
+    if (next === 0) delete CafeCartState.items[id];
+    else CafeCartState.items[id] = { quantity: next, notes: CafeCartState.items[id]?.notes || '' };
+    document.getElementById('cpcQty'+id).textContent = next;
+    refresh();
+  }));
+  document.querySelectorAll('[data-notes-for]').forEach(inp => inp.addEventListener('input', (e) => {
+    const id = Number(inp.dataset.notesFor);
+    const cur = CafeCartState.items[id];
+    if (cur) cur.notes = e.target.value;
+  }));
+  document.querySelectorAll('[data-add-item]').forEach(b => b.addEventListener('click', () => {
+    const id = Number(b.dataset.addItem);
+    const cur = CafeCartState.items[id]?.quantity || 0;
+    const it = items.find(x => x.id === id);
+    if (cur >= it.available_quantity) { toast('وصلت للحد الأقصى للمتاح', 'error'); return; }
+    const notesInp = document.querySelector(`[data-notes-for="${id}"]`);
+    CafeCartState.items[id] = { quantity: cur+1, notes: notesInp?.value || '' };
+    document.getElementById('cpcQty'+id).textContent = cur+1;
+    refresh();
+    toast('أُضيف للطلب', 'success');
+  }));
+  wireCafeCartActions(items);
+}
+
+function wireCafeCartActions(items) {
+  document.querySelectorAll('[data-remove-cart]').forEach(b => b.addEventListener('click', () => {
+    const id = Number(b.dataset.removeCart);
+    delete CafeCartState.items[id];
+    const q = document.getElementById('cpcQty'+id); if (q) q.textContent = '0';
+    document.getElementById('cafeCartWrap').innerHTML = renderCafeCartHtml(items);
+    if (window.lucide) lucide.createIcons();
+    wireCafeCartActions(items);
+  }));
+  document.getElementById('cafeDeliverySelect')?.addEventListener('change', (e) => CafeCartState.location = e.target.value);
+  document.getElementById('cafeOrderNotes')?.addEventListener('input', (e) => CafeCartState.notes = e.target.value);
+  document.getElementById('cafeClearCart')?.addEventListener('click', () => {
+    CafeCartState.items = {}; CafeCartState.notes = ''; renderApp();
+  });
+  document.getElementById('cafeSendOrder')?.addEventListener('click', () => sendCafeOrder(items));
+}
+
+async function sendCafeOrder(items) {
+  const entries = Object.entries(CafeCartState.items);
+  if (!entries.length) { toast('السلة فارغة', 'error'); return; }
+  try {
+    // توليد رقم الطلب
+    const { data: numData } = await sb.rpc('generate_cafe_order_number');
+    const orderNumber = numData || ('CF-' + new Date().getFullYear() + '-' + String(Date.now()).slice(-4));
+    let total = 0;
+    const orderItems = entries.map(([id, v]) => {
+      const it = items.find(x => x.id === Number(id));
+      if (!it) return null;
+      total += Number(it.price) * v.quantity;
+      return { item_id: it.id, item_name: it.name, quantity: v.quantity, unit_price: Number(it.price), notes: v.notes || null };
+    }).filter(Boolean);
+
+    const { data: newOrder, error } = await sb.from('cafe_orders').insert({
+      order_number: orderNumber,
+      requested_by: CURRENT_USER.id,
+      department_id: CURRENT_USER.department_id || null,
+      status: 'new', notes: CafeCartState.notes || null,
+      delivery_location: CafeCartState.location, total_amount: total
+    }).select().single();
+    if (error) throw error;
+
+    await sb.from('cafe_order_items').insert(orderItems.map(oi => ({ ...oi, order_id: newOrder.id })));
+    await sb.from('cafe_order_status_log').insert({ order_id: newOrder.id, status: 'new', changed_by: CURRENT_USER.id, notes: 'تم إنشاء الطلب' });
+
+    // إشعار لموظف الكافيه/الأدمن
+    const { data: staff } = await sb.from('users').select('id').in('role', ['cafe_staff','admin','company_manager']).eq('is_active', true);
+    if (staff && staff.length) {
+      await sb.from('notifications').insert(staff.map(u => ({
+        user_id: u.id, title: 'طلب جديد من ركن الكافيه',
+        body: `${orderNumber} من ${CURRENT_USER.full_name} — ${entries.length} صنف`,
+        link: '#cafe?tab=orders'
+      }))).catch(()=>{});
+    }
+
+    CafeCartState.items = {}; CafeCartState.notes = '';
+    toast('تم إرسال طلبك إلى ركن الكافيه بنجاح', 'success');
+    location.hash = '#cafe?tab=my_orders';
+  } catch (err) {
+    toast('تعذّر إرسال الطلب: ' + (err.message || ''), 'error');
+  }
+}
+
+// ─── طلباتي ───
+function renderCafeMyOrders(host, myOrders) {
+  host.innerHTML = `
+    <div class="panel"><div class="panel-header"><h3><span data-lucide="clipboard-list" style="width:15px;height:15px;vertical-align:-2px;margin-left:5px;"></span>طلباتي من ركن الكافيه</h3></div>
+    <div class="panel-body">
+      ${myOrders.length ? `
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;">
+          ${myOrders.map(o => cafeOrderCard(o, false)).join('')}
+        </div>` : `
+        <div class="task-empty-state">
+          <div class="tes-icon"><span data-lucide="coffee" style="width:38px;height:38px;"></span></div>
+          <div class="tes-title">لا توجد طلبات حتى الآن</div>
+          <div class="tes-sub">يمكنك طلب ما تحتاجه من قائمة الكافيه.</div>
+        </div>`}
+    </div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  host.querySelectorAll('[data-order-details]').forEach(b => b.addEventListener('click', () => openCafeOrderDetails(Number(b.dataset.orderDetails))));
+}
+
+function cafeOrderCard(o, isStaff) {
+  const st = CAFE_STATUS[o.status] || CAFE_STATUS.new;
+  const items = o.cafe_order_items || [];
+  return `
+    <div class="cafe-order-card">
+      <div class="coc-head">
+        <div>
+          <div class="coc-num">${esc(o.order_number || '#'+o.id)}</div>
+          ${isStaff ? `<div class="coc-user">${esc(o.users?.full_name || '-')} · ${esc(o.departments?.name || '-')}</div>` : ''}
+        </div>
+        <span class="cafe-status-badge" style="background:${st.bg};color:${st.color};">${st.label}</span>
+      </div>
+      <div class="coc-items">
+        ${items.slice(0,3).map(it => `<div class="coc-item">${it.quantity}× ${esc(it.item_name)}</div>`).join('')}
+        ${items.length > 3 ? `<div style="font-size:11px;color:var(--text-muted);">... و${items.length-3} أخرى</div>` : ''}
+      </div>
+      <div class="coc-foot">
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);">${fmtDate(o.created_at)}</div>
+          <div style="font-weight:800;color:#0F3D2E;">${Number(o.total_amount).toLocaleString('ar-EG')} ر.س</div>
+        </div>
+        <button class="btn btn-outline btn-sm" data-order-details="${o.id}">التفاصيل</button>
+      </div>
+    </div>`;
+}
+
+// ─── تفاصيل الطلب ───
+async function openCafeOrderDetails(orderId) {
+  const { data: o } = await sb.from('cafe_orders').select('*, cafe_order_items(*), users:requested_by(full_name), departments(name)').eq('id', orderId).maybeSingle();
+  if (!o) { toast('الطلب غير موجود', 'error'); return; }
+  const { data: log } = await sb.from('cafe_order_status_log').select('*, users:changed_by(full_name)').eq('order_id', orderId).order('created_at', { ascending: true });
+  const st = CAFE_STATUS[o.status] || CAFE_STATUS.new;
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:560px;max-width:96%;">
+      <div class="panel-header">
+        <h3 class="panel-title">تفاصيل الطلب ${esc(o.order_number || '#'+o.id)}</h3>
+        <button class="modal-close-x" id="codClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body" style="display:grid;gap:12px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">
+          <div><div style="font-size:11px;color:var(--text-muted);">الموظف</div><div style="font-weight:700;font-size:13px;">${esc(o.users?.full_name || '-')}</div></div>
+          <div><div style="font-size:11px;color:var(--text-muted);">القسم</div><div style="font-weight:700;font-size:13px;">${esc(o.departments?.name || '-')}</div></div>
+          <div><div style="font-size:11px;color:var(--text-muted);">مكان التسليم</div><div style="font-weight:700;font-size:13px;">${esc(o.delivery_location || '-')}</div></div>
+          <div><div style="font-size:11px;color:var(--text-muted);">الحالة</div><span class="cafe-status-badge" style="background:${st.bg};color:${st.color};">${st.label}</span></div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">المنتجات</div>
+          <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+            ${(o.cafe_order_items||[]).map(it => `
+              <div style="display:flex;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--border);font-size:12.5px;">
+                <div>${it.quantity}× ${esc(it.item_name)}${it.notes?` <span style="color:var(--text-muted);">(${esc(it.notes)})</span>`:''}</div>
+                <div style="font-weight:700;">${(Number(it.unit_price)*it.quantity).toLocaleString('ar-EG')} ر.س</div>
+              </div>`).join('')}
+            <div style="display:flex;justify-content:space-between;padding:10px;background:rgba(214,164,55,0.1);font-weight:800;">
+              <span>الإجمالي</span><span>${Number(o.total_amount).toLocaleString('ar-EG')} ر.س</span>
+            </div>
+          </div>
+        </div>
+        ${o.notes ? `<div><div style="font-size:11px;color:var(--text-muted);">ملاحظات</div><div style="font-size:12.5px;background:var(--bg);padding:8px 10px;border-radius:8px;">${esc(o.notes)}</div></div>` : ''}
+        <div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">سجل الحالة</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            ${(log||[]).map(l => `
+              <div style="display:flex;gap:8px;padding:6px 8px;background:var(--bg);border-radius:8px;font-size:12px;">
+                <span style="font-weight:700;">${CAFE_STATUS[l.status]?.label || l.status}</span>
+                <span style="color:var(--text-muted);">— ${esc(l.users?.full_name || 'النظام')} · ${fmtDate(l.created_at)}</span>
+              </div>`).join('') || '<span style="color:var(--text-muted);font-size:12px;">لا يوجد سجل</span>'}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  host.querySelector('#codClose').addEventListener('click', () => host.remove());
+  host.addEventListener('click', (e) => { if (e.target === host) host.remove(); });
+}
+
+// ─── إدارة المنتجات (لموظف الكافيه) ───
+function renderCafeManage(host, items) {
+  host.innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+      <button class="btn" id="cafeAddItemBtn" style="background:linear-gradient(90deg,#1F7A3A,#0F3D2E);color:#fff;"><span data-lucide="plus" style="width:14px;height:14px;"></span> إضافة منتج جديد</button>
+    </div>
+    <div class="panel"><div class="panel-header"><h3><span data-lucide="package" style="width:15px;height:15px;vertical-align:-2px;margin-left:5px;"></span>إدارة منتجات الكافيه (${items.length})</h3></div>
+    <div class="panel-body">
+      ${items.length ? `
+        <div class="cafe-manage-grid">
+          ${items.map(it => cafeManageCard(it)).join('')}
+        </div>` : '<p class="empty-state">لا توجد منتجات — ابدأ بإضافة أول منتج</p>'}
+    </div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  document.getElementById('cafeAddItemBtn').addEventListener('click', () => openCafeItemModal(null));
+  host.querySelectorAll('[data-edit-item]').forEach(b => b.addEventListener('click', () => {
+    const it = items.find(x => x.id === Number(b.dataset.editItem));
+    openCafeItemModal(it);
+  }));
+  host.querySelectorAll('[data-toggle-item]').forEach(b => b.addEventListener('click', async () => {
+    const id = Number(b.dataset.toggleItem);
+    const it = items.find(x => x.id === id);
+    await sb.from('cafe_items').update({ is_available: !it.is_available, updated_at: new Date().toISOString() }).eq('id', id);
+    toast('تم التحديث', 'success');
+    renderApp();
+  }));
+  host.querySelectorAll('[data-delete-item]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('حذف هذا المنتج نهائيًا؟')) return;
+    await sb.from('cafe_items').delete().eq('id', Number(b.dataset.deleteItem));
+    toast('تم الحذف', 'success');
+    renderApp();
+  }));
+}
+
+function cafeManageCard(it) {
+  const isAdmin = CURRENT_USER.role === 'admin' || CURRENT_USER.role === 'company_manager';
+  return `
+    <div class="cafe-manage-card">
+      <div class="cmc-image">
+        ${it.image_url ? `<img src="${esc(it.image_url)}" alt="${esc(it.name)}">` : `<div class="cpc-noimg"><span data-lucide="coffee" style="width:26px;height:26px;color:#D6A437;"></span></div>`}
+        <span class="cmc-cat">${esc(CAFE_CATEGORIES[it.category] || '-')}</span>
+      </div>
+      <div class="cmc-body">
+        <div style="display:flex;justify-content:space-between;align-items:start;gap:6px;">
+          <div style="font-weight:700;font-size:13.5px;">${esc(it.name)}</div>
+          <span class="cafe-status-badge" style="background:${it.is_available?'rgba(31,122,58,0.12)':'rgba(107,117,111,0.12)'};color:${it.is_available?'#1F7A3A':'#6B756F'};">${it.is_available?'متاح':'غير متاح'}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:12px;">
+          <span>${Number(it.price).toLocaleString('ar-EG')} ر.س</span>
+          <span style="color:var(--text-muted);">الكمية: <b>${it.available_quantity}</b></span>
+        </div>
+        <div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap;">
+          <button class="chat-action-btn" data-edit-item="${it.id}"><span data-lucide="edit-3" style="width:11px;height:11px;"></span> تعديل</button>
+          <button class="chat-action-btn" data-toggle-item="${it.id}" style="background:${it.is_available?'rgba(214,164,55,0.15)':'rgba(31,122,58,0.15)'};color:${it.is_available?'#9A6B12':'#1F7A3A'};">
+            <span data-lucide="${it.is_available?'eye-off':'eye'}" style="width:11px;height:11px;"></span> ${it.is_available?'إخفاء':'تفعيل'}
+          </button>
+          ${isAdmin ? `<button class="chat-action-btn" data-delete-item="${it.id}" style="background:rgba(211,47,47,0.1);color:#D32F2F;"><span data-lucide="trash-2" style="width:11px;height:11px;"></span></button>` : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+async function openCafeItemModal(existing) {
+  const isEdit = !!existing;
+  let imageUrl = existing?.image_url || '';
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:560px;max-width:96%;">
+      <div class="panel-header">
+        <h3 class="panel-title">${isEdit ? 'تعديل منتج' : 'إضافة منتج جديد'}</h3>
+        <button class="modal-close-x" id="ciClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="ciError"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-field" style="grid-column:1/-1;">
+            <label>صورة المنتج</label>
+            <div class="mt-upload" id="ciUpload">
+              <input type="file" id="ciImage" accept="image/*">
+              <span data-lucide="upload-cloud" class="u-ic" style="width:28px;height:28px;"></span>
+              <div class="u-t">اسحب صورة المنتج هنا أو اضغط لاختيار صورة</div>
+              <div class="u-s" id="ciImageStatus">${imageUrl ? 'صورة موجودة' : 'JPG / PNG'}</div>
+            </div>
+            <div id="ciPreview" style="margin-top:8px;${imageUrl?'':'display:none;'}">
+              <img src="${esc(imageUrl)}" id="ciPreviewImg" style="max-width:120px;max-height:120px;border-radius:10px;border:1px solid var(--border);">
+              <button type="button" id="ciRemoveImg" class="btn btn-outline btn-sm" style="margin-right:8px;color:#D32F2F;">إزالة الصورة</button>
+            </div>
+          </div>
+          <div class="form-field"><label>اسم المنتج *</label><input type="text" id="ciName" class="form-input" value="${esc(existing?.name||'')}" required></div>
+          <div class="form-field"><label>التصنيف</label>
+            <select id="ciCategory" class="form-select">
+              ${Object.entries(CAFE_CATEGORIES).map(([k,v]) => `<option value="${k}" ${existing?.category===k?'selected':''}>${v}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>السعر (ر.س)</label><input type="number" step="0.01" id="ciPrice" class="form-input" value="${existing?.price||0}"></div>
+          <div class="form-field"><label>الكمية المتاحة</label><input type="number" id="ciQty" class="form-input" value="${existing?.available_quantity||0}"></div>
+          <div class="form-field" style="grid-column:1/-1;"><label>وصف مختصر</label><textarea id="ciDesc" class="form-input" rows="2">${esc(existing?.description||'')}</textarea></div>
+          <div class="form-field" style="grid-column:1/-1;"><label>ملاحظات داخلية</label><textarea id="ciInternal" class="form-input" rows="2">${esc(existing?.internal_notes||'')}</textarea></div>
+          <label style="display:flex;gap:8px;align-items:center;font-size:13px;grid-column:1/-1;">
+            <input type="checkbox" id="ciAvail" ${existing?.is_available!==false?'checked':''}> متاح للطلب
+          </label>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
+          <button type="button" class="btn btn-outline" id="ciCancel">إلغاء</button>
+          <button type="button" class="btn btn-outline" id="ciDraft">حفظ كمسودة</button>
+          <button type="button" class="btn" id="ciSave" style="background:linear-gradient(90deg,#1F7A3A,#0F3D2E);color:#fff;">${isEdit ? 'تحديث المنتج' : 'إضافة المنتج'}</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  host.querySelector('#ciClose').addEventListener('click', () => host.remove());
+  host.querySelector('#ciCancel').addEventListener('click', () => host.remove());
+  host.querySelector('#ciRemoveImg')?.addEventListener('click', () => {
+    imageUrl = '';
+    document.getElementById('ciPreview').style.display = 'none';
+    document.getElementById('ciImageStatus').textContent = 'JPG / PNG';
+  });
+
+  // رفع الصورة
+  host.querySelector('#ciImage').addEventListener('change', async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    document.getElementById('ciImageStatus').textContent = 'جاري الرفع...';
+    try {
+      const ext = file.name.split('.').pop();
+      const filePath = `cafe/${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`;
+      const { error: upErr } = await sb.storage.from('maintenance').upload(filePath, file, { contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: urlData } = sb.storage.from('maintenance').getPublicUrl(filePath);
+      imageUrl = urlData.publicUrl;
+      document.getElementById('ciPreviewImg').src = imageUrl;
+      document.getElementById('ciPreview').style.display = '';
+      document.getElementById('ciImageStatus').textContent = 'تم الرفع ✓';
+    } catch (err) {
+      document.getElementById('ciImageStatus').textContent = 'تعذّر الرفع';
+      toast('تعذّر رفع الصورة: ' + err.message, 'error');
+    }
+  });
+
+  async function save(isDraft) {
+    const errBox = document.getElementById('ciError');
+    errBox.classList.remove('show');
+    const name = document.getElementById('ciName').value.trim();
+    if (!name) { showRequiredFieldsAlert([{ id: 'ciName', label: 'اسم المنتج', message: 'اكتب اسم المنتج.' }]); return; }
+    const payload = {
+      name, category: document.getElementById('ciCategory').value,
+      description: document.getElementById('ciDesc').value || null,
+      price: Number(document.getElementById('ciPrice').value) || 0,
+      available_quantity: Number(document.getElementById('ciQty').value) || 0,
+      is_available: document.getElementById('ciAvail').checked,
+      image_url: imageUrl || null,
+      internal_notes: document.getElementById('ciInternal').value || null,
+      is_draft: !!isDraft,
+      updated_at: new Date().toISOString()
+    };
+    try {
+      if (isEdit) {
+        await sb.from('cafe_items').update(payload).eq('id', existing.id);
+      } else {
+        payload.created_by = CURRENT_USER.id;
+        await sb.from('cafe_items').insert(payload);
+      }
+      host.remove();
+      toast(isEdit ? 'تم تحديث المنتج' : (isDraft ? 'تم الحفظ كمسودة' : 'تمت إضافة المنتج'), 'success');
+      renderApp();
+    } catch (err) {
+      errBox.textContent = err.message || 'تعذّر الحفظ';
+      errBox.classList.add('show');
+    }
+  }
+  host.querySelector('#ciSave').addEventListener('click', () => save(false));
+  host.querySelector('#ciDraft').addEventListener('click', () => save(true));
+}
+
+// ─── طلبات اليوم (لموظف الكافيه) ───
+function renderCafeOrders(host, todayOrders, urlQuery) {
+  const filter = urlQuery?.status || '';
+  const filtered = filter ? todayOrders.filter(o => o.status === filter) : todayOrders;
+  host.innerHTML = `
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+      <button class="pill-tab ${!filter?'active':''}" onclick="location.hash='#cafe?tab=orders'">الكل (${todayOrders.length})</button>
+      ${Object.entries(CAFE_STATUS).map(([k,v]) => `
+        <button class="pill-tab ${filter===k?'active':''}" onclick="location.hash='#cafe?tab=orders&status=${k}'">${v.label} (${todayOrders.filter(o=>o.status===k).length})</button>
+      `).join('')}
+    </div>
+    <div class="panel"><div class="panel-body">
+      ${filtered.length ? `
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;">
+          ${filtered.map(o => cafeOrderCardStaff(o)).join('')}
+        </div>` : '<p class="empty-state">لا توجد طلبات</p>'}
+    </div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  host.querySelectorAll('[data-order-details]').forEach(b => b.addEventListener('click', () => openCafeOrderDetails(Number(b.dataset.orderDetails))));
+  host.querySelectorAll('[data-order-status]').forEach(b => b.addEventListener('click', async () => {
+    await updateCafeOrderStatus(Number(b.dataset.orderStatus), b.dataset.nextStatus);
+  }));
+}
+
+function cafeOrderCardStaff(o) {
+  const st = CAFE_STATUS[o.status] || CAFE_STATUS.new;
+  const nextActions = {
+    new: [{ status: 'preparing', label: 'بدء التحضير', color: '#D6A437' }, { status: 'cancelled', label: 'إلغاء', color: '#D32F2F' }],
+    preparing: [{ status: 'ready', label: 'جاهز للاستلام', color: '#1F7A3A' }, { status: 'cancelled', label: 'إلغاء', color: '#D32F2F' }],
+    ready: [{ status: 'delivered', label: 'تم التسليم', color: '#0F3D2E' }],
+    delivered: [], cancelled: []
+  };
+  const actions = nextActions[o.status] || [];
+  return `
+    <div class="cafe-order-card">
+      <div class="coc-head">
+        <div>
+          <div class="coc-num">${esc(o.order_number || '#'+o.id)}</div>
+          <div class="coc-user">${esc(o.users?.full_name || '-')} · ${esc(o.departments?.name || '-')}</div>
+        </div>
+        <span class="cafe-status-badge" style="background:${st.bg};color:${st.color};">${st.label}</span>
+      </div>
+      <div class="coc-items">
+        ${(o.cafe_order_items||[]).slice(0,4).map(it => `<div class="coc-item">${it.quantity}× ${esc(it.item_name)}${it.notes?` <span style="color:var(--text-muted);font-size:10.5px;">(${esc(it.notes)})</span>`:''}</div>`).join('')}
+      </div>
+      ${o.delivery_location ? `<div style="font-size:11px;color:var(--text-muted);margin:6px 0;"><span data-lucide="map-pin" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;"></span> ${esc(o.delivery_location)}</div>` : ''}
+      <div class="coc-foot">
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);">${fmtDate(o.created_at)}</div>
+          <div style="font-weight:800;color:#0F3D2E;">${Number(o.total_amount).toLocaleString('ar-EG')} ر.س</div>
+        </div>
+        <button class="btn btn-outline btn-sm" data-order-details="${o.id}">تفاصيل</button>
+      </div>
+      ${actions.length ? `
+        <div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap;">
+          ${actions.map(a => `<button class="btn btn-sm" data-order-status="${o.id}" data-next-status="${a.status}" style="flex:1;background:${a.color};color:#fff;font-size:11.5px;padding:6px;">${a.label}</button>`).join('')}
+        </div>
+      ` : ''}
+    </div>`;
+}
+
+async function updateCafeOrderStatus(orderId, newStatus) {
+  const { data: o } = await sb.from('cafe_orders').select('*').eq('id', orderId).maybeSingle();
+  if (!o) return;
+  await sb.from('cafe_orders').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', orderId);
+  await sb.from('cafe_order_status_log').insert({ order_id: orderId, status: newStatus, changed_by: CURRENT_USER.id });
+  // إشعار لصاحب الطلب
+  const notifBodyMap = {
+    preparing: 'طلبك قيد التحضير', ready: 'طلبك جاهز للاستلام',
+    delivered: 'تم تسليم طلبك', cancelled: 'تم إلغاء طلبك'
+  };
+  if (o.requested_by && notifBodyMap[newStatus]) {
+    await sb.from('notifications').insert({
+      user_id: o.requested_by, title: 'تحديث حالة طلب الكافيه',
+      body: `${o.order_number || '#'+o.id} — ${notifBodyMap[newStatus]}`,
+      link: '#cafe?tab=my_orders'
+    }).catch(()=>{});
+  }
+  toast('تم تحديث حالة الطلب', 'success');
+  renderApp();
+}
+
+// ─── تقارير الكافيه ───
+function renderCafeReports(host, todayOrders, items) {
+  const today = todayOrders.length;
+  const totalSales = todayOrders.filter(o => o.status === 'delivered').reduce((s,o) => s + Number(o.total_amount||0), 0);
+  const cancelled = todayOrders.filter(o => o.status === 'cancelled').length;
+
+  // متوسط وقت التحضير
+  const deliveredOrders = todayOrders.filter(o => o.status === 'delivered');
+  const avgPrep = deliveredOrders.length ? Math.round(deliveredOrders.reduce((s,o) => {
+    const start = new Date(o.created_at).getTime();
+    const end = new Date(o.updated_at).getTime();
+    return s + (end - start) / 60000;
+  }, 0) / deliveredOrders.length) : 0;
+
+  // أكثر المنتجات
+  const itemStats = {};
+  todayOrders.forEach(o => (o.cafe_order_items||[]).forEach(it => {
+    if (!itemStats[it.item_name]) itemStats[it.item_name] = { count: 0, qty: 0, sales: 0 };
+    itemStats[it.item_name].count++;
+    itemStats[it.item_name].qty += it.quantity || 0;
+    itemStats[it.item_name].sales += Number(it.unit_price) * it.quantity;
+  }));
+  const topItems = Object.entries(itemStats).sort((a,b)=>b[1].qty-a[1].qty).slice(0,10);
+
+  // حسب القسم
+  const deptStats = {};
+  todayOrders.forEach(o => {
+    const dn = o.departments?.name || '-';
+    if (!deptStats[dn]) deptStats[dn] = { count: 0, qty: 0, sales: 0 };
+    deptStats[dn].count++;
+    (o.cafe_order_items||[]).forEach(it => {
+      deptStats[dn].qty += it.quantity || 0;
+      deptStats[dn].sales += Number(it.unit_price) * it.quantity;
+    });
+  });
+  const topDepts = Object.entries(deptStats).sort((a,b)=>b[1].count-a[1].count);
+
+  host.innerHTML = `
+    <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:14px;">
+      <div class="kpi-card"><div class="kpi-icon c-blue"><span data-lucide="clipboard-list" style="width:18px;height:18px;"></span></div><div class="kpi-value mono-num">${today}</div><div class="kpi-label">طلبات اليوم</div></div>
+      <div class="kpi-card"><div class="kpi-icon c-green"><span data-lucide="banknote" style="width:18px;height:18px;"></span></div><div class="kpi-value mono-num">${totalSales.toLocaleString('ar-EG')}</div><div class="kpi-label">إجمالي المبيعات (ر.س)</div></div>
+      <div class="kpi-card"><div class="kpi-icon c-gold"><span data-lucide="timer" style="width:18px;height:18px;"></span></div><div class="kpi-value mono-num">${avgPrep} د</div><div class="kpi-label">متوسط وقت التحضير</div></div>
+      <div class="kpi-card"><div class="kpi-icon c-red"><span data-lucide="x-circle" style="width:18px;height:18px;"></span></div><div class="kpi-value mono-num">${cancelled}</div><div class="kpi-label">الطلبات الملغية</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;" class="dash-two-col">
+      <div class="panel"><div class="panel-header"><h3>أكثر المنتجات طلبًا</h3></div>
+      <div class="panel-body" style="overflow-x:auto;">
+        ${topItems.length ? `<table class="adv-table"><thead><tr><th>المنتج</th><th>عدد الطلبات</th><th>الكمية</th><th>المبيعات</th></tr></thead>
+          <tbody>${topItems.map(([n,s]) => `<tr><td>${esc(n)}</td><td>${s.count}</td><td>${s.qty}</td><td>${s.sales.toLocaleString('ar-EG')} ر.س</td></tr>`).join('')}</tbody></table>` : '<p class="empty-state">لا توجد بيانات</p>'}
+      </div></div>
+      <div class="panel"><div class="panel-header"><h3>الطلبات حسب القسم</h3></div>
+      <div class="panel-body" style="overflow-x:auto;">
+        ${topDepts.length ? `<table class="adv-table"><thead><tr><th>القسم</th><th>عدد الطلبات</th><th>الكميات</th><th>المبيعات</th></tr></thead>
+          <tbody>${topDepts.map(([d,s]) => `<tr><td>${esc(d)}</td><td>${s.count}</td><td>${s.qty}</td><td>${s.sales.toLocaleString('ar-EG')} ر.س</td></tr>`).join('')}</tbody></table>` : '<p class="empty-state">لا توجد بيانات</p>'}
+      </div></div>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
 }
 
 </script>
