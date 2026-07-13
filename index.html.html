@@ -10050,6 +10050,20 @@ function renderUsersTabContent() {
         try {
           const deptSelect = host.querySelector(`[data-sr-dept="${origReq.id}"]`);
           const departmentId = deptSelect && deptSelect.value ? Number(deptSelect.value) : null;
+          // تحقق مسبق: هل الإيميل مستخدم من قبل؟
+          if (req.email) {
+            const { data: existing } = await sb.from('users').select('id, full_name, username').eq('email', req.email).maybeSingle();
+            if (existing) {
+              const useModified = confirm(
+                'الإيميل "' + req.email + '" مستخدم بالفعل للمستخدم "' + existing.full_name + '" (' + existing.username + ').\n\n' +
+                'اضغط "موافق" لإنشاء الحساب بإيميل معدَّل تلقائيًا (' + req.email.split('@')[0] + '+' + Date.now().toString().slice(-4) + '@' + req.email.split('@')[1] + '), ' +
+                'أو "إلغاء" للرجوع وتعديل الإيميل يدويًا في الجدول.'
+              );
+              if (!useModified) { btn.disabled = false; return; }
+              const [local, domain] = req.email.split('@');
+              req.email = local + '+' + Date.now().toString().slice(-4) + '@' + domain;
+            }
+          }
           const username = await uniqueUsername(genUsernameBase(req));
           const password = genPassword();
           const { data: newUser, error } = await sb.from('users').insert({
@@ -10058,7 +10072,14 @@ function renderUsersTabContent() {
             department_id: departmentId, position_title: req.job_title,
             role: 'employee', status: 'active', is_active: true
           }).select().single();
-          if (error) throw error;
+          if (error) {
+            // رسائل خطأ ودّية للحالات الشائعة
+            let friendly = err_message => err_message;
+            const msg = error.message || '';
+            if (msg.includes('users_email_unique')) throw new Error('الإيميل موجود مسبقًا — عدّله في الجدول وحاول مرة أخرى.');
+            if (msg.includes('users_username_unique') || msg.includes('username')) throw new Error('اسم المستخدم موجود مسبقًا — حاول مرة أخرى.');
+            throw error;
+          }
           await sb.from('signup_requests').update({
             status: 'approved', reviewed_by: CURRENT_USER.id, reviewed_at: new Date().toISOString(),
             full_name: req.full_name, mobile_number: req.mobile_number, email: req.email,
