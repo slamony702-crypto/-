@@ -6692,7 +6692,7 @@ async function pageEmergency(body) {
         <div id="emergency-table" style="overflow-x:auto;">
           ${(alerts||[]).length ? `<table><thead><tr><th>#</th><th>عنوان الحالة</th><th>النوع</th><th>المستوى</th><th>المستهدف</th><th>وقت الإرسال</th><th>الاستلام</th><th>المعالجة</th><th>إجراءات</th></tr></thead><tbody id="emTableBody">
             ${alerts.map((a,i) => emergencyRowHtml(a, i)).join('')}
-          </tbody></table>` : '<p class="empty-state">لا توجد تنبيهات طارئة</p>'}
+          </tbody></table>` : premiumEmptyState({ icon: 'shield-check', title: 'لا توجد تنبيهات طارئة', subtitle: 'الأمور مستقرة الآن. أي تنبيه طارئ من الفروع هيظهر هنا فورًا.', actions: [] })}
         </div>
       </div>
     </div>
@@ -7151,6 +7151,29 @@ function renderDecisionsTable(body, canManage) {
           <button class="btn btn-sm btn-outline" id="bulkClearBtn">إلغاء التحديد</button>
         </div>
 
+        ${(() => {
+          const chips = [];
+          if (DecisionsState.search) chips.push({ key: 'search', label: `بحث: "${DecisionsState.search}"` });
+          if (DecisionsState.statusFilter) {
+            const m = { new:'جديد', in_progress:'قيد التنفيذ', executed:'منفذ', delayed:'متأخر', pending_approval:'ينتظر اعتماد', cancelled:'ملغي' };
+            chips.push({ key:'statusFilter', label:'الحالة: '+(m[DecisionsState.statusFilter]||DecisionsState.statusFilter) });
+          }
+          if (DecisionsState.priorityFilter) {
+            const m = { high:'عالية', medium:'متوسطة', low:'منخفضة' };
+            chips.push({ key:'priorityFilter', label:'الأولوية: '+(m[DecisionsState.priorityFilter]||DecisionsState.priorityFilter) });
+          }
+          if (DecisionsState.responsibleFilter) {
+            const u = (DecisionsState.all||[]).find(d => String(d.responsible_user_id) === DecisionsState.responsibleFilter);
+            chips.push({ key:'responsibleFilter', label:'المسؤول: '+(u?.users?.full_name || DecisionsState.responsibleFilter) });
+          }
+          return chips.length ? `
+            <div class="filter-chips" style="margin-bottom:12px;">
+              <span style="font-size:11.5px;color:var(--text-muted);font-weight:700;align-self:center;margin-inline-end:4px;">الفلاتر النشطة:</span>
+              ${chips.map(c => `<span class="filter-chip">${esc(c.label)} <button type="button" data-dchip-remove="${c.key}" title="إزالة">×</button></span>`).join('')}
+              <button type="button" class="filter-chip" data-dchip-remove="all" style="background:rgba(211,47,47,0.1);color:#D32F2F;border-color:rgba(211,47,47,0.3);cursor:pointer;">إزالة الكل ×</button>
+            </div>` : '';
+        })()}
+
         ${rows.length ? `
         <div style="overflow-x:auto;">
         <table class="adv-table">
@@ -7448,6 +7471,21 @@ function wireDecisionsTableEvents(body, canManage) {
     DecisionsState.meetingFilter = ''; DecisionsState.departmentFilter = ''; DecisionsState.priorityFilter = '';
     DecisionsState.dueBeforeFilter = ''; DecisionsState.page = 1;
     renderDecisionsTable(body, canManage);
+  });
+  // ربط أزرار إزالة Filter Chips
+  body.querySelectorAll('[data-dchip-remove]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const k = btn.dataset.dchipRemove;
+      if (k === 'all') {
+        DecisionsState.search = ''; DecisionsState.statusFilter = ''; DecisionsState.priorityFilter = '';
+        DecisionsState.responsibleFilter = ''; DecisionsState.meetingFilter = ''; DecisionsState.departmentFilter = '';
+        DecisionsState.dueBeforeFilter = '';
+      } else {
+        DecisionsState[k] = '';
+      }
+      DecisionsState.page = 1;
+      renderDecisionsTable(body, canManage);
+    });
   });
   body.querySelectorAll('th.sortable').forEach(th => {
     th.addEventListener('click', () => {
@@ -10086,7 +10124,7 @@ function renderUsersTabContent() {
             <tbody>${pendingSignups.map(renderRow).join('')}</tbody>
           </table>
           </div>
-          <p id="srNoMatch" class="empty-state hidden">لا توجد نتائج مطابقة للبحث</p>` : '<p class="empty-state">لا توجد طلبات انضمام جديدة حاليًا</p>'}
+          <p id="srNoMatch" class="empty-state hidden">لا توجد نتائج مطابقة للبحث</p>` : premiumEmptyState({ icon: 'user-check', title: 'لا توجد طلبات انضمام حاليًا', subtitle: 'كل الطلبات تمت مراجعتها. لما يقدّم مستخدم جديد طلب انضمام هيظهر هنا.', actions: [] })}
         </div>
       </div>
       ${(rejectedSignups||[]).length ? `
