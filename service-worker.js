@@ -1,5 +1,5 @@
 // نسخة المسجّل — تُبدَّل عند كل تحديث لضمان تنشيط SW جديد
-const SW_VERSION = 'v4-2026-07-13-j';
+const SW_VERSION = 'v4-2026-07-13-k';
 const STATIC_CACHE = 'sg-static-' + SW_VERSION;
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -14,6 +14,30 @@ self.addEventListener('activate', (e) => {
     const clients = await self.clients.matchAll({ type: 'window' });
     for (const client of clients) {
       try { client.postMessage({ type: 'sw-updated' }); } catch (e) {}
+    }
+  })());
+});
+
+// عند الضغط على الإشعار: يفتح التطبيق ويوجّه للرابط المطلوب
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const targetUrl = (e.notification.data && e.notification.data.url) || '';
+  e.waitUntil((async () => {
+    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    // لو التطبيق مفتوح: ركّز عليه وحدّث الـ hash
+    for (const client of clients) {
+      if (client.url.includes(self.location.origin)) {
+        try { client.focus(); } catch (e) {}
+        if (targetUrl) {
+          try { client.postMessage({ type: 'navigate', url: targetUrl }); } catch (e) {}
+        }
+        return;
+      }
+    }
+    // مش مفتوح: افتح نافذة جديدة
+    if (self.clients.openWindow) {
+      const openUrl = targetUrl ? self.location.origin + '/' + (targetUrl.startsWith('#') ? targetUrl : '#' + targetUrl) : self.location.origin;
+      await self.clients.openWindow(openUrl);
     }
   })());
 });

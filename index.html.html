@@ -4254,6 +4254,9 @@ function renderLogin() {
       checkTaskReminders();
       checkMeetingReminders();
       startHeartbeat();
+      subscribeToUserNotifications();
+      // اطلب إذن الإشعارات بعد ثانيتين من الدخول (تجربة أنعم)
+      setTimeout(() => { if (Notification.permission === 'default') requestNotificationPermission(); }, 2000);
       location.hash = '#dashboard';
       renderApp();
     } catch (err) {
@@ -4570,6 +4573,7 @@ async function authLogin(username, password) {
 }
 
 async function logout() {
+  try { unsubscribeUserNotifications(); } catch (e) {}
   try { await sb.auth.signOut(); } catch (e) {}
   localStorage.removeItem('food_affairs_user');
   CURRENT_USER = null;
@@ -8483,6 +8487,100 @@ function startHeartbeat() {
   sendHeartbeat();
   setInterval(sendHeartbeat, 2 * 60 * 1000); // كل دقيقتين
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Push Notifications: يظهر إشعار موبايل لكل حاجة تحصل للمستخدم
+   شغال حتى لو التطبيق في الخلفية (PWA مثبّت)
+   ═══════════════════════════════════════════════════════════ */
+async function showBrowserPush(title, body, options = {}) {
+  try {
+    if (!('Notification' in window)) return false;
+    if (Notification.permission !== 'granted') return false;
+    const opts = {
+      body: body || '',
+      icon: 'icon-192.png',
+      badge: 'icon-192.png',
+      tag: options.tag || ('notif-' + Date.now()),
+      renotify: true,
+      requireInteraction: options.urgent === true,
+      data: { url: options.url || '#notifications' },
+      vibrate: options.urgent ? [200, 100, 200, 100, 200] : [100, 50, 100]
+    };
+    if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification(title, opts);
+    } else {
+      const n = new Notification(title, opts);
+      n.onclick = () => { window.focus(); if (opts.data.url) location.hash = opts.data.url; n.close(); };
+    }
+    return true;
+  } catch (e) { return false; }
+}
+window.showBrowserPush = showBrowserPush;
+
+let _notifRealtimeChannel = null;
+function subscribeToUserNotifications() {
+  if (!CURRENT_USER || _notifRealtimeChannel) return;
+  try {
+    _notifRealtimeChannel = sb.channel('user-notifications-' + CURRENT_USER.id)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${CURRENT_USER.id}`
+      }, (payload) => {
+        const n = payload.new;
+        if (!n) return;
+        // تحديد urgent من نوع الإشعار
+        const urgentTypes = ['emergency', 'maintenance_critical', 'overdue', 'deadline'];
+        const isUrgent = urgentTypes.includes(n.notif_type) ||
+                         /عاجل|طارئ|حرج|متأخر/i.test(n.title || '');
+        // إشعار موبايل/سطح المكتب
+        showBrowserPush(n.title || 'إشعار جديد', n.body || '', {
+          urgent: isUrgent,
+          url: n.target_url || n.link || '#notifications',
+          tag: 'notif-' + n.id
+        });
+        // صوت خفيف
+        playAlertSound(isUrgent ? 'urgent' : 'default');
+        // تحديث العدّاد لو موجود
+        try {
+          const badges = document.querySelectorAll('.notif-badge, [data-notif-badge]');
+          badges.forEach(b => {
+            const cur = Number(b.textContent) || 0;
+            b.textContent = cur + 1;
+            b.style.display = 'inline-flex';
+          });
+        } catch(e){}
+      })
+      .subscribe();
+  } catch (e) {
+    console.warn('realtime subscribe failed:', e);
+  }
+}
+
+function unsubscribeUserNotifications() {
+  if (_notifRealtimeChannel) {
+    try { sb.removeChannel(_notifRealtimeChannel); } catch(e){}
+    _notifRealtimeChannel = null;
+  }
+}
+
+/* طلب إذن الإشعارات بشكل مهذب */
+async function requestNotificationPermission() {
+  if (!('Notification' in window)) return 'unsupported';
+  if (Notification.permission === 'granted') return 'granted';
+  if (Notification.permission === 'denied') return 'denied';
+  try {
+    const p = await Notification.requestPermission();
+    if (p === 'granted') {
+      showBrowserPush('✅ الإشعارات مفعّلة', 'ستصلك تنبيهات فورية لكل ما يحدث في حسابك');
+      subscribeToUserNotifications();
+    }
+    return p;
+  } catch (e) { return 'error'; }
+}
+window.requestNotificationPermission = requestNotificationPermission;
 function isUserOnline(lastActiveAt) {
   if (!lastActiveAt) return false;
   return (Date.now() - new Date(lastActiveAt).getTime()) < 5 * 60 * 1000; // آخر 5 دقايق
@@ -11775,6 +11873,22 @@ async function pageSettings(body) {
         </div>
         <button type="button" class="btn btn-outline" id="prefSoundTest" style="margin-inline-start:auto;font-size:11px;padding:4px 12px;">تجربة</button>
       </label>
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 0;border-top:1px solid var(--border);">
+        <span data-lucide="bell" style="width:20px;height:20px;color:${'Notification' in window && Notification.permission==='granted' ? '#1F7A3A' : '#9A6B12'};"></span>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:13.5px;">إشعارات فورية على الموبايل</div>
+          <div style="font-size:11.5px;color:var(--text-muted);" id="prefPushStatus">
+            ${!('Notification' in window) ? '❌ المتصفح لا يدعم الإشعارات' :
+              Notification.permission === 'granted' ? '✅ مفعّلة — ستصلك تنبيهات فورية لكل ما يخصك' :
+              Notification.permission === 'denied' ? '⛔ محظورة — فعّلها من إعدادات المتصفح للموقع' :
+              '⚠️ غير مفعّلة — اضغط "تفعيل" لتصلك الإشعارات كواتساب'}
+          </div>
+        </div>
+        ${('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') ?
+          '<button type="button" class="btn" id="prefPushEnable" style="background:var(--primary);color:#fff;font-size:11px;padding:6px 14px;">تفعيل</button>' :
+          Notification.permission === 'granted' ?
+          '<button type="button" class="btn btn-outline" id="prefPushTest" style="font-size:11px;padding:4px 12px;">تجربة</button>' : ''}
+      </div>
     </div></div>
     <div class="panel"><div class="panel-header"><h3>عن النظام</h3></div><div class="panel-body">
       <p>شركة شؤون الغذاء للمتابعة — نسخة متصلة بـ Supabase (سحابية، بيانات محفوظة فعليًا).</p>
@@ -11788,6 +11902,14 @@ async function pageSettings(body) {
     if (e.target.checked) playAlertSound('default');
   });
   document.getElementById('prefSoundTest').addEventListener('click', () => playAlertSound('urgent'));
+  document.getElementById('prefPushEnable')?.addEventListener('click', async () => {
+    const p = await requestNotificationPermission();
+    if (p === 'granted') { toast('تم تفعيل إشعارات الموبايل', 'success'); pageSettings(body); }
+    else if (p === 'denied') toast('الإشعارات محظورة — فعّلها من إعدادات المتصفح للموقع', 'warning');
+  });
+  document.getElementById('prefPushTest')?.addEventListener('click', () => {
+    showBrowserPush('🔔 إشعار تجريبي', 'رائع! ستصلك الإشعارات بهذا الشكل عند وقوع أحداث في حسابك.', { url: '#notifications' });
+  });
 
   if (canManagePermissions) await renderPermissionsSection();
 }
@@ -11978,6 +12100,7 @@ async function bootApp() {
       try { checkTaskReminders(); } catch (e) { fwReport('checkTaskReminders', e); }
       try { checkMeetingReminders(); } catch (e) { fwReport('checkMeetingReminders', e); }
       try { startHeartbeat(); } catch (e) { fwReport('startHeartbeat', e); }
+      try { subscribeToUserNotifications(); } catch (e) { fwReport('subscribeToUserNotifications', e); }
     } else {
       renderLogin();
     }
@@ -13037,7 +13160,16 @@ async function pageDashboard(body) {
       tryPushNotification('تحديث جديد جاهز', 'اضغط لتحميل آخر تحسينات نظام شؤون الغذاء');
     }
     navigator.serviceWorker.addEventListener('message', (e) => {
-      if (e.data && e.data.type === 'sw-updated') showUpdateBanner();
+      if (!e.data) return;
+      if (e.data.type === 'sw-updated') showUpdateBanner();
+      if (e.data.type === 'navigate' && e.data.url) {
+        try {
+          const url = e.data.url;
+          if (url.startsWith('http')) window.location.href = url;
+          else if (url.startsWith('#')) location.hash = url;
+          else location.hash = '#' + url;
+        } catch(err) {}
+      }
     });
 
     // طلب إذن الإشعارات مرة واحدة عند أول دخول للمستخدم المسجّل
