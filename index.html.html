@@ -518,6 +518,93 @@ tr:hover td { background: var(--primary-light); }
   .rf-alert-title { font-size: 14.5px; }
 }
 
+/* ═══ زر رجوع ثابت (UX #1) ═══ */
+#appBackFab {
+  position: fixed; bottom: 20px; right: 20px; z-index: 96;
+  width: 48px; height: 48px; border-radius: 50%;
+  background: #FFFDF7; color: #0F3D2E; border: 1.5px solid #D6A437;
+  box-shadow: 0 4px 14px rgba(15,61,46,0.18);
+  cursor: pointer; display: none; align-items: center; justify-content: center;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+#appBackFab:hover { transform: scale(1.06); box-shadow: 0 6px 20px rgba(15,61,46,0.25); }
+#appBackFab:active { transform: scale(0.96); }
+@media (max-width: 768px) {
+  #appBackFab { width: 44px; height: 44px; bottom: 76px; right: 16px; }
+}
+
+/* ═══ Empty state فاخر (UX #3) ═══ */
+.premium-empty-state {
+  text-align: center; padding: 44px 20px 32px;
+}
+.premium-empty-state .pes-icon {
+  width: 68px; height: 68px; border-radius: 50%;
+  background: linear-gradient(135deg, rgba(214,164,55,0.15), rgba(15,61,46,0.08));
+  color: #9A6B12; display: inline-flex; align-items: center; justify-content: center;
+  margin-bottom: 14px;
+}
+.premium-empty-state .pes-title { font-size: 16px; font-weight: 800; color: #24352E; margin-bottom: 6px; }
+.premium-empty-state .pes-sub { font-size: 12.5px; color: #6B756F; line-height: 1.7; max-width: 340px; margin: 0 auto 18px; }
+.premium-empty-state .pes-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.premium-empty-state .pes-action { font-size: 12.5px; padding: 8px 16px; }
+
+/* ═══ Command Palette (UX #5) ═══ */
+#cmdPalOverlay {
+  position: fixed; inset: 0; z-index: 9998;
+  background: rgba(15,61,46,0.35); backdrop-filter: blur(3px);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 80px 20px 20px;
+}
+.cmd-pal-box {
+  width: 100%; max-width: 560px; background: #FFFDF7; border-radius: 16px;
+  border: 1px solid rgba(214,164,55,0.35);
+  box-shadow: 0 20px 60px rgba(15,61,46,0.28);
+  overflow: hidden;
+}
+.cmd-pal-search {
+  display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+  border-bottom: 1px solid rgba(15,61,46,0.08); background: #F9F6EE;
+}
+.cmd-pal-search input {
+  flex: 1; border: none; background: transparent; outline: none;
+  font-size: 15px; font-family: inherit; color: #24352E;
+  text-align: right; direction: rtl;
+}
+.cmd-pal-list { max-height: 380px; overflow-y: auto; }
+.cmd-pal-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+  cursor: pointer; font-size: 13.5px; color: #24352E;
+  border-bottom: 1px solid rgba(15,61,46,0.04);
+  transition: background .12s ease;
+}
+.cmd-pal-item:hover, .cmd-pal-item.is-sel {
+  background: linear-gradient(90deg, rgba(214,164,55,0.14), rgba(15,61,46,0.03));
+}
+
+/* ═══ Filter chips (UX #4) ═══ */
+.filter-chips {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;
+}
+.filter-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(214,164,55,0.15); color: #9A6B12;
+  padding: 4px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; border: 1px solid rgba(214,164,55,0.35);
+}
+.filter-chip button {
+  background: none; border: none; color: #9A6B12; cursor: pointer;
+  font-size: 14px; line-height: 1; padding: 0 2px;
+}
+.filter-chip button:hover { color: #D32F2F; }
+
+/* دارك مود لعناصر UX الجديدة */
+:root[data-theme="dark"] #appBackFab { background: var(--surface); color: var(--text); }
+:root[data-theme="dark"] .cmd-pal-box { background: var(--surface); border-color: var(--border); }
+:root[data-theme="dark"] .cmd-pal-search { background: var(--bg); border-color: var(--border); }
+:root[data-theme="dark"] .cmd-pal-search input { color: var(--text); }
+:root[data-theme="dark"] .cmd-pal-item { color: var(--text); border-color: var(--border); }
+:root[data-theme="dark"] .premium-empty-state .pes-title { color: var(--text); }
+
 /* ============ بانر تحديث النظام — ينزل من فوق ============ */
 /* أيقونة تحديث عائمة بنبضة ذهبية */
 #appUpdateFab {
@@ -7944,7 +8031,190 @@ async function route() {
   try { initPremiumDateFields(); } catch (e) { fwReport('initPremiumDateFields', e); }
   try { wireClickableStatCards(); } catch (e) { fwReport('wireClickableStatCards', e); }
   try { scrollToTableTarget(query && query.scroll); } catch (e) { fwReport('scrollToTableTarget', e); }
+  try { updateBackButtonVisibility(page); } catch (e) {}
 }
+
+// ═══════════════════════════════════════════════════════════
+// UX #1: زر رجوع ثابت (يظهر في الصفحات الفرعية فقط)
+// ═══════════════════════════════════════════════════════════
+const TOP_LEVEL_PAGES = new Set([
+  'dashboard','meetings','tasks','department_tasks','decisions','conversations',
+  'emergency','maintenance','quality','cafe','reports','users','settings','vision',
+  'notifications','my_profile'
+]);
+function updateBackButtonVisibility(page) {
+  let btn = document.getElementById('appBackFab');
+  const isSubPage = page && !TOP_LEVEL_PAGES.has(page);
+  if (isSubPage) {
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'appBackFab';
+      btn.setAttribute('title', 'رجوع');
+      btn.innerHTML = '<span data-lucide="arrow-right" style="width:18px;height:18px;"></span>';
+      btn.onclick = () => history.length > 1 ? history.back() : (location.hash = '#dashboard');
+      document.body.appendChild(btn);
+      if (window.lucide) lucide.createIcons();
+    }
+    btn.style.display = 'flex';
+  } else if (btn) {
+    btn.style.display = 'none';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// UX #2: Undo toast — بديل confirm() للعمليات القابلة للتراجع
+// ═══════════════════════════════════════════════════════════
+// undoableAction({ message, action, undo, undoLabel, timeout })
+// - message: نص التوست ("تم الحذف")
+// - action(): يشتغل فورًا (اللي بيحذف مثلاً)
+// - undo(): يشتغل لو الشخص ضغط "تراجع"
+// - timeout: مللي ثانية قبل التأكيد النهائي (default 5000)
+async function undoableAction({ message, action, undo, undoLabel = 'تراجع', timeout = 5000 }) {
+  try { await action(); } catch (e) { toast('فشلت العملية: ' + (e.message||''), 'error'); return; }
+  const stack = document.getElementById('toastStack') || (() => {
+    const s = document.createElement('div'); s.id = 'toastStack'; s.className = 'toast-stack';
+    document.body.appendChild(s); return s;
+  })();
+  const el = document.createElement('div');
+  el.className = 'toast t-warning';
+  el.style.cssText = 'display:flex;align-items:center;gap:12px;min-width:280px;';
+  el.innerHTML = `<span style="flex:1;">${esc(message)}</span><button class="undo-btn" style="background:rgba(255,255,255,0.25);border:1px solid rgba(255,255,255,0.4);color:#fff;padding:5px 12px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;">${esc(undoLabel)}</button>`;
+  stack.appendChild(el);
+  let undone = false;
+  const undoBtn = el.querySelector('.undo-btn');
+  undoBtn.onclick = async () => {
+    undone = true;
+    el.remove();
+    try { await undo(); toast('تم التراجع', 'success'); }
+    catch (e) { toast('تعذّر التراجع: ' + (e.message||''), 'error'); }
+  };
+  setTimeout(() => { if (!undone) el.remove(); }, timeout);
+}
+
+// ═══════════════════════════════════════════════════════════
+// UX #3: Helper لبناء empty state متسقة بأزرار مباشرة
+// ═══════════════════════════════════════════════════════════
+// premiumEmptyState({ icon, title, subtitle, actions: [{label, onClick, primary}] })
+function premiumEmptyState({ icon = 'inbox', title = 'لا توجد بيانات', subtitle = '', actions = [] } = {}) {
+  const actionsHtml = actions.map((a, i) => {
+    const cls = a.primary ? 'btn' : 'btn btn-outline';
+    const style = a.primary ? 'background:linear-gradient(90deg,#1F7A3A,#0F3D2E);color:#fff;' : '';
+    return `<button type="button" class="${cls} pes-action" data-action-idx="${i}" style="${style}">${a.icon?`<span data-lucide="${a.icon}" style="width:13px;height:13px;"></span> `:''}${esc(a.label)}</button>`;
+  }).join('');
+  return `<div class="premium-empty-state">
+    <div class="pes-icon"><span data-lucide="${icon}" style="width:32px;height:32px;"></span></div>
+    <div class="pes-title">${esc(title)}</div>
+    ${subtitle ? `<div class="pes-sub">${esc(subtitle)}</div>` : ''}
+    ${actionsHtml ? `<div class="pes-actions" data-empty-actions>${actionsHtml}</div>` : ''}
+  </div>`;
+}
+// wireEmptyStateActions(host, actions): يربط الأزرار بالدوال بعد الحقن
+function wireEmptyStateActions(host, actions) {
+  if (!host) return;
+  host.querySelectorAll('.pes-action').forEach(btn => {
+    const idx = Number(btn.dataset.actionIdx);
+    const a = actions[idx];
+    if (a && a.onClick) btn.addEventListener('click', a.onClick);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// UX #5: Command Palette — Ctrl+K / Cmd+K للأدمن والباقي
+// ═══════════════════════════════════════════════════════════
+const CMD_PALETTE_ITEMS = [
+  { label: 'لوحة التحكم', icon: 'layout-dashboard', hash: '#dashboard', keys: ['dashboard','لوحة','رئيسية'] },
+  { label: 'الاجتماعات', icon: 'calendar', hash: '#meetings', keys: ['اجتماع','meetings'] },
+  { label: 'المهام والتكليفات', icon: 'clipboard-list', hash: '#department_tasks', keys: ['مهام','tasks'] },
+  { label: 'مخرجات الاجتماعات', icon: 'check-square', hash: '#tasks' },
+  { label: 'القرارات', icon: 'pin', hash: '#decisions' },
+  { label: 'الصيانة', icon: 'wrench', hash: '#maintenance' },
+  { label: 'طلب صيانة جديد', icon: 'plus-circle', hash: '#maintenance_new' },
+  { label: 'الجودة', icon: 'shield-check', hash: '#quality' },
+  { label: 'زيارة جودة جديدة', icon: 'plus-circle', hash: '#quality_new' },
+  { label: 'ركن الكافيه', icon: 'coffee', hash: '#cafe' },
+  { label: 'قائمة الكافيه', icon: 'coffee', hash: '#cafe?tab=menu' },
+  { label: 'التواصل الداخلي', icon: 'message-circle', hash: '#conversations' },
+  { label: 'التواصل الطارئ', icon: 'siren', hash: '#emergency' },
+  { label: 'التقارير', icon: 'bar-chart-3', hash: '#reports' },
+  { label: 'الإشعارات', icon: 'bell', hash: '#notifications' },
+  { label: 'المستخدمون', icon: 'users', hash: '#users' },
+  { label: 'الإعدادات', icon: 'settings', hash: '#settings' },
+  { label: 'رؤية الشركة', icon: 'compass', hash: '#vision' },
+  { label: 'ملفي الشخصي', icon: 'user', hash: '#my_profile' },
+  { label: 'إسناد مهمة سريعة', icon: 'send', action: () => openQuickAddTaskModal(null, null) },
+  { label: 'تسجيل خروج', icon: 'log-out', action: () => logout() }
+];
+
+function openCommandPalette() {
+  document.getElementById('cmdPalOverlay')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'cmdPalOverlay';
+  overlay.innerHTML = `
+    <div class="cmd-pal-box">
+      <div class="cmd-pal-search">
+        <span data-lucide="search" style="width:16px;height:16px;color:#6B756F;"></span>
+        <input type="text" id="cmdPalInput" placeholder="ابحث عن صفحة أو إجراء..." autofocus>
+        <kbd style="font-size:10px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;color:var(--text-muted);">Esc</kbd>
+      </div>
+      <div class="cmd-pal-list" id="cmdPalList"></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  if (window.lucide) lucide.createIcons();
+  const input = document.getElementById('cmdPalInput');
+  const list = document.getElementById('cmdPalList');
+  let filtered = CMD_PALETTE_ITEMS.slice();
+  let sel = 0;
+
+  function render() {
+    list.innerHTML = filtered.length ? filtered.map((it, i) => `
+      <div class="cmd-pal-item ${i===sel?'is-sel':''}" data-cmd-idx="${i}">
+        <span data-lucide="${it.icon||'circle'}" style="width:16px;height:16px;color:#0F3D2E;"></span>
+        <span style="flex:1;">${esc(it.label)}</span>
+        ${it.hash ? `<span style="font-size:10.5px;color:var(--text-muted);">${esc(it.hash)}</span>` : ''}
+      </div>`).join('') : '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">لا نتائج</div>';
+    if (window.lucide) lucide.createIcons();
+    list.querySelectorAll('.cmd-pal-item').forEach(el => {
+      el.addEventListener('click', () => execCmd(Number(el.dataset.cmdIdx)));
+    });
+  }
+  function execCmd(i) {
+    const it = filtered[i]; if (!it) return;
+    overlay.remove();
+    if (it.hash) location.hash = it.hash;
+    else if (it.action) it.action();
+  }
+  function filter(q) {
+    q = q.trim().toLowerCase();
+    if (!q) filtered = CMD_PALETTE_ITEMS.slice();
+    else filtered = CMD_PALETTE_ITEMS.filter(it =>
+      it.label.toLowerCase().includes(q) ||
+      (it.keys||[]).some(k => k.toLowerCase().includes(q)) ||
+      (it.hash||'').toLowerCase().includes(q)
+    );
+    sel = 0; render();
+  }
+  input.addEventListener('input', () => filter(input.value));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { overlay.remove(); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); sel = Math.min(sel+1, filtered.length-1); render(); scrollSel(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(sel-1, 0); render(); scrollSel(); }
+    else if (e.key === 'Enter') { e.preventDefault(); execCmd(sel); }
+  });
+  function scrollSel() {
+    const el = list.querySelector('.cmd-pal-item.is-sel');
+    el?.scrollIntoView({ block: 'nearest' });
+  }
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  render();
+}
+// اختصار Ctrl+K / Cmd+K في كل التطبيق
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+    if (!CURRENT_USER) return; // مش قبل تسجيل الدخول
+    e.preventDefault();
+    openCommandPalette();
+  }
+});
 
 window.addEventListener('hashchange', renderApp);
 window.logout = logout;
