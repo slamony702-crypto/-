@@ -1891,6 +1891,23 @@ textarea.form-input { resize: vertical; min-height: 44px; line-height: 1.6; }
 .mt-hero-header h2 { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 800; color: #24352E; }
 .mt-hero-header .mt-accent { width: 4px; height: 26px; background: #D6A437; border-radius: 3px; }
 .mt-hero-header p { font-size: 12.5px; color: #6B756F; margin-top: 5px; }
+/* ═══════ Analytics ═══════ */
+.analytics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; margin-top: 14px; }
+.leader-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 4px; border-bottom: 1px solid var(--border);
+}
+.leader-row:last-child { border-bottom: none; }
+.leader-rank {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 13px; color: #fff;
+  background: #6B756F; flex-shrink: 0;
+}
+.leader-rank-1 { background: linear-gradient(135deg, #F4C542, #D6A437); box-shadow: 0 2px 6px rgba(214,164,55,0.4); }
+.leader-rank-2 { background: linear-gradient(135deg, #B7B0A3, #8D8878); }
+.leader-rank-3 { background: linear-gradient(135deg, #CD7F32, #A0522D); }
+
 /* ═══════ صفحة "شغلي اليوم" ═══════ */
 .myday-hero {
   background: linear-gradient(135deg, #FFFDF7 0%, #FDF8EA 100%);
@@ -4416,6 +4433,7 @@ const MENU_GROUPS = [
     { key: 'emergency', label: 'تواصل طارئ', icon: 'siren' },
   ]},
   { key: '__admin', label: 'التقارير والإدارة', icon: 'bar-chart-3', defaultOpen: false, items: [
+    { key: 'analytics', label: 'تحليلات الأداء', icon: 'trending-up' },
     { key: 'reports', label: 'التقارير', icon: 'bar-chart-3' },
     { key: 'users', label: 'المستخدمون', icon: 'users', roles: ['admin', 'company_manager', 'department_manager'] },
     { key: 'settings', label: 'الإعدادات', icon: 'settings' },
@@ -8549,6 +8567,7 @@ async function route() {
     else if (page === 'maintenance_assets') await pageMaintenanceAssets(body, query);
     else if (page === 'install_app') await pageInstallApp(body);
     else if (page === 'reports') await pageReports(body);
+    else if (page === 'analytics') await pageAnalytics(body);
     else if (page === 'users') await pageUsers(body);
     else if (page === 'settings') await pageSettings(body);
     else if (page === 'my_profile') await pageMyProfile(body);
@@ -8783,6 +8802,7 @@ function wireEmptyStateActions(host, actions) {
 // ═══════════════════════════════════════════════════════════
 const CMD_PALETTE_ITEMS = [
   { label: 'شغلي اليوم', icon: 'sun', hash: '#myday', keys: ['myday','اليوم','شغلي','مهامي'] },
+  { label: 'تحليلات الأداء', icon: 'trending-up', hash: '#analytics', keys: ['analytics','تحليل','مخططات','أداء','إحصاء'] },
   { label: 'لوحة التحكم', icon: 'layout-dashboard', hash: '#dashboard', keys: ['dashboard','لوحة','رئيسية'] },
   { label: 'الاجتماعات', icon: 'calendar', hash: '#meetings', keys: ['اجتماع','meetings'] },
   { label: 'المهام والتكليفات', icon: 'clipboard-list', hash: '#department_tasks', keys: ['مهام','tasks'] },
@@ -9805,6 +9825,226 @@ window.openTaskChat = async function(taskId) {
 
 // ============ التقارير ============
 const ReportsState = { period: 'this_month', dateFrom: '', dateTo: '', dept: '', employee: '', status: '', activeTab: 'overview' };
+
+/* ═══════════════════════════════════════════════════════════
+   Analytics — لوحة تحليلات تفاعلية بمخططات SVG خفيفة
+   ═══════════════════════════════════════════════════════════ */
+async function pageAnalytics(body) {
+  body.innerHTML = `<div class="panel"><div class="panel-body" style="text-align:center;padding:40px;color:var(--text-muted);"><span data-lucide="loader" style="width:24px;height:24px;"></span> جاري تحليل البيانات...</div></div>`;
+  if (window.lucide) lucide.createIcons();
+
+  const now = new Date();
+  const sixMonthsAgo = new Date(now); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5); sixMonthsAgo.setDate(1);
+  const [meetsRes, tasksRes, decsRes, maintRes, deptsRes, usersRes] = await Promise.all([
+    sb.from('meetings').select('id, meeting_datetime, status, department_id, organizer_id').gte('meeting_datetime', sixMonthsAgo.toISOString()),
+    sb.from('meeting_tasks').select('id, status, assignee_id, due_date, created_at'),
+    sb.from('decisions').select('id, status, responsible_user_id, due_date, priority'),
+    sb.from('maintenance_requests').select('id, status, severity, branch_id, created_at, final_cost'),
+    sb.from('departments').select('id, name'),
+    sb.from('users').select('id, full_name, department_id, avatar_url').eq('is_active', true)
+  ]);
+
+  const meets = meetsRes.data || [], tasks = tasksRes.data || [], decs = decsRes.data || [];
+  const maints = maintRes.data || [], depts = deptsRes.data || [], users = usersRes.data || [];
+  const deptMap = {}; depts.forEach(d => deptMap[d.id] = d.name);
+  const userMap = {}; users.forEach(u => userMap[u.id] = u);
+
+  // 1) اتجاه الاجتماعات - 6 شهور
+  const monthLabels = [];
+  const monthCounts = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now); d.setMonth(d.getMonth() - i); d.setDate(1);
+    const ym = d.toISOString().slice(0, 7);
+    monthLabels.push(d.toLocaleDateString('ar-SA', { month: 'short' }));
+    monthCounts.push(meets.filter(m => (m.meeting_datetime || '').slice(0, 7) === ym).length);
+  }
+
+  // 2) نسبة إنجاز المهام - donut
+  const taskDone = tasks.filter(t => t.status === 'completed').length;
+  const taskInProg = tasks.filter(t => t.status === 'in_progress').length;
+  const taskPending = tasks.filter(t => t.status === 'pending').length;
+  const taskOverdue = tasks.filter(t => t.due_date && t.due_date < now.toISOString().slice(0,10) && !['completed','cancelled'].includes(t.status)).length;
+
+  // 3) توزيع القرارات
+  const decByStatus = {};
+  decs.forEach(d => decByStatus[d.status] = (decByStatus[d.status] || 0) + 1);
+  const decStatusLabel = { new: 'جديد', in_progress: 'قيد التنفيذ', executed: 'منفذ', delayed: 'متأخر', pending_approval: 'ينتظر اعتماد', cancelled: 'ملغي' };
+
+  // 4) الأقسام الأكثر نشاطًا
+  const deptActivity = {};
+  meets.forEach(m => { if (m.department_id) deptActivity[m.department_id] = (deptActivity[m.department_id] || 0) + 1; });
+  const topDepts = Object.entries(deptActivity)
+    .map(([id, count]) => ({ name: deptMap[id] || 'غير محدد', count }))
+    .sort((a, b) => b.count - a.count).slice(0, 5);
+
+  // 5) المتصدرون في تنفيذ المهام
+  const userScores = {};
+  tasks.filter(t => t.status === 'completed').forEach(t => {
+    if (t.assignee_id) userScores[t.assignee_id] = (userScores[t.assignee_id] || 0) + 1;
+  });
+  const topPerformers = Object.entries(userScores)
+    .map(([id, count]) => ({ user: userMap[id], count }))
+    .filter(x => x.user)
+    .sort((a, b) => b.count - a.count).slice(0, 5);
+
+  // 6) الصيانة حسب الشدة
+  const maintBySev = { critical: 0, high: 0, medium: 0, low: 0 };
+  maints.filter(m => m.status !== 'closed' && m.status !== 'rejected').forEach(m => {
+    if (maintBySev[m.severity] !== undefined) maintBySev[m.severity]++;
+  });
+
+  // 7) KPIs
+  const overdueDecs = decs.filter(d => d.due_date && d.due_date < now.toISOString().slice(0,10) && !['executed','cancelled'].includes(d.status)).length;
+  const totalMaintCost = maints.reduce((s, m) => s + Number(m.final_cost || 0), 0);
+  const completionRate = tasks.length ? Math.round(taskDone / tasks.length * 100) : 0;
+
+  body.innerHTML = `
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span> <span data-lucide="bar-chart-3" style="width:22px;height:22px;color:#0F3D2E;"></span> تحليلات الأداء</h2>
+        <p>نظرة شاملة على النشاط والأداء على مدى آخر 6 أشهر — الأرقام تُحدَّث لحظيًا.</p>
+      </div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-icon c-blue"><span data-lucide="calendar" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${meets.length}</div><div class="kpi-label">اجتماع في 6 أشهر</div></div>
+      <div class="kpi-card"><div class="kpi-icon c-green"><span data-lucide="check-circle-2" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${completionRate}%</div><div class="kpi-label">معدل إنجاز المهام</div></div>
+      <div class="kpi-card"><div class="kpi-icon c-red"><span data-lucide="alert-triangle" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${taskOverdue + overdueDecs}</div><div class="kpi-label">مهام وقرارات متأخرة</div></div>
+      <div class="kpi-card"><div class="kpi-icon c-gold"><span data-lucide="banknote" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${totalMaintCost.toLocaleString()}</div><div class="kpi-label">تكلفة الصيانة (ر.س)</div></div>
+    </div>
+
+    <div class="analytics-grid">
+      <div class="panel">
+        <div class="panel-header"><h3 class="panel-title"><span data-lucide="trending-up" style="width:17px;height:17px;"></span> اتجاه الاجتماعات (6 أشهر)</h3></div>
+        <div class="panel-body">${svgBarChart(monthLabels, monthCounts, '#1F7A3A')}</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h3 class="panel-title"><span data-lucide="pie-chart" style="width:17px;height:17px;"></span> حالة المهام</h3></div>
+        <div class="panel-body">${svgDonut([
+          { label: 'منفذة', value: taskDone, color: '#1F7A3A' },
+          { label: 'قيد التنفيذ', value: taskInProg, color: '#4285F4' },
+          { label: 'معلقة', value: taskPending, color: '#F2994A' },
+        ])}</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h3 class="panel-title"><span data-lucide="gavel" style="width:17px;height:17px;"></span> توزيع القرارات</h3></div>
+        <div class="panel-body">${svgDonut(Object.entries(decByStatus).map(([k, v], i) => ({
+          label: decStatusLabel[k] || k, value: v,
+          color: ['#1F7A3A','#4285F4','#D6A437','#F2994A','#D32F2F','#6B756F'][i % 6]
+        })))}</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h3 class="panel-title"><span data-lucide="building-2" style="width:17px;height:17px;"></span> الأقسام الأكثر نشاطًا</h3></div>
+        <div class="panel-body">${svgHorizontalBar(topDepts.map(d => ({ label: d.name, value: d.count })), '#0F3D2E')}</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h3 class="panel-title"><span data-lucide="trophy" style="width:17px;height:17px;color:#D6A437;"></span> المتصدرون في تنفيذ المهام</h3></div>
+        <div class="panel-body">
+          ${topPerformers.length ? topPerformers.map((p, i) => `
+            <div class="leader-row">
+              <div class="leader-rank leader-rank-${i+1}">${i+1}</div>
+              ${p.user.avatar_url
+                ? `<img src="${esc(p.user.avatar_url)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">`
+                : `<div class="avatar-gradient avatar-g${i%8}" style="width:36px;height:36px;font-size:13px;">${esc((p.user.full_name||'').trim().split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join(''))}</div>`}
+              <div style="flex:1;">
+                <div style="font-weight:700;font-size:13px;">${esc(p.user.full_name)}</div>
+                <div style="font-size:11px;color:var(--text-muted);">${esc(deptMap[p.user.department_id] || '-')}</div>
+              </div>
+              <div style="font-weight:800;color:#1F7A3A;font-size:15px;">${p.count} <span style="font-size:10.5px;font-weight:600;color:var(--text-muted);">مهمة</span></div>
+            </div>
+          `).join('') : '<p style="text-align:center;padding:20px;color:var(--text-muted);font-size:12.5px;">لا توجد بيانات كافية</p>'}
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h3 class="panel-title"><span data-lucide="wrench" style="width:17px;height:17px;"></span> الصيانة المفتوحة حسب الشدة</h3></div>
+        <div class="panel-body">${svgDonut([
+          { label: 'حرجة', value: maintBySev.critical, color: '#B71C1C' },
+          { label: 'عالية', value: maintBySev.high, color: '#D32F2F' },
+          { label: 'متوسطة', value: maintBySev.medium, color: '#F2994A' },
+          { label: 'منخفضة', value: maintBySev.low, color: '#1F7A3A' },
+        ])}</div>
+      </div>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+}
+
+/* ═══ SVG chart helpers ═══ */
+function svgBarChart(labels, values, color = '#1F7A3A') {
+  if (!values.length) return '<p style="text-align:center;padding:20px;color:var(--text-muted);font-size:12.5px;">لا توجد بيانات</p>';
+  const max = Math.max(...values, 1);
+  const w = 560, h = 200, pad = 30, gap = 8;
+  const barW = (w - pad * 2 - gap * (values.length - 1)) / values.length;
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;max-width:100%;height:auto;font-family:inherit;">
+    ${[0.25, 0.5, 0.75, 1].map(f => `<line x1="${pad}" y1="${h - pad - (h - pad * 2) * f}" x2="${w - pad}" y2="${h - pad - (h - pad * 2) * f}" stroke="#E8E3D6" stroke-dasharray="3 3"/>`).join('')}
+    ${values.map((v, i) => {
+      const bh = (v / max) * (h - pad * 2);
+      const x = pad + i * (barW + gap);
+      const y = h - pad - bh;
+      return `
+        <rect x="${x}" y="${y}" width="${barW}" height="${bh}" fill="${color}" rx="4" opacity="0.85">
+          <title>${labels[i]}: ${v}</title>
+        </rect>
+        <text x="${x + barW/2}" y="${y - 4}" text-anchor="middle" font-size="11" font-weight="700" fill="#0F3D2E">${v}</text>
+        <text x="${x + barW/2}" y="${h - 10}" text-anchor="middle" font-size="10.5" fill="#6B756F">${labels[i]}</text>
+      `;
+    }).join('')}
+  </svg>`;
+}
+
+function svgDonut(segs) {
+  const total = segs.reduce((s, x) => s + x.value, 0);
+  if (!total) return '<p style="text-align:center;padding:20px;color:var(--text-muted);font-size:12.5px;">لا توجد بيانات</p>';
+  const cx = 90, cy = 90, r = 70, ir = 45;
+  let a0 = -Math.PI / 2;
+  const arcs = segs.filter(s => s.value > 0).map(s => {
+    const frac = s.value / total;
+    const a1 = a0 + frac * Math.PI * 2;
+    const large = frac > 0.5 ? 1 : 0;
+    const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
+    const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+    const xi1 = cx + ir * Math.cos(a1), yi1 = cy + ir * Math.sin(a1);
+    const xi0 = cx + ir * Math.cos(a0), yi0 = cy + ir * Math.sin(a0);
+    const path = `M ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} L ${xi1} ${yi1} A ${ir} ${ir} 0 ${large} 0 ${xi0} ${yi0} Z`;
+    a0 = a1;
+    return `<path d="${path}" fill="${s.color}" stroke="#fff" stroke-width="2"><title>${s.label}: ${s.value} (${Math.round(frac*100)}%)</title></path>`;
+  }).join('');
+  return `<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:center;">
+    <svg viewBox="0 0 180 180" style="width:170px;height:170px;">
+      ${arcs}
+      <text x="90" y="86" text-anchor="middle" font-size="22" font-weight="800" fill="#0F3D2E">${total}</text>
+      <text x="90" y="105" text-anchor="middle" font-size="11" fill="#6B756F">إجمالي</text>
+    </svg>
+    <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;">
+      ${segs.filter(s => s.value > 0).map(s => `
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:12px;height:12px;border-radius:3px;background:${s.color};"></div>
+          <span>${esc(s.label)}</span>
+          <strong style="margin-inline-start:auto;">${s.value}</strong>
+        </div>
+      `).join('')}
+    </div>
+  </div>`;
+}
+
+function svgHorizontalBar(items, color = '#1F7A3A') {
+  if (!items.length) return '<p style="text-align:center;padding:20px;color:var(--text-muted);font-size:12.5px;">لا توجد بيانات</p>';
+  const max = Math.max(...items.map(x => x.value), 1);
+  return items.map(it => `
+    <div style="display:grid;grid-template-columns:110px 1fr 44px;align-items:center;gap:10px;margin-bottom:8px;">
+      <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(it.label)}">${esc(it.label)}</div>
+      <div style="background:#F4F1E6;border-radius:10px;height:14px;overflow:hidden;">
+        <div style="width:${(it.value/max)*100}%;height:100%;background:${color};border-radius:10px;transition:width .5s;"></div>
+      </div>
+      <div style="font-size:12px;font-weight:800;text-align:end;color:${color};">${it.value}</div>
+    </div>
+  `).join('');
+}
 
 async function pageReports(body) {
   const isFullAccess = can('reports', 'view') && scope('reports') === 'company_wide';
