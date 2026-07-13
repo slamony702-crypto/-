@@ -32,8 +32,12 @@ export default async function handler(req, res) {
   const prompt = `${stylePrompts[styleKey]}\n\nالرسالة الأصلية:\n${text}`;
 
   try {
-    const gRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    // نجرّب موديلات بالترتيب — أول واحد شغال بيتم استخدامه
+    const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b', 'gemini-pro'];
+    let gRes, gData, usedModel;
+    for (const model of models) {
+      gRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -49,7 +53,14 @@ export default async function handler(req, res) {
         })
       }
     );
-    const gData = await gRes.json();
+      gData = await gRes.json();
+      // نجاح: خرج من اللوب
+      if (gRes.ok) { usedModel = model; break; }
+      // 429 (quota) أو 404 (موديل مش متاح): جرّب اللي بعده
+      if (gRes.status === 429 || gRes.status === 404) continue;
+      // أخطاء تانية: ارجعها فورًا
+      break;
+    }
     if (!gRes.ok) {
       const msg = gData?.error?.message || 'خطأ من خدمة Gemini';
       return res.status(gRes.status === 429 ? 429 : 500).json({ error: msg });
@@ -57,7 +68,7 @@ export default async function handler(req, res) {
     const output = gData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
     const cleaned = output.trim().replace(/^["""«»]+|["""«»]+$/g, '').trim();
     if (!cleaned) return res.status(500).json({ error: 'لم يتم توليد نص' });
-    return res.status(200).json({ text: cleaned, model: 'gemini-2.0-flash' });
+    return res.status(200).json({ text: cleaned, model: usedModel });
   } catch (err) {
     return res.status(500).json({ error: err.message || 'فشل الاتصال بخدمة Gemini' });
   }
