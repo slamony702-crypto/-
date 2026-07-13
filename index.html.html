@@ -4414,7 +4414,26 @@ function renderMeetingsTableBody() {
     return;
   }
 
+  // Filter chips — تظهر بس لو فيه فلتر مفعّل
+  const activeChips = [];
+  if (MeetingsState.search) activeChips.push({ key: 'search', label: `بحث: "${MeetingsState.search}"` });
+  if (MeetingsState.statusFilter) {
+    const statusMap = { scheduled: 'مجدول', in_follow_up: 'تحت المتابعة', closed: 'مغلق', postponed: 'مؤجل', cancelled: 'ملغي' };
+    activeChips.push({ key: 'statusFilter', label: 'الحالة: ' + (statusMap[MeetingsState.statusFilter] || MeetingsState.statusFilter) });
+  }
+  if (MeetingsState.typeFilter) {
+    const typeMap = { weekly: 'أسبوعي', emergency: 'طارئ', administrative: 'إداري', financial: 'مالي', sales: 'مبيعات', operations: 'تشغيل' };
+    activeChips.push({ key: 'typeFilter', label: 'النوع: ' + (typeMap[MeetingsState.typeFilter] || MeetingsState.typeFilter) });
+  }
+  const chipsHtml = activeChips.length ? `
+    <div class="filter-chips" style="margin-bottom:12px;">
+      <span style="font-size:11.5px; color:var(--text-muted); font-weight:700; align-self:center; margin-inline-end:4px;">الفلاتر النشطة:</span>
+      ${activeChips.map(c => `<span class="filter-chip">${esc(c.label)} <button type="button" data-chip-remove="${c.key}" title="إزالة">×</button></span>`).join('')}
+      <button type="button" class="filter-chip" data-chip-remove="all" style="background:rgba(211,47,47,0.1);color:#D32F2F;border-color:rgba(211,47,47,0.3);cursor:pointer;">إزالة الكل ×</button>
+    </div>` : '';
+
   wrap.innerHTML = `
+    ${chipsHtml}
     <div style="overflow-x:auto;">
     <table class="adv-table">
       <thead><tr>
@@ -4465,6 +4484,19 @@ function renderMeetingsTableBody() {
       const key = th.dataset.sort;
       if (MeetingsState.sortKey === key) MeetingsState.sortDir = MeetingsState.sortDir === 'asc' ? 'desc' : 'asc';
       else { MeetingsState.sortKey = key; MeetingsState.sortDir = 'asc'; }
+      renderMeetingsTableBody();
+    });
+  });
+
+  // ربط أزرار إزالة الـ Filter Chips
+  wrap.querySelectorAll('[data-chip-remove]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const k = btn.dataset.chipRemove;
+      if (k === 'all') { MeetingsState.search = ''; MeetingsState.statusFilter = ''; MeetingsState.typeFilter = ''; }
+      else if (k === 'search') { MeetingsState.search = ''; const el = document.getElementById('mSearchInput'); if (el) el.value = ''; }
+      else if (k === 'statusFilter') { MeetingsState.statusFilter = ''; const el = document.getElementById('mStatusFilter'); if (el) el.value = ''; }
+      else if (k === 'typeFilter') { MeetingsState.typeFilter = ''; const el = document.getElementById('mTypeFilter'); if (el) el.value = ''; }
+      MeetingsState.page = 1;
       renderMeetingsTableBody();
     });
   });
@@ -7567,13 +7599,23 @@ window.closeDecisionDrawer = function() {
   document.getElementById('decDrawer')?.classList.remove('show');
 };
 
-window.deleteDecision = function(id) {
-  confirmModal('هل أنت متأكد من حذف هذا القرار؟', async () => {
-    const { error } = await sb.from('decisions').delete().eq('id', id);
-    if (error) { toast(error.message, 'error'); return; }
-    toast('تم حذف القرار', 'success');
-    pageDecisions(document.getElementById('pageBody'));
-  }, true);
+window.deleteDecision = async function(id) {
+  // نجيب القرار كامل عشان نقدر نرجّعه
+  const { data: dec } = await sb.from('decisions').select('*').eq('id', id).maybeSingle();
+  if (!dec) return;
+  const backup = { ...dec }; delete backup.id;
+  const title = dec.decision_text ? dec.decision_text.slice(0, 40) + (dec.decision_text.length > 40 ? '…' : '') : 'قرار';
+  closeDecisionDrawer && closeDecisionDrawer();
+  undoableAction({
+    message: `تم حذف القرار "${esc(title)}" — تراجع خلال 5 ثوانٍ`,
+    action: () => sb.from('decisions').delete().eq('id', id),
+    undo: async () => {
+      await sb.from('decisions').insert({ ...backup, id });
+      pageDecisions(document.getElementById('pageBody'));
+    },
+    timeout: 5000
+  });
+  setTimeout(() => pageDecisions(document.getElementById('pageBody')), 300);
 };
 
 
