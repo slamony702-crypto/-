@@ -1891,6 +1891,64 @@ textarea.form-input { resize: vertical; min-height: 44px; line-height: 1.6; }
 .mt-hero-header h2 { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 800; color: #24352E; }
 .mt-hero-header .mt-accent { width: 4px; height: 26px; background: #D6A437; border-radius: 3px; }
 .mt-hero-header p { font-size: 12.5px; color: #6B756F; margin-top: 5px; }
+/* ═══════ صفحة الدعوة (Invite) ═══════ */
+.invite-hero {
+  text-align: center; padding: 26px 20px;
+  background: linear-gradient(135deg, #FFFDF7, #FDF8EA);
+  border: 1px solid rgba(214,164,55,0.25);
+  border-radius: 16px; margin-bottom: 16px;
+}
+.invite-hero-icon {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: linear-gradient(135deg, #0F3D2E, #1F7A3A);
+  color: #F4C542; display: flex; align-items: center; justify-content: center;
+  margin: 0 auto; box-shadow: 0 4px 14px rgba(15,61,46,0.2);
+}
+.invite-hero h2 { color: #0F3D2E; font-size: 20px; }
+.invite-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+.invite-panel { background: #fff; }
+.qr-frame {
+  background: #fff; border: 3px solid #FDF8EA;
+  border-radius: 14px; padding: 8px; display: inline-block;
+  box-shadow: 0 3px 10px rgba(15,61,46,0.08);
+}
+.invite-link-box {
+  display: flex; gap: 8px; align-items: stretch;
+}
+.invite-link-box input {
+  flex: 1; padding: 10px 12px; border: 1px solid var(--border);
+  border-radius: 10px; font-size: 12.5px; background: #FBFAF6;
+  font-family: 'Courier New', monospace; direction: ltr; text-align: left;
+}
+.invite-share-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.share-btn {
+  flex: 1; min-width: 100px;
+  padding: 12px 14px; border-radius: 10px; border: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font-weight: 700; font-size: 13px; cursor: pointer;
+  text-decoration: none; color: #fff; transition: transform .15s;
+}
+.share-btn:hover { transform: translateY(-2px); }
+.share-wa { background: #25D366; }
+.share-mail { background: #4285F4; }
+.share-native { background: #6B756F; }
+.invite-steps { display: flex; flex-direction: column; gap: 12px; }
+.invite-step { display: flex; gap: 12px; align-items: flex-start; }
+.step-badge {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: #D6A437; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; flex-shrink: 0;
+}
+.invite-step strong { display: block; color: #0F3D2E; margin-bottom: 4px; }
+.invite-step p { margin: 0; font-size: 12.5px; color: #6B756F; line-height: 1.7; }
+
+:root[data-theme="dark"] .invite-hero { background: linear-gradient(135deg, #2A2E24, #333828); border-color: rgba(214,164,55,0.3); }
+:root[data-theme="dark"] .invite-hero h2 { color: #E8E3D6; }
+:root[data-theme="dark"] .qr-frame { background: #fff; border-color: #333828; }
+:root[data-theme="dark"] .invite-link-box input { background: #2C2F26; color: #E8E3D6; border-color: #3A3E31; }
+:root[data-theme="dark"] .invite-step strong { color: #E8E3D6; }
+
 /* ═══════ تقويم الاجتماعات ═══════ */
 .cal-toolbar {
   display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
@@ -4532,6 +4590,7 @@ const MENU_GROUPS = [
   ]},
   { key: '__admin', label: 'التقارير والإدارة', icon: 'bar-chart-3', defaultOpen: false, items: [
     { key: 'analytics', label: 'تحليلات الأداء', icon: 'trending-up' },
+    { key: 'invite', label: 'دعوة موظفين', icon: 'user-plus' },
     { key: 'reports', label: 'التقارير', icon: 'bar-chart-3' },
     { key: 'users', label: 'المستخدمون', icon: 'users', roles: ['admin', 'company_manager', 'department_manager'] },
     { key: 'settings', label: 'الإعدادات', icon: 'settings' },
@@ -5764,7 +5823,8 @@ async function pageMeetingDetail(body, meetingId, urlQuery) {
           </div>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button class="meeting-action-btn mab-secondary" onclick="copyItemLink('#meeting_detail/${m.id}','رابط الاجتماع')"><span data-lucide="link" style="width:15px;height:15px;"></span> نسخ رابط الاجتماع</button>
+          <button class="meeting-action-btn mab-secondary" id="waShareMeetingBtn" style="background:#25D366;color:#fff;border-color:#25D366;"><span data-lucide="message-circle" style="width:15px;height:15px;"></span> مشاركة عبر واتساب</button>
+          <button class="meeting-action-btn mab-secondary" onclick="copyItemLink('#meeting_detail/${m.id}','رابط الاجتماع')"><span data-lucide="link" style="width:15px;height:15px;"></span> نسخ الرابط</button>
           <button class="meeting-action-btn mab-secondary" id="printMinutesBtn"><span data-lucide="printer" style="width:15px;height:15px;"></span> طباعة محضر الاجتماع</button>
         </div>
       </div>
@@ -6013,6 +6073,7 @@ async function pageMeetingDetail(body, meetingId, urlQuery) {
   }
 
   document.getElementById('printMinutesBtn').addEventListener('click', () => printMeetingMinutes({ ...m, attendees, agenda, decisions, tasks }));
+  document.getElementById('waShareMeetingBtn')?.addEventListener('click', () => whatsappShareMeeting(m));
 
   document.getElementById('prepReportSubmitBtn').addEventListener('click', async () => {
     const errBox = document.getElementById('prepReportError');
@@ -8242,6 +8303,7 @@ window.openDecisionDrawer = async function(id, editMode = false) {
     <div class="drawer-header">
       <h3>تفاصيل القرار</h3>
       <div style="display:flex;gap:6px;">
+        <button class="btn btn-sm" id="drawerWaShareBtn" title="مشاركة عبر واتساب" style="background:#25D366;color:#fff;border-color:#25D366;"><span data-lucide="message-circle" style="width:14px;height:14px;"></span></button>
         <button class="btn btn-sm btn-outline" title="نسخ رابط القرار" onclick="copyItemLink('#decisions?open=${d.id}','رابط القرار')"><span data-lucide="link" style="width:14px;height:14px;"></span></button>
         <button class="btn btn-sm btn-outline" onclick="closeDecisionDrawer()"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
       </div>
@@ -8299,6 +8361,7 @@ window.openDecisionDrawer = async function(id, editMode = false) {
       <button class="btn btn-outline" onclick="closeDecisionDrawer()">إغلاق</button>
     </div>` : ''}
   `;
+  document.getElementById('drawerWaShareBtn')?.addEventListener('click', () => whatsappShareDecision(d));
   document.getElementById('ackDecisionBtn')?.addEventListener('click', async () => {
     const { error } = await sb.from('decision_acknowledgments').insert({ decision_id: id, user_id: CURRENT_USER.id });
     if (error) { toast(error.message, 'error'); return; }
@@ -8845,6 +8908,7 @@ async function route() {
     else if (page === 'maintenance_preventive') await pageMaintenancePreventive(body, query);
     else if (page === 'maintenance_assets') await pageMaintenanceAssets(body, query);
     else if (page === 'install_app') await pageInstallApp(body);
+    else if (page === 'invite') await pageInvite(body);
     else if (page === 'reports') await pageReports(body);
     else if (page === 'analytics') await pageAnalytics(body);
     else if (page === 'users') await pageUsers(body);
@@ -9083,6 +9147,7 @@ const CMD_PALETTE_ITEMS = [
   { label: 'شغلي اليوم', icon: 'sun', hash: '#myday', keys: ['myday','اليوم','شغلي','مهامي'] },
   { label: 'تحليلات الأداء', icon: 'trending-up', hash: '#analytics', keys: ['analytics','تحليل','مخططات','أداء','إحصاء'] },
   { label: 'تقويم الاجتماعات', icon: 'calendar', hash: '#meetings_calendar', keys: ['تقويم','calendar','شهر','جدول شهري'] },
+  { label: 'دعوة موظفين (QR/واتساب)', icon: 'user-plus', hash: '#invite', keys: ['invite','دعوة','QR','مشاركة','واتساب'] },
   { label: 'لوحة التحكم', icon: 'layout-dashboard', hash: '#dashboard', keys: ['dashboard','لوحة','رئيسية'] },
   { label: 'الاجتماعات', icon: 'calendar', hash: '#meetings', keys: ['اجتماع','meetings'] },
   { label: 'المهام والتكليفات', icon: 'clipboard-list', hash: '#department_tasks', keys: ['مهام','tasks'] },
@@ -13327,6 +13392,201 @@ async function pageNotifications(body, query) {
   });
 }
 
+/* ═══════════════════════════════════════════════════════════
+   صفحة دعوة موحّدة — QR + مشاركة سريعة
+   ═══════════════════════════════════════════════════════════ */
+async function pageInvite(body) {
+  const appUrl = window.location.origin + window.location.pathname;
+  const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=15&color=0F3D2E&bgcolor=FFFFFF&data=' + encodeURIComponent(appUrl);
+  const inviteText = `🎯 دعوة للانضمام إلى نظام إدارة اجتماعات شركة شؤون الغذاء
+
+📱 افتح الرابط:
+${appUrl}
+
+بعد فتحه من الموبايل تقدر تضيفه على شاشتك الرئيسية ليصير زي التطبيق.`;
+
+  body.innerHTML = `
+    <div class="invite-hero">
+      <div class="invite-hero-icon"><span data-lucide="user-plus" style="width:32px;height:32px;"></span></div>
+      <h2 style="margin:12px 0 4px;">شارك النظام مع فريقك</h2>
+      <p style="margin:0;color:var(--text-muted);font-size:13px;">3 طرق سهلة لدعوة الموظفين — QR Code أو رابط مباشر أو واتساب.</p>
+    </div>
+
+    <div class="invite-grid">
+      <div class="panel invite-panel">
+        <div class="panel-header"><h3 class="panel-title"><span data-lucide="qr-code" style="width:17px;height:17px;color:#0F3D2E;"></span> QR Code</h3></div>
+        <div class="panel-body" style="text-align:center;">
+          <div class="qr-frame">
+            <img id="inviteQRImg" src="${qrUrl}" alt="QR Code" style="width:100%;max-width:320px;height:auto;display:block;">
+          </div>
+          <p style="font-size:12px;color:var(--text-muted);margin:10px 0 14px;">افتح كاميرا الموبايل وصوّبها على الكود — النظام يفتح مباشرة.</p>
+          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+            <a href="${qrUrl}" download="شؤون-الغذاء-QR.png" class="btn btn-outline"><span data-lucide="download" style="width:14px;height:14px;"></span> تحميل الصورة</a>
+            <button class="btn btn-outline" id="inviteQRPrint"><span data-lucide="printer" style="width:14px;height:14px;"></span> طباعة</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel invite-panel">
+        <div class="panel-header"><h3 class="panel-title"><span data-lucide="link" style="width:17px;height:17px;color:#0F3D2E;"></span> الرابط المباشر</h3></div>
+        <div class="panel-body">
+          <div class="invite-link-box">
+            <input type="text" readonly value="${esc(appUrl)}" id="inviteLinkInput" onclick="this.select();">
+            <button class="btn" id="inviteCopyBtn" style="background:var(--primary);color:#fff;"><span data-lucide="copy" style="width:14px;height:14px;"></span> نسخ</button>
+          </div>
+          <p style="font-size:12px;color:var(--text-muted);margin-top:10px;">اضغط لتحديد الرابط، أو استخدم زر النسخ.</p>
+
+          <h4 style="margin:20px 0 10px;font-size:13px;color:#0F3D2E;">📱 مشاركة سريعة عبر:</h4>
+          <div class="invite-share-row">
+            <a href="https://wa.me/?text=${encodeURIComponent(inviteText)}" target="_blank" rel="noopener" class="share-btn share-wa">
+              <span data-lucide="message-circle" style="width:18px;height:18px;"></span> واتساب
+            </a>
+            <a href="mailto:?subject=${encodeURIComponent('دعوة لنظام شؤون الغذاء')}&body=${encodeURIComponent(inviteText)}" class="share-btn share-mail">
+              <span data-lucide="mail" style="width:18px;height:18px;"></span> بريد
+            </a>
+            <button class="share-btn share-native" id="inviteNativeShare">
+              <span data-lucide="share-2" style="width:18px;height:18px;"></span> مشاركة
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel invite-panel" style="grid-column:1/-1;">
+        <div class="panel-header"><h3 class="panel-title"><span data-lucide="smartphone" style="width:17px;height:17px;color:#0F3D2E;"></span> إرشادات التثبيت على الموبايل</h3></div>
+        <div class="panel-body">
+          <div class="invite-steps">
+            <div class="invite-step">
+              <div class="step-badge">1</div>
+              <div>
+                <strong>iPhone (Safari)</strong>
+                <p>افتح الرابط في <b>Safari</b> → اضغط زر المشاركة <span data-lucide="share" style="width:12px;height:12px;vertical-align:-2px;"></span> → "أضف إلى الشاشة الرئيسية".</p>
+              </div>
+            </div>
+            <div class="invite-step">
+              <div class="step-badge">2</div>
+              <div>
+                <strong>Android (Chrome)</strong>
+                <p>افتح الرابط في <b>Chrome</b> → اضغط ⋮ من فوق يمين → "تثبيت التطبيق" أو "إضافة إلى الشاشة الرئيسية".</p>
+              </div>
+            </div>
+            <div class="invite-step">
+              <div class="step-badge">3</div>
+              <div>
+                <strong>بعد التثبيت</strong>
+                <p>ستظهر أيقونة النظام على الشاشة الرئيسية كأي تطبيق. لن تحتاج لفتح المتصفح مرة أخرى.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  document.getElementById('inviteCopyBtn').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(appUrl);
+      toast('تم نسخ الرابط', 'success');
+    } catch { toast('فشل النسخ — انسخه يدويًا', 'error'); }
+  });
+
+  document.getElementById('inviteQRPrint').addEventListener('click', () => {
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>QR - شؤون الغذاء</title>
+      <style>body{font-family:Tahoma;text-align:center;padding:40px;} h1{color:#0F3D2E;} img{max-width:400px;margin:20px 0;} p{color:#6B756F;}</style>
+      </head><body>
+        <h1>شركة شؤون الغذاء لتطوير وإدارة المطاعم</h1>
+        <p>امسح الكود بكاميرا الموبايل للانتقال المباشر لنظام الإدارة</p>
+        <img src="${qrUrl}">
+        <p style="font-size:11px;">${esc(appUrl)}</p>
+      </body></html>`);
+    win.document.close();
+    setTimeout(() => win.print(), 500);
+  });
+
+  const nativeBtn = document.getElementById('inviteNativeShare');
+  if (navigator.share) {
+    nativeBtn.addEventListener('click', () => navigator.share({ title: 'شؤون الغذاء', text: inviteText, url: appUrl }).catch(()=>{}));
+  } else {
+    nativeBtn.style.display = 'none';
+  }
+}
+
+/* ═══ رسائل واتساب جاهزة (Rich WhatsApp Templates) ═══
+   بيبني نص محضّر واحترافي مع الرابط ويفتح واتساب مباشرة */
+function whatsappShareMeeting(m) {
+  const url = window.location.origin + window.location.pathname + '#meeting_detail/' + m.id;
+  const dt = new Date(m.meeting_datetime);
+  const dateStr = dt.toLocaleDateString('ar-SA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const timeStr = dt.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+  const loc = m.location_detail || (label('location_type', m.location_type) || '');
+  const text = `📅 *دعوة اجتماع*
+━━━━━━━━━━━━━━━
+
+📌 *العنوان:* ${m.title}
+🗓️ *التاريخ:* ${dateStr}
+🕐 *الوقت:* ${timeStr}
+${loc ? `📍 *المكان:* ${loc}\n` : ''}${m.departments ? `🏢 *القسم:* ${m.departments.name}\n` : ''}${m.users ? `👤 *المنظّم:* ${m.users.full_name}\n` : ''}
+🔗 *التفاصيل الكاملة:*
+${url}
+
+_رسالة مرسلة من نظام شؤون الغذاء_`;
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+}
+window.whatsappShareMeeting = whatsappShareMeeting;
+
+function whatsappShareTask(t) {
+  const url = window.location.origin + window.location.pathname + '#tasks';
+  const pri = { high: '🔴 عالية', medium: '🟡 متوسطة', low: '🟢 منخفضة' }[t.priority || 'medium'];
+  const text = `📌 *مهمة جديدة مسندة إليك*
+━━━━━━━━━━━━━━━
+
+📝 *المهمة:* ${t.title}
+${t.due_date ? `📅 *موعد التسليم:* ${t.due_date}\n` : ''}⚡ *الأولوية:* ${pri}
+${t.meetings ? `🗂️ *من اجتماع:* ${t.meetings.title}\n` : ''}
+🔗 *فتح المهمة:*
+${url}
+
+_رسالة من نظام شؤون الغذاء_`;
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+}
+window.whatsappShareTask = whatsappShareTask;
+
+function whatsappShareDecision(d) {
+  const url = window.location.origin + window.location.pathname + '#decisions?open=' + d.id;
+  const pri = { high: '🔴 عالية', medium: '🟡 متوسطة', low: '🟢 منخفضة' }[d.priority || 'medium'];
+  const text = `⚖️ *قرار جديد*
+━━━━━━━━━━━━━━━
+
+📋 *القرار:* ${d.decision_text}
+${d.due_date ? `📅 *موعد التنفيذ:* ${d.due_date}\n` : ''}⚡ *الأولوية:* ${pri}
+${d.users ? `👤 *المسؤول:* ${d.users.full_name}\n` : ''}
+🔗 *التفاصيل:*
+${url}
+
+_رسالة من نظام شؤون الغذاء_`;
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+}
+window.whatsappShareDecision = whatsappShareDecision;
+
+function whatsappShareMaintenance(req) {
+  const url = window.location.origin + window.location.pathname + '#maintenance_detail/' + req.id;
+  const sev = { critical: '🚨 حرج', high: '🔴 عالي', medium: '🟡 متوسط', low: '🟢 منخفض' }[req.severity || 'medium'];
+  const text = `🔧 *طلب صيانة*
+━━━━━━━━━━━━━━━
+
+${req.request_no ? `🏷️ *رقم الطلب:* ${req.request_no}\n` : ''}📝 *العطل:* ${req.issue_title || req.description || '-'}
+${req.branches?.name ? `📍 *الفرع:* ${req.branches.name}\n` : ''}⚡ *الشدّة:* ${sev}
+📊 *الحالة:* ${label('maint_status', req.status) || '-'}
+
+🔗 *التفاصيل:*
+${url}
+
+_رسالة من نظام شؤون الغذاء_`;
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+}
+window.whatsappShareMaintenance = whatsappShareMaintenance;
+
 async function pageInstallApp(body) {
   const ua = navigator.userAgent;
   const isIOS = /iphone|ipad|ipod/i.test(ua);
@@ -15189,6 +15449,7 @@ async function pageMaintenanceDetail(body, id) {
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
           ${maintStatusBadge(req.status)} ${maintSevBadge(req.severity)}
+          <button class="btn" title="مشاركة عبر واتساب" id="waShareMaintBtn" style="background:#25D366;color:#fff;font-size:12px;padding:6px 10px;border:none;"><span data-lucide="message-circle" style="width:13px;height:13px;"></span></button>
           <button class="btn btn-outline" title="نسخ رابط الطلب" onclick="copyItemLink('#maintenance_detail/${req.id}','رابط طلب الصيانة')" style="font-size:12px;padding:6px 10px;"><span data-lucide="link" style="width:13px;height:13px;"></span></button>
           ${req.is_draft && req.requester_id===CURRENT_USER.id ? `<a href="#maintenance_new/${req.id}" class="btn" style="background:var(--primary);color:#fff;font-size:12px;padding:6px 14px;"><span data-lucide="edit-3" style="width:13px;height:13px;"></span> متابعة التعديل</a>` : ''}
         </div>
@@ -15345,6 +15606,7 @@ async function pageMaintenanceDetail(body, id) {
   `;
 
   if (window.lucide) lucide.createIcons();
+  document.getElementById('waShareMaintBtn')?.addEventListener('click', () => whatsappShareMaintenance(req));
   wireMaintActionButtons(req);
 }
 
