@@ -270,6 +270,7 @@ tr:hover td { background: var(--primary-light); }
 .ct-btn.active { background: rgba(31,122,58,0.12); color: #1F7A3A; }
 .ct-btn.active-open { background: rgba(214,164,55,0.15); color: #9A6B12; }
 .ct-divider { width: 1px; height: 20px; background: var(--border); margin: 0 6px; }
+.ct-anchor { position: relative; display: inline-flex; }
 .ct-types { display: inline-flex; align-items: center; gap: 5px; padding: 0 4px; }
 .ct-types .type-dot-btn {
   width: 16px; height: 16px; border-radius: 50%;
@@ -284,7 +285,8 @@ tr:hover td { background: var(--primary-light); }
 
 /* Popovers (لوحات منسدلة) */
 .ct-popover {
-  position: absolute; bottom: 42px;
+  position: absolute; bottom: calc(100% + 8px);
+  right: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -2792,15 +2794,44 @@ function chatInputBarHtml() {
           <span data-lucide="paperclip" style="width:16px;height:16px;"></span>
         </button>
         <button type="button" id="chatBoldBtn" class="ct-btn" title="عريض"><b>B</b></button>
-        <button type="button" id="chatColorBtn" class="ct-btn" title="لون النص">
-          <span id="chatColorSwatch" style="display:block; width:14px; height:14px; border-radius:50%; background:#212121;"></span>
-        </button>
-        <button type="button" id="chatAlignBtn" class="ct-btn" title="محاذاة">
-          <span data-lucide="align-right" style="width:15px;height:15px;"></span>
-        </button>
-        <button type="button" id="chatEmojiBtn" class="ct-btn" title="إيموجي">
-          <span data-lucide="smile" style="width:16px;height:16px;"></span>
-        </button>
+
+        <div class="ct-anchor">
+          <button type="button" id="chatColorBtn" class="ct-btn" title="لون النص">
+            <span id="chatColorSwatch" style="display:block; width:14px; height:14px; border-radius:50%; background:#212121;"></span>
+          </button>
+          <div id="colorPicker" class="hidden ct-popover">
+            <div class="ct-color-grid">
+              ${COLOR_PALETTE.map(c => `<button type="button" class="color-opt" data-color="${c}" style="background:${c};" title="${c}"></button>`).join('')}
+            </div>
+            <div class="ct-color-row">
+              <span style="font-size:11.5px; color:var(--text-muted);">مخصص:</span>
+              <input type="color" id="customColorInput" value="#212121">
+              <button type="button" id="resetColorBtn" class="ct-mini-btn">افتراضي</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="ct-anchor">
+          <button type="button" id="chatAlignBtn" class="ct-btn" title="محاذاة">
+            <span data-lucide="align-right" style="width:15px;height:15px;"></span>
+          </button>
+          <div id="alignPicker" class="hidden ct-popover" style="width:auto; padding:6px;">
+            <div style="display:flex; gap:4px;">
+              <button type="button" class="align-opt ct-mini-btn" data-align="right" title="يمين">⇥</button>
+              <button type="button" class="align-opt ct-mini-btn" data-align="center" title="وسط">⇔</button>
+              <button type="button" class="align-opt ct-mini-btn" data-align="left" title="يسار">⇤</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="ct-anchor">
+          <button type="button" id="chatEmojiBtn" class="ct-btn" title="إيموجي">
+            <span data-lucide="smile" style="width:16px;height:16px;"></span>
+          </button>
+          <div id="emojiPicker" class="hidden ct-popover ct-emoji-popover">
+            ${EMOJI_SET.map(e => `<button type="button" class="emoji-opt">${e}</button>`).join('')}
+          </div>
+        </div>
 
         <div class="ct-divider"></div>
 
@@ -2813,30 +2844,6 @@ function chatInputBarHtml() {
         </div>
 
         <input type="file" id="chatFileInput" accept="image/*,.pdf,.doc,.docx,.xlsx" style="display:none;">
-
-        <!-- Popovers (خارج التدفق العادي) -->
-        <div id="colorPicker" class="hidden ct-popover" style="right:64px;">
-          <div class="ct-color-grid">
-            ${COLOR_PALETTE.map(c => `<button type="button" class="color-opt" data-color="${c}" style="background:${c};" title="${c}"></button>`).join('')}
-          </div>
-          <div class="ct-color-row">
-            <span style="font-size:11.5px; color:var(--text-muted);">مخصص:</span>
-            <input type="color" id="customColorInput" value="#212121">
-            <button type="button" id="resetColorBtn" class="ct-mini-btn">افتراضي</button>
-          </div>
-        </div>
-
-        <div id="alignPicker" class="hidden ct-popover" style="right:96px; width:auto; padding:6px;">
-          <div style="display:flex; gap:4px;">
-            <button type="button" class="align-opt ct-mini-btn" data-align="right" title="يمين">⇥</button>
-            <button type="button" class="align-opt ct-mini-btn" data-align="center" title="وسط">⇔</button>
-            <button type="button" class="align-opt ct-mini-btn" data-align="left" title="يسار">⇤</button>
-          </div>
-        </div>
-
-        <div id="emojiPicker" class="hidden ct-popover ct-emoji-popover" style="right:0;">
-          ${EMOJI_SET.map(e => `<button type="button" class="emoji-opt">${e}</button>`).join('')}
-        </div>
       </div>
 
       <div class="chat-input-row-v2">
