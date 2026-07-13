@@ -7786,7 +7786,8 @@ async function renderAppCore() {
               <button class="icon-btn utc-icon-btn" id="utilsMenuBtn" title="أدوات إضافية">
                 <span data-lucide="more-vertical" style="width:17px;height:17px;"></span>
               </button>
-              <div class="user-menu-dropdown" id="utilsMenuDropdown" style="left:0;top:46px;min-width:220px;">
+              <div class="user-menu-dropdown" id="utilsMenuDropdown" style="left:0;top:46px;min-width:230px;">
+                <button id="utilCmdPalette"><span data-lucide="command" style="width:14px;height:14px;"></span> بحث سريع <kbd style="margin-inline-start:auto;font-size:10px;padding:1px 5px;border:1px solid var(--border);border-radius:4px;color:var(--text-muted);">Ctrl K</kbd></button>
                 <button id="utilThemeToggle"><span data-lucide="moon" id="utilThemeIcon" style="width:14px;height:14px;"></span> <span id="utilThemeLabel">الوضع الليلي</span></button>
                 <button id="utilVoiceHelp"><span data-lucide="help-circle" style="width:14px;height:14px;"></span> أمثلة الأوامر الصوتية</button>
                 <button onclick="location.hash='#install_app'"><span data-lucide="download" style="width:14px;height:14px;"></span> تحميل التطبيق</button>
@@ -7867,6 +7868,7 @@ async function renderAppCore() {
   document.addEventListener('click', (e) => { if (!utilsMenu?.contains(e.target)) utilsMenu?.classList.remove('show'); });
   utilThemeToggle?.addEventListener('click', () => { toggleTheme(); syncThemeLabel(); utilsMenu?.classList.remove('show'); });
   document.getElementById('utilVoiceHelp')?.addEventListener('click', () => { utilsMenu?.classList.remove('show'); openVoiceHelpModal(); });
+  document.getElementById('utilCmdPalette')?.addEventListener('click', () => { utilsMenu?.classList.remove('show'); openCommandPalette(); });
 
   // عداد ولائحة الإشعارات (دعوات اجتماعات + رسائل غير مقروءة)
   (async () => {
