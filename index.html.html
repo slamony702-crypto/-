@@ -1891,6 +1891,75 @@ textarea.form-input { resize: vertical; min-height: 44px; line-height: 1.6; }
 .mt-hero-header h2 { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 800; color: #24352E; }
 .mt-hero-header .mt-accent { width: 4px; height: 26px; background: #D6A437; border-radius: 3px; }
 .mt-hero-header p { font-size: 12.5px; color: #6B756F; margin-top: 5px; }
+/* ═══════ تقويم الاجتماعات ═══════ */
+.cal-toolbar {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+  background: #FFFDF7; border: 1px solid rgba(214,164,55,0.2);
+  border-radius: 12px; padding: 10px 14px; flex-wrap: wrap;
+}
+.cal-title { font-size: 15px; font-weight: 800; color: #0F3D2E; min-width: 130px; text-align: center; }
+.cal-legend {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  font-size: 11px; color: #6B756F; margin-bottom: 10px;
+  padding: 8px 14px; background: #FBFAF6; border-radius: 10px;
+}
+.cal-lg-item { display: inline-flex; align-items: center; gap: 4px; }
+.cal-lg-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.cal-lg-mine { background: #fff; border: 2px solid #D6A437; box-sizing: border-box; }
+.cal-grid {
+  background: #fff; border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+  box-shadow: 0 2px 8px rgba(15,61,46,0.04);
+}
+.cal-headrow { display: grid; grid-template-columns: repeat(7, 1fr); background: #0F3D2E; color: #fff; }
+.cal-head { padding: 10px 4px; text-align: center; font-size: 11.5px; font-weight: 700; border-inline-start: 1px solid rgba(255,255,255,0.1); }
+.cal-head:first-child { border-inline-start: none; }
+.cal-body { display: grid; grid-template-columns: repeat(7, 1fr); }
+.cal-cell {
+  min-height: 92px; padding: 6px; border-top: 1px solid var(--border);
+  border-inline-start: 1px solid var(--border); position: relative;
+  cursor: pointer; transition: background .15s;
+}
+.cal-cell:nth-child(7n+1) { border-inline-start: none; }
+.cal-cell:hover { background: #FBFAF6; }
+.cal-empty { background: #F9F7EF; cursor: default; }
+.cal-empty:hover { background: #F9F7EF; }
+.cal-today { background: rgba(214,164,55,0.08); }
+.cal-today .cal-daynum {
+  background: #D6A437; color: #fff;
+  width: 26px; height: 26px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 800;
+}
+.cal-daynum { font-size: 12px; font-weight: 700; color: #24352E; margin-bottom: 4px; }
+.cal-meet {
+  display: flex; align-items: center; gap: 3px;
+  background: #fff; border: 1px solid #E8E3D6; border-inline-end: 3px solid;
+  border-radius: 5px; padding: 2px 5px;
+  font-size: 10px; font-weight: 600;
+  margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cal-meet.cal-mine { border-color: #D6A437; background: linear-gradient(to left, rgba(214,164,55,0.08), #fff); }
+.cal-mdot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.cal-mtime { color: #6B756F; font-size: 9.5px; flex-shrink: 0; }
+.cal-mtitle { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.cal-more { font-size: 10px; color: #9A6B12; font-weight: 700; margin-top: 2px; }
+
+:root[data-theme="dark"] .cal-toolbar { background: #2A2E24; border-color: rgba(214,164,55,0.25); }
+:root[data-theme="dark"] .cal-title { color: #E8E3D6; }
+:root[data-theme="dark"] .cal-legend { background: #2C2F26; color: #B0BEB4; }
+:root[data-theme="dark"] .cal-grid { background: #2A2E24; }
+:root[data-theme="dark"] .cal-cell:hover { background: #333828; }
+:root[data-theme="dark"] .cal-empty { background: #24281F; }
+:root[data-theme="dark"] .cal-meet { background: #363A2E; border-color: #3A3E31; }
+:root[data-theme="dark"] .cal-daynum { color: #E8E3D6; }
+
+@media (max-width: 640px) {
+  .cal-cell { min-height: 60px; padding: 3px; }
+  .cal-mtitle { display: none; }
+  .cal-head { font-size: 10px; }
+  .cal-title { min-width: 100px; font-size: 13px; }
+}
+
 /* ═══════ Analytics ═══════ */
 .analytics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; margin-top: 14px; }
 .leader-row {
@@ -3862,6 +3931,35 @@ window.respondMeetingRequest = async function(reqId, decision) {
   renderApp();
 };
 
+/* ═══ إشعار صوتي خفيف عبر Web Audio API — بدون ملفات صوت خارجية ═══
+   الاستخدام: playAlertSound() لصوت افتراضي، أو playAlertSound('urgent') لصوت عاجل مميز
+   يحترم إعداد المستخدم في localStorage.sg_sound_enabled */
+let _audioCtx = null;
+function playAlertSound(kind = 'default') {
+  if (localStorage.getItem('sg_sound_enabled') === 'off') return;
+  try {
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = _audioCtx;
+    const now = ctx.currentTime;
+    // نغمة عاجلة: 3 نبضات متتابعة بترددات عالية
+    // نغمة عادية: نبضة واحدة ناعمة
+    const notes = kind === 'urgent'
+      ? [{ freq: 880, at: 0, dur: 0.12 }, { freq: 1100, at: 0.15, dur: 0.12 }, { freq: 880, at: 0.30, dur: 0.18 }]
+      : [{ freq: 660, at: 0, dur: 0.15 }, { freq: 880, at: 0.08, dur: 0.15 }];
+    notes.forEach(n => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine'; osc.frequency.value = n.freq;
+      gain.gain.setValueAtTime(0, now + n.at);
+      gain.gain.linearRampToValueAtTime(kind === 'urgent' ? 0.15 : 0.08, now + n.at + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + n.at + n.dur);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now + n.at); osc.stop(now + n.at + n.dur);
+    });
+  } catch (e) { /* ignore */ }
+}
+window.playAlertSound = playAlertSound;
+
 function toast(message, type = 'success') {
   let stack = document.getElementById('toastStack');
   if (!stack) {
@@ -4467,6 +4565,165 @@ function confirmModal(message, onConfirm, danger = true) {
   host.querySelector('#confirmModalOk').addEventListener('click', () => { host.remove(); onConfirm(); });
 }
 
+/* ═══════════════════════════════════════════════════════════
+   تقويم الاجتماعات — عرض شهري مع نقاط ملونة وفلترة بالقسم
+   ═══════════════════════════════════════════════════════════ */
+async function pageMeetingsCalendar(body, urlQuery) {
+  const isAdmin = ['admin','company_manager'].includes(CURRENT_USER.role);
+  const st = { year: Number(urlQuery?.y) || new Date().getFullYear(), month: Number(urlQuery?.m) || (new Date().getMonth() + 1), dept: urlQuery?.dept || '' };
+  const [{ data: allDepts }, { data: myAtt }] = await Promise.all([
+    sb.from('departments').select('id, name').order('name'),
+    sb.from('meeting_attendees').select('meeting_id').eq('user_id', CURRENT_USER.id)
+  ]);
+  const myMeetingIds = new Set((myAtt || []).map(a => a.meeting_id));
+
+  async function loadMonth() {
+    const first = new Date(st.year, st.month - 1, 1);
+    const last = new Date(st.year, st.month, 0);
+    const startISO = first.toISOString();
+    const endISO = new Date(st.year, st.month - 1, last.getDate(), 23, 59, 59).toISOString();
+    let q = sb.from('meetings').select('id, title, meeting_datetime, meeting_type, status, department_id, organizer_id, users:organizer_id(full_name), departments(name)').gte('meeting_datetime', startISO).lte('meeting_datetime', endISO);
+    if (!isAdmin) q = q.eq('department_id', CURRENT_USER.department_id);
+    if (st.dept) q = q.eq('department_id', st.dept);
+    const { data: meets } = await q;
+    return meets || [];
+  }
+
+  const typeColors = {
+    weekly: '#1F7A3A', emergency: '#D32F2F', administrative: '#4285F4',
+    financial: '#D6A437', sales: '#9C27B0', operations: '#00838F', other: '#6B756F'
+  };
+  const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  const dayNames = ['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+
+  async function render() {
+    body.innerHTML = `
+      <div class="task-page-header">
+        <div>
+          <h2><span class="tph-accent"></span> <span data-lucide="calendar" style="width:22px;height:22px;color:#0F3D2E;"></span> تقويم الاجتماعات</h2>
+          <p>عرض بصري شهري لكل الاجتماعات — لون كل نقطة يشير لنوع الاجتماع.</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <a href="#meetings" class="btn btn-outline"><span data-lucide="list" style="width:14px;height:14px;"></span> عرض جدول</a>
+          <button class="btn" style="background:var(--primary);color:#fff;" onclick="location.hash='#meetings'; setTimeout(()=>document.getElementById('toggleCreateBtn')?.click(),200);"><span data-lucide="plus" style="width:14px;height:14px;"></span> اجتماع جديد</button>
+        </div>
+      </div>
+
+      <div class="cal-toolbar">
+        <button class="btn btn-outline" id="calPrev"><span data-lucide="chevron-right" style="width:16px;height:16px;"></span></button>
+        <div class="cal-title">${monthNames[st.month-1]} ${st.year}</div>
+        <button class="btn btn-outline" id="calNext"><span data-lucide="chevron-left" style="width:16px;height:16px;"></span></button>
+        <button class="btn btn-outline" id="calToday" style="font-size:11.5px;">اليوم</button>
+        ${isAdmin ? `
+          <select id="calDeptFilter" class="form-select" style="margin-inline-start:auto;">
+            <option value="">كل الأقسام</option>
+            ${(allDepts||[]).map(d => `<option value="${d.id}" ${String(st.dept)===String(d.id)?'selected':''}>${esc(d.name)}</option>`).join('')}
+          </select>
+        ` : ''}
+      </div>
+
+      <div class="cal-legend">
+        ${Object.entries(typeColors).map(([k, c]) => `<span class="cal-lg-item"><span class="cal-lg-dot" style="background:${c};"></span> ${label('meeting_type', k) || k}</span>`).join('')}
+        <span class="cal-lg-item" style="margin-inline-start:auto;"><span class="cal-lg-dot cal-lg-mine"></span> اجتماع مدعو له</span>
+      </div>
+
+      <div class="cal-grid">
+        <div class="cal-headrow">${dayNames.map(d => `<div class="cal-head">${d}</div>`).join('')}</div>
+        <div class="cal-body" id="calBody"><p class="empty-state">جاري التحميل...</p></div>
+      </div>
+
+      <div id="calDayPopup"></div>
+    `;
+    if (window.lucide) lucide.createIcons();
+
+    document.getElementById('calPrev').addEventListener('click', () => { st.month--; if (st.month < 1) { st.month = 12; st.year--; } render(); });
+    document.getElementById('calNext').addEventListener('click', () => { st.month++; if (st.month > 12) { st.month = 1; st.year++; } render(); });
+    document.getElementById('calToday').addEventListener('click', () => { const d = new Date(); st.year = d.getFullYear(); st.month = d.getMonth() + 1; render(); });
+    document.getElementById('calDeptFilter')?.addEventListener('change', (e) => { st.dept = e.target.value; render(); });
+
+    const meets = await loadMonth();
+    const byDay = {};
+    meets.forEach(m => { const d = (m.meeting_datetime || '').slice(0, 10); (byDay[d] = byDay[d] || []).push(m); });
+
+    const first = new Date(st.year, st.month - 1, 1);
+    const lastDate = new Date(st.year, st.month, 0).getDate();
+    const startWeekday = first.getDay(); // 0=Sun
+    const todayISO = new Date().toISOString().slice(0, 10);
+
+    let cells = '';
+    // خلايا فارغة قبل الأول
+    for (let i = 0; i < startWeekday; i++) cells += `<div class="cal-cell cal-empty"></div>`;
+    for (let d = 1; d <= lastDate; d++) {
+      const dateStr = `${st.year}-${String(st.month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const dayMeets = byDay[dateStr] || [];
+      const isToday = dateStr === todayISO;
+      const meetsHtml = dayMeets.slice(0, 3).map(m => {
+        const t = (m.meeting_datetime || '').slice(11, 16);
+        const mine = myMeetingIds.has(m.id) || m.organizer_id === CURRENT_USER.id;
+        return `<div class="cal-meet ${mine?'cal-mine':''}" style="border-color:${typeColors[m.meeting_type]||'#6B756F'};color:${typeColors[m.meeting_type]||'#6B756F'};" title="${esc(m.title)} — ${t}" data-meet="${m.id}">
+          <span class="cal-mdot" style="background:${typeColors[m.meeting_type]||'#6B756F'};"></span>
+          <span class="cal-mtime">${t}</span>
+          <span class="cal-mtitle">${esc(m.title.slice(0, 20))}${m.title.length > 20 ? '…' : ''}</span>
+        </div>`;
+      }).join('');
+      const more = dayMeets.length > 3 ? `<div class="cal-more" data-day="${dateStr}">+${dayMeets.length - 3} أخرى</div>` : '';
+      cells += `<div class="cal-cell ${isToday?'cal-today':''} ${dayMeets.length?'cal-hasmeets':''}" data-day="${dateStr}">
+        <div class="cal-daynum">${d}</div>
+        ${meetsHtml}
+        ${more}
+      </div>`;
+    }
+    document.getElementById('calBody').innerHTML = cells;
+
+    // Click on meeting → go to detail
+    document.querySelectorAll('[data-meet]').forEach(el => el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      location.hash = '#meeting_detail/' + el.dataset.meet;
+    }));
+    // Click "+X أخرى" → show all
+    document.querySelectorAll('[data-day]').forEach(el => el.addEventListener('click', () => {
+      const dateStr = el.dataset.day;
+      const list = byDay[dateStr] || [];
+      if (!list.length) return;
+      showDayPopup(dateStr, list);
+    }));
+  }
+
+  function showDayPopup(dateStr, list) {
+    const popup = document.getElementById('calDayPopup');
+    const dateFmt = new Date(dateStr).toLocaleDateString('ar-SA', { day: 'numeric', month: 'long', year: 'numeric' });
+    popup.innerHTML = `
+      <div class="modal-overlay" onclick="if(event.target===this)this.remove()">
+        <div class="panel modal-box" style="width:480px;max-width:95%;">
+          <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;">
+            <h3 class="panel-title">اجتماعات ${dateFmt}</h3>
+            <button class="btn btn-sm btn-outline" onclick="this.closest('.modal-overlay').remove()"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+          </div>
+          <div class="panel-body">
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              ${list.map(m => {
+                const t = (m.meeting_datetime || '').slice(11, 16);
+                const c = typeColors[m.meeting_type] || '#6B756F';
+                return `<a href="#meeting_detail/${m.id}" style="text-decoration:none;color:inherit;display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:#FBFAF6;border:1px solid var(--border);">
+                  <div style="width:4px;height:36px;background:${c};border-radius:2px;"></div>
+                  <div style="flex:1;">
+                    <div style="font-weight:700;font-size:13px;">${esc(m.title)}</div>
+                    <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${t} · ${m.departments?esc(m.departments.name):'-'} · ${label('meeting_type', m.meeting_type)||'-'}</div>
+                  </div>
+                  <span data-lucide="chevron-left" style="width:16px;height:16px;color:var(--text-muted);"></span>
+                </a>`;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    if (window.lucide) lucide.createIcons();
+  }
+
+  render();
+}
+
 async function pageMeetings(body, urlQuery) {
   const canCreate = can('meetings', 'manage');
   const isAdmin = ['admin', 'company_manager'].includes(CURRENT_USER.role);
@@ -4614,7 +4871,8 @@ function renderMeetingsShell(body) {
 
 function renderMeetingCreatePanel(departments, allUsersForMeeting) {
   return `
-    <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;">
+      <a href="#meetings_calendar" class="btn btn-outline btn-sm"><span data-lucide="calendar" style="width:14px;height:14px;"></span> عرض تقويم</a>
       <button class="btn btn-primary btn-sm" id="toggleCreateBtn"><span data-lucide="calendar-plus" style="width:14px;height:14px;"></span> جدولة اجتماع جديد</button>
     </div>
     <div class="hidden" id="createPanel">
@@ -6107,7 +6365,19 @@ function renderTasksTableBody() {
     return;
   }
 
+  const taskChips = [];
+  if (TasksState.search) taskChips.push({ key:'search', label:`بحث: "${TasksState.search}"` });
+  if (TasksState.statusFilter) taskChips.push({ key:'statusFilter', label:'الحالة: '+({not_started:'لم تبدأ',in_progress:'قيد التنفيذ',completed:'مكتملة',delayed:'متأخرة'}[TasksState.statusFilter]||TasksState.statusFilter) });
+  if (TasksState.priorityFilter) taskChips.push({ key:'priorityFilter', label:'الأولوية: '+({high:'عالية',medium:'متوسطة',low:'منخفضة'}[TasksState.priorityFilter]||TasksState.priorityFilter) });
+  const taskChipsHtml = taskChips.length ? `
+    <div class="filter-chips" style="margin-bottom:12px;">
+      <span style="font-size:11.5px;color:var(--text-muted);font-weight:700;align-self:center;margin-inline-end:4px;">الفلاتر النشطة:</span>
+      ${taskChips.map(c => `<span class="filter-chip">${esc(c.label)} <button type="button" data-tchip-remove="${c.key}" title="إزالة">×</button></span>`).join('')}
+      <button type="button" class="filter-chip" data-tchip-remove="all" style="background:rgba(211,47,47,0.1);color:#D32F2F;border-color:rgba(211,47,47,0.3);cursor:pointer;">إزالة الكل ×</button>
+    </div>` : '';
+
   wrap.innerHTML = `
+    ${taskChipsHtml}
     <div style="overflow-x:auto;">
     <table class="adv-table">
       <thead><tr>
@@ -6163,6 +6433,14 @@ function renderTasksTableBody() {
       renderTasksTableBody();
     });
   });
+  // Filter Chips removal
+  wrap.querySelectorAll('[data-tchip-remove]').forEach(btn => btn.addEventListener('click', () => {
+    const k = btn.dataset.tchipRemove;
+    if (k === 'all') { TasksState.search=''; TasksState.statusFilter=''; TasksState.priorityFilter=''; }
+    else TasksState[k] = '';
+    TasksState.page = 1;
+    renderTasksTableBody();
+  }));
   renderTasksPagination(totalPages);
 }
 
@@ -8542,6 +8820,7 @@ async function route() {
     else if (page === 'myday') await pageMyDay(body);
     else if (page === 'vision') await pageVision(body, param);
     else if (page === 'meetings') await pageMeetings(body, query);
+    else if (page === 'meetings_calendar') await pageMeetingsCalendar(body, query);
     else if (page === 'meeting_detail') await pageMeetingDetail(body, param, query);
     else if (page === 'tasks') await pageTasks(body, query);
     else if (page === 'department_tasks') await pageDepartmentTasks(body, query);
@@ -8803,6 +9082,7 @@ function wireEmptyStateActions(host, actions) {
 const CMD_PALETTE_ITEMS = [
   { label: 'شغلي اليوم', icon: 'sun', hash: '#myday', keys: ['myday','اليوم','شغلي','مهامي'] },
   { label: 'تحليلات الأداء', icon: 'trending-up', hash: '#analytics', keys: ['analytics','تحليل','مخططات','أداء','إحصاء'] },
+  { label: 'تقويم الاجتماعات', icon: 'calendar', hash: '#meetings_calendar', keys: ['تقويم','calendar','شهر','جدول شهري'] },
   { label: 'لوحة التحكم', icon: 'layout-dashboard', hash: '#dashboard', keys: ['dashboard','لوحة','رئيسية'] },
   { label: 'الاجتماعات', icon: 'calendar', hash: '#meetings', keys: ['اجتماع','meetings'] },
   { label: 'المهام والتكليفات', icon: 'clipboard-list', hash: '#department_tasks', keys: ['مهام','tasks'] },
@@ -10729,6 +11009,19 @@ function renderUsersTabContent() {
         ${nationalities.length ? `<div class="filter-select-wrap"><span class="fsw-icon" data-lucide="flag" style="width:15px;height:15px;"></span>
         <select id="ulNationalityFilter"><option value="">كل الجنسيات</option>${nationalities.map(n=>`<option value="${esc(n)}" ${UsersPageState.nationalityFilter===n?'selected':''}>${esc(n)}</option>`).join('')}</select></div>` : ''}
       </div>
+      ${(() => {
+        const chips = [];
+        if (UsersPageState.search) chips.push({ key:'search', label:`بحث: "${UsersPageState.search}"` });
+        if (UsersPageState.roleFilter) chips.push({ key:'roleFilter', label:'الدور: '+(LABELS.role[UsersPageState.roleFilter]||UsersPageState.roleFilter) });
+        if (UsersPageState.statusFilter) chips.push({ key:'statusFilter', label:'الحالة: '+({active:'نشط',inactive:'غير نشط',suspended:'موقوف'}[UsersPageState.statusFilter]||UsersPageState.statusFilter) });
+        if (UsersPageState.nationalityFilter) chips.push({ key:'nationalityFilter', label:'الجنسية: '+UsersPageState.nationalityFilter });
+        return chips.length ? `
+          <div class="filter-chips" style="margin-bottom:12px;">
+            <span style="font-size:11.5px;color:var(--text-muted);font-weight:700;align-self:center;margin-inline-end:4px;">الفلاتر النشطة:</span>
+            ${chips.map(c => `<span class="filter-chip">${esc(c.label)} <button type="button" data-uchip-remove="${c.key}" title="إزالة">×</button></span>`).join('')}
+            <button type="button" class="filter-chip" data-uchip-remove="all" style="background:rgba(211,47,47,0.1);color:#D32F2F;border-color:rgba(211,47,47,0.3);cursor:pointer;">إزالة الكل ×</button>
+          </div>` : '';
+      })()}
       <div class="panel"><div class="panel-body" style="overflow-x:auto;">
         ${filtered.length ? `<table><thead><tr><th>المستخدم</th><th>القسم</th><th>المنصب</th><th>الجوال</th><th>الجنسية</th><th>الدور</th><th>الحالة</th><th>آخر دخول</th><th>إجراءات</th></tr></thead><tbody>
           ${filtered.map((u,i) => `<tr>
@@ -10757,6 +11050,12 @@ function renderUsersTabContent() {
     document.getElementById('ulStatusFilter').addEventListener('change', (e) => { UsersPageState.statusFilter = e.target.value; renderUsersTabContent(); });
     if (document.getElementById('ulNationalityFilter')) document.getElementById('ulNationalityFilter').addEventListener('change', (e) => { UsersPageState.nationalityFilter = e.target.value; renderUsersTabContent(); });
     document.getElementById('ulResetBtn').addEventListener('click', () => { UsersPageState.search=''; UsersPageState.roleFilter=''; UsersPageState.statusFilter=''; UsersPageState.nationalityFilter=''; renderUsersTabContent(); });
+    host.querySelectorAll('[data-uchip-remove]').forEach(btn => btn.addEventListener('click', () => {
+      const k = btn.dataset.uchipRemove;
+      if (k === 'all') { UsersPageState.search=''; UsersPageState.roleFilter=''; UsersPageState.statusFilter=''; UsersPageState.nationalityFilter=''; }
+      else UsersPageState[k] = '';
+      renderUsersTabContent();
+    }));
 
   } else if (UsersPageState.activeTab === 'add') {
     const pf = UsersPageState.prefillFromSignup || null;
@@ -11175,13 +11474,39 @@ window.openChangePasswordModal = function(userId) {
   });
 };
 
-window.deleteUserPermanently = function(userId) {
-  confirmModal('حذف نهائي — هل أنت متأكد؟ لا يمكن التراجع.', async () => {
-    const { error } = await sb.from('users').delete().eq('id', userId);
-    if (error) { toast(error.message, 'error'); return; }
-    toast('تم حذف المستخدم نهائيًا', 'success');
-    renderApp();
-  }, true);
+window.deleteUserPermanently = async function(userId) {
+  // Soft-delete pattern: نعطّل المستخدم ونتيح التراجع
+  // الحذف الحقيقي بيسبب cascade على المهام والقرارات — خطر جدًا
+  const u = window.__usersPageData?.users?.find(x => x.id === userId);
+  if (!u) return;
+  const wasActive = u.is_active !== false && (u.status || 'active') === 'active';
+  if (!wasActive) {
+    // لو المستخدم معطّل بالفعل: نعرض تحذير الحذف النهائي
+    confirmModal('حذف نهائي — هل أنت متأكد؟ سيتم حذف كل بياناته المرتبطة (cascade). لا يمكن التراجع.', async () => {
+      const { error } = await sb.from('users').delete().eq('id', userId);
+      if (error) { toast(error.message, 'error'); return; }
+      toast('تم حذف المستخدم نهائيًا', 'success');
+      renderApp();
+    }, true);
+    return;
+  }
+  // أول مرة: soft-delete مع خيار التراجع
+  const prevStatus = u.status || 'active';
+  const prevIsActive = u.is_active !== false;
+  undoableAction({
+    message: `تم تعطيل "${esc(u.full_name)}" — تراجع خلال 6 ثوانٍ`,
+    action: async () => {
+      await sb.from('users').update({ status: 'inactive', is_active: false }).eq('id', userId);
+      await sb.from('user_activity_log').insert({ user_id: userId, action_text: 'تعطيل المستخدم (قبل الحذف)', created_by: CURRENT_USER.id });
+    },
+    undo: async () => {
+      await sb.from('users').update({ status: prevStatus, is_active: prevIsActive }).eq('id', userId);
+      renderApp();
+    },
+    timeout: 6000
+  });
+  toast('تم تعطيل المستخدم مؤقتًا. لحذفه نهائيًا اضغط زر الحذف مرة تانية بعد التعطيل.', 'warning');
+  setTimeout(() => renderApp(), 300);
 };
 
 window.toggleUserStatus = async function(userId) {
@@ -11363,11 +11688,28 @@ async function pageSettings(body) {
       <p><strong>الدور:</strong> ${label('role', CURRENT_USER.role)}</p>
       <p><strong>القسم:</strong> ${esc(CURRENT_USER.department_name || '-')}</p>
     </div></div>
+    <div class="panel"><div class="panel-header"><h3>التفضيلات</h3></div><div class="panel-body">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 0;">
+        <input type="checkbox" id="prefSoundEnabled" ${localStorage.getItem('sg_sound_enabled') !== 'off' ? 'checked' : ''}>
+        <div>
+          <div style="font-weight:700;font-size:13.5px;">إشعارات صوتية</div>
+          <div style="font-size:11.5px;color:var(--text-muted);">تشغيل صوت خفيف عند رفع طلبات الصيانة العاجلة والأحداث المهمة</div>
+        </div>
+        <button type="button" class="btn btn-outline" id="prefSoundTest" style="margin-inline-start:auto;font-size:11px;padding:4px 12px;">تجربة</button>
+      </label>
+    </div></div>
     <div class="panel"><div class="panel-header"><h3>عن النظام</h3></div><div class="panel-body">
       <p>شركة شؤون الغذاء للمتابعة — نسخة متصلة بـ Supabase (سحابية، بيانات محفوظة فعليًا).</p>
     </div></div>
     ${canManagePermissions ? `<div id="permissionsSection"><p class="empty-state">جاري تحميل الصلاحيات...</p></div>` : ''}
   `;
+
+  document.getElementById('prefSoundEnabled').addEventListener('change', (e) => {
+    localStorage.setItem('sg_sound_enabled', e.target.checked ? 'on' : 'off');
+    toast(e.target.checked ? 'تم تفعيل الإشعارات الصوتية' : 'تم إيقاف الإشعارات الصوتية', 'success');
+    if (e.target.checked) playAlertSound('default');
+  });
+  document.getElementById('prefSoundTest').addEventListener('click', () => playAlertSound('urgent'));
 
   if (canManagePermissions) await renderPermissionsSection();
 }
@@ -14683,6 +15025,10 @@ async function pageMaintenanceNew(body, param) {
       await notifyMaintUsers((staff||[]).map(u => u.id), '🔧 طلب صيانة جديد', `${created.request_no || '#'+created.id} — ${created.issue_title || ''}`, '#maintenance_detail/' + created.id);
     }
     toast(isDraft ? 'تم حفظ المسودة' : `تم رفع الطلب بنجاح — ${created.request_no || '#'+created.id}`, 'success');
+    // صوت تنبيه للطلبات العاجلة
+    if (!isDraft && (payload.severity === 'critical' || payload.severity === 'high')) {
+      playAlertSound('urgent');
+    }
     location.hash = '#maintenance_detail/' + created.id;
   }
 
