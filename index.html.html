@@ -5581,10 +5581,28 @@ function renderMeetingsKpi(all) {
   const box = document.getElementById('meetingsKpi');
   if (!box) return;
   box.innerHTML = `
-    <div class="kpi-card clickable-stat-card" data-target-page="meetings" data-scroll-target="meetings-table" aria-label="عرض كل الاجتماعات"><div class="kpi-icon c-blue"><span data-lucide="calendar-days" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${total}</div><div class="kpi-label">إجمالي الاجتماعات</div></div>
-    <div class="kpi-card clickable-stat-card" data-target-page="meetings" data-filter-key="status" data-filter-value="scheduled" data-scroll-target="meetings-table" aria-label="عرض الاجتماعات المجدولة"><div class="kpi-icon c-gold"><span data-lucide="pin" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${scheduled}</div><div class="kpi-label">مجدولة</div></div>
-    <div class="kpi-card clickable-stat-card" data-target-page="meetings" data-filter-key="status" data-filter-value="in_follow_up" data-scroll-target="meetings-table" aria-label="عرض الاجتماعات تحت المتابعة"><div class="kpi-icon c-blue">⏳</div><div class="kpi-value mono-num">${inFollowUp}</div><div class="kpi-label">تحت المتابعة</div></div>
-    <div class="kpi-card clickable-stat-card" data-target-page="meetings" data-filter-key="status" data-filter-value="closed" data-scroll-target="meetings-table" aria-label="عرض الاجتماعات المغلقة"><div class="kpi-icon c-green"><span data-lucide="check-circle-2" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;color:var(--success);"></span></div><div class="kpi-value mono-num">${closed}</div><div class="kpi-label">مغلقة</div></div>
+    <div class="stat-card-premium clickable-stat-card" data-target-page="meetings" data-scroll-target="meetings-table" aria-label="عرض كل الاجتماعات">
+      <div class="cat-icon cat-blue scp-icon"><span data-lucide="calendar-days" style="width:22px;height:22px;"></span></div>
+      <div class="scp-value">${total}</div>
+      <div class="scp-label">إجمالي الاجتماعات</div>
+    </div>
+    <div class="stat-card-premium clickable-stat-card" data-target-page="meetings" data-filter-key="status" data-filter-value="scheduled" data-scroll-target="meetings-table" aria-label="عرض الاجتماعات المجدولة">
+      <div class="cat-icon cat-terracotta scp-icon"><span data-lucide="pin" style="width:22px;height:22px;"></span></div>
+      <div class="scp-value">${scheduled}</div>
+      <div class="scp-label">مجدولة</div>
+      ${scheduled > 0 ? '<div class="pill-badge" style="margin-top:8px;">قادمة</div>' : ''}
+    </div>
+    <div class="stat-card-premium clickable-stat-card" data-target-page="meetings" data-filter-key="status" data-filter-value="in_follow_up" data-scroll-target="meetings-table" aria-label="عرض الاجتماعات تحت المتابعة">
+      <div class="cat-icon cat-orange scp-icon"><span data-lucide="hourglass" style="width:22px;height:22px;"></span></div>
+      <div class="scp-value">${inFollowUp}</div>
+      <div class="scp-label">تحت المتابعة</div>
+    </div>
+    <div class="stat-card-premium clickable-stat-card" data-target-page="meetings" data-filter-key="status" data-filter-value="closed" data-scroll-target="meetings-table" aria-label="عرض الاجتماعات المغلقة">
+      <div class="cat-icon cat-green scp-icon"><span data-lucide="check-circle-2" style="width:22px;height:22px;"></span></div>
+      <div class="scp-value">${closed}</div>
+      <div class="scp-label">مغلقة</div>
+      ${closed > 0 ? '<div class="pill-badge pb-success" style="margin-top:8px;">مكتملة</div>' : ''}
+    </div>
   `;
   wireClickableStatCards();
 }
@@ -7068,11 +7086,32 @@ function renderTasksKpi(all) {
   const overdue = all.filter(t => t.status === 'delayed' || (t.due_date && t.due_date < today && t.status !== 'completed')).length;
   const box = document.getElementById('tasksKpi');
   if (!box) return;
+  const rate = total ? Math.round(completed / total * 100) : 0;
   box.innerHTML = `
-    <div class="kpi-card clickable-stat-card" data-target-page="tasks" data-scroll-target="tasks-table" aria-label="عرض كل المهام"><div class="kpi-icon c-blue"><span data-lucide="check-circle-2" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;color:var(--success);"></span></div><div class="kpi-value mono-num">${total}</div><div class="kpi-label">إجمالي المهام</div></div>
-    <div class="kpi-card clickable-stat-card" data-target-page="tasks" data-filter-key="status" data-filter-value="in_progress" data-scroll-target="tasks-table" aria-label="عرض المهام قيد التنفيذ"><div class="kpi-icon c-gold">⏳</div><div class="kpi-value mono-num">${inProgress}</div><div class="kpi-label">قيد التنفيذ</div></div>
-    <div class="kpi-card clickable-stat-card" data-target-page="tasks" data-filter-key="status" data-filter-value="completed" data-scroll-target="tasks-table" aria-label="عرض المهام المكتملة"><div class="kpi-icon c-green"><span data-lucide="flag" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${completed}</div><div class="kpi-label">مكتملة</div></div>
-    <div class="kpi-card clickable-stat-card" data-target-page="tasks" data-filter-key="status" data-filter-value="delayed" data-scroll-target="tasks-table" aria-label="عرض المهام المتأخرة"><div class="kpi-icon c-red"><span data-lucide="alert-triangle" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;color:var(--danger);"></span></div><div class="kpi-value mono-num">${overdue}</div><div class="kpi-label">متأخرة</div></div>
+    <div class="stat-card-premium clickable-stat-card" data-target-page="tasks" data-scroll-target="tasks-table" aria-label="عرض كل المهام">
+      <div class="cat-icon cat-blue scp-icon"><span data-lucide="clipboard-list" style="width:22px;height:22px;"></span></div>
+      <div class="scp-value">${total}</div>
+      <div class="scp-label">إجمالي المهام</div>
+      ${total>0?`<div class="progress-bar-premium" style="margin-top:12px;"><div class="pbp-fill" style="width:${rate}%;"></div></div><div style="margin-top:4px; font-size:10.5px; color:var(--neutral-500);">${rate}% مكتمل</div>`:''}
+    </div>
+    <div class="stat-card-premium clickable-stat-card" data-target-page="tasks" data-filter-key="status" data-filter-value="in_progress" data-scroll-target="tasks-table" aria-label="عرض المهام قيد التنفيذ">
+      <div class="cat-icon cat-orange scp-icon"><span data-lucide="hourglass" style="width:22px;height:22px;"></span></div>
+      <div class="scp-value">${inProgress}</div>
+      <div class="scp-label">قيد التنفيذ</div>
+      ${inProgress>0?'<div class="pill-badge pb-warning" style="margin-top:8px;">جارية</div>':''}
+    </div>
+    <div class="stat-card-premium clickable-stat-card" data-target-page="tasks" data-filter-key="status" data-filter-value="completed" data-scroll-target="tasks-table" aria-label="عرض المهام المكتملة">
+      <div class="cat-icon cat-green scp-icon"><span data-lucide="check-circle-2" style="width:22px;height:22px;"></span></div>
+      <div class="scp-value">${completed}</div>
+      <div class="scp-label">مكتملة</div>
+      ${completed>0?'<div class="pill-badge pb-success" style="margin-top:8px;">أُنجزت</div>':''}
+    </div>
+    <div class="stat-card-premium clickable-stat-card" data-target-page="tasks" data-filter-key="status" data-filter-value="delayed" data-scroll-target="tasks-table" aria-label="عرض المهام المتأخرة">
+      <div class="cat-icon cat-pink scp-icon"><span data-lucide="alert-triangle" style="width:22px;height:22px;"></span></div>
+      <div class="scp-value">${overdue}</div>
+      <div class="scp-label">متأخرة</div>
+      ${overdue>0?'<div class="pill-badge pb-danger" style="margin-top:8px;">تحتاج متابعة</div>':''}
+    </div>
   `;
 }
 
@@ -11077,18 +11116,46 @@ async function pageAnalytics(body) {
   const completionRate = tasks.length ? Math.round(taskDone / tasks.length * 100) : 0;
 
   body.innerHTML = `
-    <div class="mt-hero-header">
-      <div>
-        <h2><span class="mt-accent"></span> <span data-lucide="bar-chart-3" style="width:22px;height:22px;color:#7F2E12;"></span> تحليلات الأداء</h2>
-        <p>نظرة شاملة على النشاط والأداء على مدى آخر 6 أشهر — الأرقام تُحدَّث لحظيًا.</p>
+    <div class="hero-card hero-purple">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+        <div style="flex:1; min-width:200px;">
+          <span class="hero-badge"><span data-lucide="bar-chart-3" style="width:11px;height:11px;vertical-align:-1px;"></span> آخر 6 أشهر</span>
+          <h1 style="font-size:26px; margin:12px 0 6px;">تحليلات الأداء</h1>
+          <p style="font-size:13.5px; margin:0;">نظرة شاملة على النشاط والأداء عبر كل الأقسام — الأرقام تُحدَّث لحظيًا</p>
+        </div>
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+          <div class="big-number" style="background:linear-gradient(135deg,#FFFFFF,rgba(255,255,255,0.8)); -webkit-background-clip:text; background-clip:text;">${completionRate}%</div>
+          <div style="text-align:start;">
+            <div style="font-size:11px; color:rgba(255,255,255,0.85); font-weight:500;">معدل الإنجاز</div>
+            <div style="font-size:10.5px; color:rgba(255,255,255,0.7); margin-top:2px;">إجمالي المهام</div>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="kpi-grid">
-      <div class="kpi-card"><div class="kpi-icon c-blue"><span data-lucide="calendar" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${meets.length}</div><div class="kpi-label">اجتماع في 6 أشهر</div></div>
-      <div class="kpi-card"><div class="kpi-icon c-green"><span data-lucide="check-circle-2" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${completionRate}%</div><div class="kpi-label">معدل إنجاز المهام</div></div>
-      <div class="kpi-card"><div class="kpi-icon c-red"><span data-lucide="alert-triangle" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${taskOverdue + overdueDecs}</div><div class="kpi-label">مهام وقرارات متأخرة</div></div>
-      <div class="kpi-card"><div class="kpi-icon c-gold"><span data-lucide="banknote" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${totalMaintCost.toLocaleString()}</div><div class="kpi-label">تكلفة الصيانة (ر.س)</div></div>
+      <div class="stat-card-premium">
+        <div class="cat-icon cat-blue scp-icon"><span data-lucide="calendar" style="width:22px;height:22px;"></span></div>
+        <div class="scp-value">${meets.length}</div>
+        <div class="scp-label">اجتماع في 6 أشهر</div>
+      </div>
+      <div class="stat-card-premium">
+        <div class="cat-icon cat-green scp-icon"><span data-lucide="check-circle-2" style="width:22px;height:22px;"></span></div>
+        <div class="scp-value">${completionRate}%</div>
+        <div class="scp-label">معدل إنجاز المهام</div>
+        <div class="pill-badge pb-success" style="margin-top:8px;">${completionRate >= 70 ? 'ممتاز' : completionRate >= 40 ? 'جيد' : 'يحتاج تحسين'}</div>
+      </div>
+      <div class="stat-card-premium">
+        <div class="cat-icon cat-pink scp-icon"><span data-lucide="alert-triangle" style="width:22px;height:22px;"></span></div>
+        <div class="scp-value">${taskOverdue + overdueDecs}</div>
+        <div class="scp-label">مهام وقرارات متأخرة</div>
+        ${(taskOverdue+overdueDecs)>0?'<div class="pill-badge pb-danger" style="margin-top:8px;">تحتاج متابعة</div>':''}
+      </div>
+      <div class="stat-card-premium">
+        <div class="cat-icon cat-terracotta scp-icon"><span data-lucide="banknote" style="width:22px;height:22px;"></span></div>
+        <div class="scp-value" style="font-size:24px;">${totalMaintCost.toLocaleString()}</div>
+        <div class="scp-label">تكلفة الصيانة (ر.س)</div>
+      </div>
     </div>
 
     <div class="analytics-grid">
@@ -13671,15 +13738,46 @@ async function pageDashboard(body) {
   function avatarInitials(name) { return (name||'').trim().split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join(''); }
   const linkTypeLabel = { meeting: 'اجتماع', task: 'مهمة', task_project: 'مشروع', direct: 'خاص' };
 
+  // Hero greeting بالوقت
+  const _h = new Date().getHours();
+  const _greeting = _h < 5 ? 'ليلة هادئة' : _h < 12 ? 'صباح الخير' : _h < 17 ? 'مساء النور' : _h < 20 ? 'مساء الخير' : 'ليلة سعيدة';
+  const _firstName = (CURRENT_USER.full_name || '').split(' ')[0] || 'يا صديق';
+  const _dateAr = new Date().toLocaleDateString('ar-SA', { weekday: 'long', day: 'numeric', month: 'long' });
+  const _completionRate = (tasks || []).length ? Math.round(tasksCompleted / (tasks || []).length * 100) : 0;
+
   body.innerHTML = `
+    <div class="hero-card">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+        <div style="flex:1; min-width:200px;">
+          <span class="hero-badge"><span data-lucide="sparkles" style="width:11px;height:11px;vertical-align:-1px;"></span> ${esc(_dateAr)}</span>
+          <h1 style="font-size:24px; margin:12px 0 6px;">${esc(_greeting)}، ${esc(_firstName)}</h1>
+          <p style="font-size:13.5px; margin:0; max-width:420px;">لوحة قيادة شاملة لمتابعة اجتماعاتك ومهامك وقراراتك. كل ما تحتاجه في مكان واحد ✨</p>
+        </div>
+        <div style="display:flex; gap:14px; align-items:center;">
+          <div class="progress-ring pr-terracotta" style="width:88px; height:88px;">
+            <svg width="88" height="88">
+              <circle class="pr-track" cx="44" cy="44" r="38" fill="none" stroke-width="6" stroke="rgba(255,255,255,0.2)"></circle>
+              <circle class="pr-fill" cx="44" cy="44" r="38" fill="none" stroke-width="6" stroke="#FFFFFF" stroke-linecap="round"
+                stroke-dasharray="${2*Math.PI*38}"
+                stroke-dashoffset="${2*Math.PI*38*(1-_completionRate/100)}"></circle>
+            </svg>
+            <div class="pr-value">
+              <strong style="color:#FFFFFF;">${_completionRate}%</strong>
+              <span style="color:rgba(255,255,255,0.85);">إنجاز</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     ${canCreate ? `
     <div class="quick-actions-bar">
-      <button class="quick-action-btn" onclick="location.hash='#meetings'"><span class="qa-icon" style="background:rgba(27,94,32,0.1); color:var(--primary);"><span data-lucide="calendar-plus" style="width:15px;height:15px;"></span></span> جدولة اجتماع</button>
-      <button class="quick-action-btn" onclick="openQuickAddTaskModal(null, null)"><span class="qa-icon" style="background:rgba(21,101,192,0.1); color:#1565C0;"><span data-lucide="list-plus" style="width:15px;height:15px;"></span></span> إضافة مهمة</button>
-      <button class="quick-action-btn" onclick="location.hash='#conversations'"><span class="qa-icon" style="background:rgba(249,168,37,0.15); color:#a86e00;"><span data-lucide="message-square" style="width:15px;height:15px;"></span></span> فتح تواصل داخلي</button>
-      <button class="quick-action-btn" onclick="location.hash='#reports'"><span class="qa-icon" style="background:rgba(107,114,128,0.1); color:#4B5563;"><span data-lucide="bar-chart-3" style="width:15px;height:15px;"></span></span> عرض التقارير</button>
-      <button class="quick-action-btn" onclick="location.hash='#decisions'"><span class="qa-icon" style="background:rgba(124,58,237,0.1); color:#7C3AED;"><span data-lucide="gavel" style="width:15px;height:15px;"></span></span> إنشاء قرار</button>
-      <button class="quick-action-btn" onclick="location.hash='#department_tasks'"><span class="qa-icon" style="background:rgba(198,40,40,0.08); color:var(--danger);"><span data-lucide="folder-kanban" style="width:15px;height:15px;"></span></span> مهام وتكليفات</button>
+      <button class="quick-action-btn" onclick="location.hash='#meetings'"><span class="qa-icon cat-icon cat-terracotta"><span data-lucide="calendar-plus" style="width:15px;height:15px;"></span></span> جدولة اجتماع</button>
+      <button class="quick-action-btn" onclick="openQuickAddTaskModal(null, null)"><span class="qa-icon cat-icon cat-blue"><span data-lucide="list-plus" style="width:15px;height:15px;"></span></span> إضافة مهمة</button>
+      <button class="quick-action-btn" onclick="location.hash='#conversations'"><span class="qa-icon cat-icon cat-orange"><span data-lucide="message-square" style="width:15px;height:15px;"></span></span> فتح تواصل داخلي</button>
+      <button class="quick-action-btn" onclick="location.hash='#reports'"><span class="qa-icon cat-icon cat-teal"><span data-lucide="bar-chart-3" style="width:15px;height:15px;"></span></span> عرض التقارير</button>
+      <button class="quick-action-btn" onclick="location.hash='#decisions'"><span class="qa-icon cat-icon cat-purple"><span data-lucide="gavel" style="width:15px;height:15px;"></span></span> إنشاء قرار</button>
+      <button class="quick-action-btn" onclick="location.hash='#department_tasks'"><span class="qa-icon cat-icon cat-pink"><span data-lucide="folder-kanban" style="width:15px;height:15px;"></span></span> مهام وتكليفات</button>
     </div>` : ''}
 
     <div class="stats-grid">
@@ -15778,13 +15876,43 @@ async function pageMaintenance(body, urlQuery) {
   };
 
   const kpiEl = document.getElementById('mtKpi');
+  const _resolveRate = total ? Math.round(closedCount / total * 100) : 0;
   kpiEl.innerHTML = `
-    <div class="kpi-card clickable-stat-card" data-target-page="maintenance"><div class="kpi-icon c-blue"><span data-lucide="clipboard-list" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${total}</div><div class="kpi-label">إجمالي الطلبات</div></div>
-    <div class="kpi-card clickable-stat-card" data-target-page="maintenance" data-filter-key="status" data-filter-value="new"><div class="kpi-icon c-cyan"><span data-lucide="plus-circle" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${newCount}</div><div class="kpi-label">طلبات جديدة</div></div>
-    <div class="kpi-card clickable-stat-card" data-target-page="maintenance" data-filter-key="severity" data-filter-value="critical"><div class="kpi-icon c-red"><span data-lucide="siren" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${emergencyCount}</div><div class="kpi-label">طلبات حرجة</div></div>
-    <div class="kpi-card clickable-stat-card" data-target-page="maintenance" data-filter-key="status" data-filter-value="in_progress"><div class="kpi-icon c-yellow"><span data-lucide="wrench" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${inProgress}</div><div class="kpi-label">قيد التنفيذ</div></div>
-    <div class="kpi-card clickable-stat-card" data-target-page="maintenance" data-filter-key="status" data-filter-value="closed"><div class="kpi-icon c-green"><span data-lucide="check-circle-2" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${closedCount}</div><div class="kpi-label">طلبات مغلقة</div></div>
-    <div class="kpi-card"><div class="kpi-icon c-yellow"><span data-lucide="banknote" style="width:19px;height:19px;"></span></div><div class="kpi-value mono-num">${monthCost.toLocaleString()}</div><div class="kpi-label">تكلفة صيانة هذا الشهر (ر.س)</div></div>
+    <div class="stat-card-premium clickable-stat-card" data-target-page="maintenance">
+      <div class="cat-icon cat-blue scp-icon"><span data-lucide="clipboard-list" style="width:22px;height:22px;"></span></div>
+      <div class="scp-value">${total}</div>
+      <div class="scp-label">إجمالي الطلبات</div>
+      ${total>0?`<div class="progress-bar-premium pbp-green" style="margin-top:12px;"><div class="pbp-fill" style="width:${_resolveRate}%;"></div></div><div style="margin-top:4px; font-size:10.5px; color:var(--neutral-500);">${_resolveRate}% معدل الإغلاق</div>`:''}
+    </div>
+    <div class="stat-card-premium clickable-stat-card" data-target-page="maintenance" data-filter-key="status" data-filter-value="new">
+      <div class="cat-icon cat-teal scp-icon"><span data-lucide="plus-circle" style="width:22px;height:22px;"></span></div>
+      <div class="scp-value">${newCount}</div>
+      <div class="scp-label">طلبات جديدة</div>
+      ${newCount>0?'<div class="pill-badge pb-info" style="margin-top:8px;">تنتظر المراجعة</div>':''}
+    </div>
+    <div class="stat-card-premium clickable-stat-card" data-target-page="maintenance" data-filter-key="severity" data-filter-value="critical">
+      <div class="cat-icon cat-pink scp-icon"><span data-lucide="siren" style="width:22px;height:22px;"></span></div>
+      <div class="scp-value">${emergencyCount}</div>
+      <div class="scp-label">طلبات حرجة</div>
+      ${emergencyCount>0?'<div class="pill-badge pb-danger" style="margin-top:8px;">عاجل</div>':''}
+    </div>
+    <div class="stat-card-premium clickable-stat-card" data-target-page="maintenance" data-filter-key="status" data-filter-value="in_progress">
+      <div class="cat-icon cat-orange scp-icon"><span data-lucide="wrench" style="width:22px;height:22px;"></span></div>
+      <div class="scp-value">${inProgress}</div>
+      <div class="scp-label">قيد التنفيذ</div>
+      ${inProgress>0?'<div class="pill-badge pb-warning" style="margin-top:8px;">جاري الإصلاح</div>':''}
+    </div>
+    <div class="stat-card-premium clickable-stat-card" data-target-page="maintenance" data-filter-key="status" data-filter-value="closed">
+      <div class="cat-icon cat-green scp-icon"><span data-lucide="check-circle-2" style="width:22px;height:22px;"></span></div>
+      <div class="scp-value">${closedCount}</div>
+      <div class="scp-label">طلبات مغلقة</div>
+      ${closedCount>0?'<div class="pill-badge pb-success" style="margin-top:8px;">مكتملة</div>':''}
+    </div>
+    <div class="stat-card-premium">
+      <div class="cat-icon cat-terracotta scp-icon"><span data-lucide="banknote" style="width:22px;height:22px;"></span></div>
+      <div class="scp-value" style="font-size:24px;">${monthCost.toLocaleString()}</div>
+      <div class="scp-label">تكلفة الشهر (ر.س)</div>
+    </div>
   `;
 
   // Top branches
