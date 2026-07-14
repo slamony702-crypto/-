@@ -20,7 +20,7 @@
 <link rel="dns-prefetch" href="https://api.qrserver.com">
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&family=Noto+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;700;800&family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ar.js"></script>
@@ -4027,6 +4027,33 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 @media (min-width: 769px) {
   .m-appbar, .m-bottomnav, .m-fab { display: none !important; }
   body.mobile-app-ready { padding-bottom: 0 !important; background: initial !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ⚡ تحسينات الأداء على الموبايل — إلغاء المؤثرات الثقيلة
+   backdrop-filter + saturate على 15+ عنصر يستهلك GPU بشدة
+   ويسبب lag في التمرير والتفاعل. نستبدلها بخلفيات شفافة عادية.
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .m-appbar, .m-bottomnav, .m-welcome, .m-tile, .m-appbar-btn,
+  .m-more-sheet, .m-more-item, .m-more-user, .m-quick-card,
+  .m-stat, .m-card, .m-chip, .m-tiles-edit-btn, .toast {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  /* تسريع الأداء: تخطي رسم البلاطات غير المرئية */
+  .m-tile {
+    content-visibility: auto;
+    contain-intrinsic-size: 130px 100%;
+  }
+  /* إلغاء الاهتزاز المستمر على زر التنبيه (كان يُعيد الرسم كل ثانية) */
+  .m-appbar-btn.has-alert {
+    animation: none !important;
+    box-shadow: 0 0 0 2px rgba(239,68,68,0.35), 0 2px 8px rgba(239,68,68,0.20) !important;
+  }
+  .m-appbar-btn.has-alert [data-lucide] {
+    animation: none !important;
+  }
 }
 </style>
 </head>
@@ -20116,6 +20143,11 @@ const PRAYER_NAMES_AR = {
   Asr: 'العصر', Maghrib: 'المغرب', Isha: 'العشاء'
 };
 
+// كاش صيَغ Intl.DateTimeFormat (إنشاؤها ثقيل — نُعيد استخدامها)
+const _fmtGreg = (() => { try { return new Intl.DateTimeFormat('ar-EG-u-nu-latn', { day:'numeric', month:'long', year:'numeric' }); } catch(e){ return null; } })();
+const _fmtHijri = (() => { try { return new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn', { day:'numeric', month:'long', year:'numeric' }); } catch(e){ return null; } })();
+const _fmtHijriFallback = (() => { try { return new Intl.DateTimeFormat('ar-SA-u-ca-islamic', { day:'numeric', month:'long', year:'numeric' }); } catch(e){ return null; } })();
+
 // أوقات الصلاة — يعمل دائماً؛ يبدأ بموقع افتراضي (الرياض) ويستبدله بالموقع الحقيقي لو المستخدم يوافق
 const DEFAULT_COORDS = { lat: 24.7136, lng: 46.6753, city: 'الرياض' }; // fallback
 async function loadPrayerTimes() {
@@ -20212,24 +20244,15 @@ function startMobileDateTimeClock() {
     const now = new Date();
     // الوقت — صيغة 12 ساعة عربية
     if (timeEl) timeEl.textContent = to12hArabic(now.getHours(), now.getMinutes());
-    // التاريخ الميلادي
+    // التاريخ الميلادي (formatter مُخزَّن)
     if (gregEl) {
-      try {
-        gregEl.textContent = new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
-          day: 'numeric', month: 'long', year: 'numeric'
-        }).format(now);
-      } catch(e) { gregEl.textContent = now.toLocaleDateString('ar'); }
+      gregEl.textContent = _fmtGreg ? _fmtGreg.format(now) : now.toLocaleDateString('ar');
     }
-    // التاريخ الهجري
+    // التاريخ الهجري (formatter مُخزَّن)
     if (hijEl) {
-      try {
-        hijEl.textContent = new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn', {
-          day: 'numeric', month: 'long', year: 'numeric'
-        }).format(now).replace(/هـ|هجري/g,'').trim();
-      } catch(e) {
-        try { hijEl.textContent = new Intl.DateTimeFormat('ar-SA-u-ca-islamic', { day:'numeric', month:'long', year:'numeric' }).format(now); }
-        catch(e2) { hijEl.textContent = ''; }
-      }
+      if (_fmtHijri) hijEl.textContent = _fmtHijri.format(now).replace(/هـ|هجري/g,'').trim();
+      else if (_fmtHijriFallback) hijEl.textContent = _fmtHijriFallback.format(now);
+      else hijEl.textContent = '';
     }
     // شريط الصلاة
     const prayerRow = document.getElementById('mPrayerRow');
