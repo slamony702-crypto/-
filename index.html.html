@@ -4177,7 +4177,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v36-2026-07-14-no-geo';
+const APP_VERSION = 'v37-2026-07-14-sw-kill-switch';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -15070,35 +15070,32 @@ async function pageDashboard(body) {
 
   if ('serviceWorker' in navigator) {
     let updateBannerShown = false;
-    // تسجيل SW + مراقبة قوية للتحديثات
+    // ═══════════════════════════════════════════════════════
+    // 🚫 SW معطَّل — نُسجّل الملف الحالي (kill-switch) ليقوم بمسح
+    // نفسه ومسح كل الكاشات، ثم نستمر بلا SW نهائياً.
+    // كل التحديثات تظهر فوراً لأن المتصفح يذهب مباشرة للشبكة.
+    // ═══════════════════════════════════════════════════════
+    // (أ) سجِّل الـkill-switch (لو مركّب SW قديم يُستبدل به فيتنظّف)
     navigator.serviceWorker.register('service-worker.js').then((reg) => {
-      // (1) لو فيه SW ينتظر → أظهر البانر فوراً
-      if (reg.waiting && navigator.serviceWorker.controller) {
-        setTimeout(() => showUpdateBanner(), 300);
-      }
-      // (2) راقب أي SW جديد يبدأ التثبيت
-      reg.addEventListener('updatefound', () => {
-        const newSW = reg.installing;
-        if (!newSW) return;
-        newSW.addEventListener('statechange', () => {
-          if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
-            setTimeout(() => showUpdateBanner(), 300);
+      // بعد لحظات، اطلب من كل الـregistrations أن تُلغَى
+      setTimeout(async () => {
+        try {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          for (const r of regs) { try { await r.unregister(); } catch(e){} }
+        } catch(e) {}
+        try {
+          if ('caches' in window) {
+            const keys = await caches.keys();
+            for (const k of keys) { try { await caches.delete(k); } catch(e){} }
           }
-        });
-      });
-      // (3) اسأل المتصفح كل دقيقة لو فيه إصدار جديد
-      setInterval(() => { try { reg.update(); } catch(e){} }, 60 * 1000);
-      // (4) اسأل عند رجوع المستخدم للتبويب
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') { try { reg.update(); } catch(e){} }
-      });
+        } catch(e) {}
+      }, 1500);
     }).catch(() => {});
-    // (5) لو تغيّر الـcontroller (نشاط SW جديد) → أظهر البانر
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (refreshing) return;
-      refreshing = true;
-      setTimeout(() => showUpdateBanner(), 200);
+    // (ب) لو الـSW القديم أرسل sw-removed → أظهر بانر تحديث لأن التطبيق نُظِّف
+    navigator.serviceWorker.addEventListener('message', (e) => {
+      if (e.data && e.data.type === 'sw-removed') {
+        // لا نُظهر بانر هنا — فقط نضمن الاستمرار
+      }
     });
 
     // إشعار متصفح/PWA — لو المستخدم قافل التطبيق ونزل تحديث
