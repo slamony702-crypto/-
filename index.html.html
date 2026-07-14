@@ -3887,6 +3887,41 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
   }
   .m-chip.active { background: linear-gradient(135deg, #12372F, #245B4B); color: #FFFDF8; border-color: transparent; box-shadow: 0 4px 12px rgba(18,55,47,0.25); }
 
+  /* أزرار واتساب داخل كارت الاجتماع */
+  .m-wa-actions {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 10px 10px; margin-top: 4px;
+    border-top: 1px solid rgba(117,105,242,0.15);
+  }
+  .m-wa-btn {
+    flex: 1;
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    padding: 7px 8px;
+    border-radius: 10px; border: 1px solid transparent;
+    background: rgba(37,211,102,0.10);
+    color: #128C7E;
+    font-family: inherit; font-size: 11.5px; font-weight: 700;
+    cursor: pointer; white-space: nowrap;
+    transition: transform .12s, background .12s;
+  }
+  .m-wa-btn:active { transform: scale(0.96); }
+  .m-wa-btn.m-wa-invite {
+    background: linear-gradient(135deg, rgba(37,211,102,0.18), rgba(37,211,102,0.08));
+    border-color: rgba(37,211,102,0.35);
+    color: #075E54;
+  }
+  .m-wa-btn.m-wa-remind-1h {
+    background: rgba(139,92,246,0.10);
+    border-color: rgba(139,92,246,0.25);
+    color: #5B4EE0;
+  }
+  .m-wa-btn.m-wa-remind-10m {
+    background: rgba(239,68,68,0.10);
+    border-color: rgba(239,68,68,0.25);
+    color: #B91C1C;
+  }
+  .m-wa-btn [data-lucide] { flex-shrink: 0; }
+
   /* Bottom Navigation — Floating Pill with rounded corners */
   .m-bottomnav {
     position: fixed; left: 12px; right: 12px;
@@ -4177,7 +4212,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v37-2026-07-14-sw-kill-switch';
+const APP_VERSION = 'v38-2026-07-14-whatsapp-voice';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -19831,17 +19866,22 @@ function ensureMobileShell() {
     }
     if (sMic) {
       sMic.addEventListener('click', () => {
-        // استخدم Web Speech لو متوفر، وإلا افتح شيت البحث (فيه voice داخلياً)
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SR) { openMobileSearchSheet(); return; }
         try {
           const rec = new SR();
           rec.lang = 'ar-SA'; rec.interimResults = false; rec.maxAlternatives = 1;
           sMic.classList.add('is-listening');
-          rec.onresult = (ev) => {
+          rec.onresult = async (ev) => {
             const t = ev.results[0][0].transcript;
             if (sInput) sInput.value = t;
-            location.hash = '#search?q=' + encodeURIComponent(t);
+            // جرّب الأمر الصوتي أولاً (زي 'ارسل رسالة'، 'افتح الاجتماعات'، إلخ)
+            let handled = false;
+            try {
+              if (typeof tryVoiceCommand === 'function') handled = await tryVoiceCommand(t);
+            } catch(e) {}
+            // لو مش أمر معروف → بحث عادي
+            if (!handled) location.hash = '#search?q=' + encodeURIComponent(t);
           };
           rec.onend = () => sMic.classList.remove('is-listening');
           rec.onerror = () => sMic.classList.remove('is-listening');
@@ -19866,20 +19906,10 @@ function openMobileSearchSheet() {
     <div class="m-more-sheet" style="max-height:60vh;">
       <div class="m-more-handle"></div>
       <div style="display:flex;align-items:center;gap:10px;padding:0 4px 14px;">
-        <div style="flex:1;position:relative;">
-          <input type="search" id="mSearchInput" placeholder="ابحث في المنصة كاملة..." autofocus
-            style="width:100%;height:48px;padding:0 46px 0 16px;border-radius:16px;
-                   border:1.5px solid rgba(117,105,242,0.28);background:#fff;
-                   font-family:inherit;font-size:14px;color:#17372D;outline:none;">
-          <button type="button" id="mSearchMic" aria-label="ابحث بالصوت"
-            style="position:absolute;top:50%;left:8px;transform:translateY(-50%);
-                   width:34px;height:34px;border-radius:50%;border:none;cursor:pointer;
-                   background:linear-gradient(135deg,#8B7FF5,#7569F2);color:#fff;
-                   display:flex;align-items:center;justify-content:center;
-                   box-shadow:0 4px 12px rgba(117,105,242,0.35);">
-            <span data-lucide="mic" style="width:16px;height:16px;"></span>
-          </button>
-        </div>
+        <input type="search" id="mSearchSheetInput" placeholder="ابحث في المنصة كاملة..." autofocus
+          style="flex:1;height:48px;padding:0 16px;border-radius:16px;
+                 border:1.5px solid rgba(117,105,242,0.28);background:#fff;
+                 font-family:inherit;font-size:14px;color:#17372D;outline:none;">
         <button type="button" id="mSearchGo" class="btn"
           style="height:48px;padding:0 20px;border-radius:16px;
                  background:linear-gradient(135deg,#245B4B,#12372F);color:#fff;
@@ -19887,17 +19917,15 @@ function openMobileSearchSheet() {
                  white-space:nowrap;border:none;cursor:pointer;">بحث</button>
       </div>
       <p id="mSearchHint" style="text-align:center;color:#6F7D76;font-size:12px;margin:0 0 8px;">
-        اضغط الميكروفون للتحدث، أو اكتب واضغط بحث
+        اكتب كلمة البحث ثم اضغط بحث
       </p>
     </div>
   `;
   document.body.appendChild(sheet);
   if (window.lucide) lucide.createIcons();
 
-  const input = document.getElementById('mSearchInput');
-  const micBtn = document.getElementById('mSearchMic');
+  const input = document.getElementById('mSearchSheetInput');
   const goBtn = document.getElementById('mSearchGo');
-  const hint = document.getElementById('mSearchHint');
 
   function goSearch() {
     const q = (input.value || '').trim();
@@ -19905,45 +19933,8 @@ function openMobileSearchSheet() {
     sheet.remove();
     location.hash = '#search?q=' + encodeURIComponent(q);
   }
-  input.addEventListener('keydown', e => { if (e.key === 'Enter') goSearch(); });
-  goBtn.addEventListener('click', goSearch);
-
-  // Voice input via Web Speech API
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) {
-    micBtn.style.opacity = '0.4';
-    micBtn.addEventListener('click', () => toast('المتصفح لا يدعم الإدخال الصوتي', 'warning'));
-    return;
-  }
-  let recognition = null; let listening = false;
-  micBtn.addEventListener('click', () => {
-    if (listening) { recognition?.stop(); return; }
-    recognition = new SR();
-    recognition.lang = 'ar-SA';
-    recognition.interimResults = true;
-    recognition.continuous = false;
-    recognition.onstart = () => {
-      listening = true;
-      micBtn.style.background = 'linear-gradient(135deg,#C85454,#B44444)';
-      micBtn.style.animation = 'pulse 1s ease-in-out infinite';
-      hint.textContent = '🎤 جاري الاستماع... تحدث الآن';
-    };
-    recognition.onresult = (e) => {
-      let txt = '';
-      for (const r of e.results) txt += r[0].transcript;
-      input.value = txt;
-    };
-    recognition.onerror = (e) => {
-      hint.textContent = e.error === 'not-allowed' ? '❌ تم رفض الميكروفون. فعّله من إعدادات المتصفح.' : '❌ حدث خطأ، حاول مرة أخرى.';
-    };
-    recognition.onend = () => {
-      listening = false;
-      micBtn.style.background = 'linear-gradient(135deg,#8B7FF5,#7569F2)';
-      micBtn.style.animation = '';
-      if (input.value.trim()) setTimeout(goSearch, 400);
-    };
-    try { recognition.start(); } catch(e) { hint.textContent = '❌ لا يمكن بدء التسجيل'; }
-  });
+  input?.addEventListener('keydown', e => { if (e.key === 'Enter') goSearch(); });
+  goBtn?.addEventListener('click', goSearch);
 }
 
 /* ─── Quick Sheets: Notifications & Messages (تفتح بدل التنقل لصفحة) ─── */
@@ -20751,18 +20742,25 @@ async function renderMobileMeetings(body) {
       const attCount = (m.meeting_attendees || []).length;
       const tint = tints[idx % tints.length];
       return `
-        <a class="m-card ${tint}" href="#meeting_detail/${m.id}" style="text-decoration:none;color:inherit;">
-          <div class="m-card-top">
-            <p class="m-card-title">${esc(m.title)}</p>
-            <span class="m-badge-status ${stCls}">${esc(stTxt)}</span>
+        <div class="m-card ${tint}" style="position:relative;">
+          <a href="#meeting_detail/${m.id}" style="text-decoration:none;color:inherit;display:block;">
+            <div class="m-card-top">
+              <p class="m-card-title">${esc(m.title)}</p>
+              <span class="m-badge-status ${stCls}">${esc(stTxt)}</span>
+            </div>
+            <div class="m-card-meta">
+              <span><span data-lucide="calendar" style="width:12px;height:12px;"></span> ${dateStr}</span>
+              <span><span data-lucide="clock" style="width:12px;height:12px;"></span> ${timeStr}</span>
+              ${m.departments ? `<span><span data-lucide="building-2" style="width:12px;height:12px;"></span> ${esc(m.departments.name)}</span>` : ''}
+              ${attCount ? `<span><span data-lucide="users" style="width:12px;height:12px;"></span> ${attCount}</span>` : ''}
+            </div>
+          </a>
+          <div class="m-wa-actions">
+            <button class="m-wa-btn m-wa-invite" type="button" onclick="openWhatsAppMeeting(${m.id}, 'invite'); event.stopPropagation();" title="دعوة للاجتماع"><span data-lucide="send" style="width:13px;height:13px;"></span> دعوة</button>
+            <button class="m-wa-btn m-wa-remind-1h" type="button" onclick="openWhatsAppMeeting(${m.id}, 'remind_1h'); event.stopPropagation();" title="تذكير قبل ساعة"><span data-lucide="clock" style="width:13px;height:13px;"></span> ساعة</button>
+            <button class="m-wa-btn m-wa-remind-10m" type="button" onclick="openWhatsAppMeeting(${m.id}, 'remind_10m'); event.stopPropagation();" title="تذكير قبل 10 دقائق"><span data-lucide="alarm-clock" style="width:13px;height:13px;"></span> 10 د</button>
           </div>
-          <div class="m-card-meta">
-            <span><span data-lucide="calendar" style="width:12px;height:12px;"></span> ${dateStr}</span>
-            <span><span data-lucide="clock" style="width:12px;height:12px;"></span> ${timeStr}</span>
-            ${m.departments ? `<span><span data-lucide="building-2" style="width:12px;height:12px;"></span> ${esc(m.departments.name)}</span>` : ''}
-            ${attCount ? `<span><span data-lucide="users" style="width:12px;height:12px;"></span> ${attCount}</span>` : ''}
-          </div>
-        </a>`;
+        </div>`;
     }).join('');
     if (window.lucide) lucide.createIcons();
   }
@@ -20782,6 +20780,44 @@ async function renderMobileMeetings(body) {
     openMobileCreateMeeting();
   });
 }
+
+/* ─── WhatsApp: يفتح واتساب المنسق برسالة جاهزة (دعوة أو تذكير) ─── */
+window.openWhatsAppMeeting = async function(meetingId, kind) {
+  try {
+    const { data: m } = await sb.from('meetings')
+      .select('id, title, meeting_datetime, meeting_type, location_detail, department_id, organizer_id, departments(name), users:organizer_id(full_name, phone), meeting_attendees(user_id, users(full_name, phone))')
+      .eq('id', meetingId).maybeSingle();
+    if (!m) { toast('تعذّر جلب بيانات الاجتماع', 'error'); return; }
+    const t = new Date(m.meeting_datetime);
+    const dateStr = t.toLocaleDateString('ar-EG-u-nu-latn', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    const timeStr = t.toLocaleTimeString('ar-EG-u-nu-latn', { hour:'2-digit', minute:'2-digit', hour12:true });
+    const locTxt = m.meeting_type === 'remote'
+      ? (m.location_detail ? `عن بُعد — الرابط: ${m.location_detail}` : 'عن بُعد')
+      : (m.location_detail || (m.departments?.name ? `في ${m.departments.name}` : 'داخل الشركة'));
+    let msg = '';
+    if (kind === 'invite') {
+      msg = `🕌 السلام عليكم\n\nدعوة لحضور اجتماع:\n\n📌 *${m.title}*\n📅 ${dateStr}\n⏰ الساعة ${timeStr}\n📍 ${locTxt}\n\nنرجو تأكيد الحضور. جزاكم الله خيراً.`;
+    } else if (kind === 'remind_1h') {
+      msg = `⏰ تذكير: يبقى ساعة واحدة على اجتماع:\n\n📌 *${m.title}*\n⏰ الساعة ${timeStr}\n📍 ${locTxt}\n\nنرجو الاستعداد للحضور.`;
+    } else if (kind === 'remind_10m') {
+      msg = `🔔 تذكير أخير: يبقى 10 دقائق على اجتماع:\n\n📌 *${m.title}*\n⏰ الساعة ${timeStr}\n📍 ${locTxt}\n\nنرجو التوجّه للاجتماع.`;
+    } else {
+      msg = `اجتماع: ${m.title}\n${dateStr} الساعة ${timeStr}\n${locTxt}`;
+    }
+    // بناء رابط wa.me — لو فيه رقم منسق نستخدمه، وإلا يفتح واتساب فارغ يختار المستلم
+    const rawPhone = (m.users?.phone || '').replace(/\D/g,'');
+    const phone = rawPhone.startsWith('966') ? rawPhone
+      : rawPhone.startsWith('0') ? '966' + rawPhone.slice(1)
+      : (rawPhone.length >= 9 ? '966' + rawPhone : rawPhone);
+    const url = phone
+      ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
+      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+  } catch(e) {
+    console.warn('[whatsapp]', e);
+    toast('حدث خطأ أثناء فتح واتساب', 'error');
+  }
+};
 
 /* يفتح نموذج إنشاء اجتماع من الديسكتوب داخل الشاشة الحالية بالكامل */
 async function openMobileCreateMeeting() {
