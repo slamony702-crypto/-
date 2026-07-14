@@ -4110,6 +4110,34 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
   }
 })();
 
+// ═══════════════════════════════════════════════════════════
+// 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
+// عند تغيّره: يُعرض بانر "تم التحديث بنجاح" للمستخدم بشكل مضمون
+// (بدون الاعتماد على أحداث Service Worker)
+// ═══════════════════════════════════════════════════════════
+const APP_VERSION = 'v30-2026-07-14-app-ver-check';
+
+// فحص الإصدار عند التحميل: لو اختلف عن آخر مرة رآها المستخدم → toast تحديث ناجح
+(function checkAppVersion() {
+  try {
+    const last = localStorage.getItem('lastSeenAppVersion');
+    if (last && last !== APP_VERSION) {
+      const showToast = () => {
+        const t = document.createElement('div');
+        t.setAttribute('role','status');
+        t.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top,0px) + 16px);left:50%;transform:translateX(-50%);z-index:99999;padding:12px 20px;border-radius:14px;background:linear-gradient(135deg,#10B981,#059669);color:#fff;font-family:Tajawal,"Noto Sans Arabic",sans-serif;font-size:14px;font-weight:700;box-shadow:0 12px 30px rgba(16,185,129,0.35);display:flex;align-items:center;gap:8px;opacity:0;transition:opacity .3s ease,transform .3s ease;';
+        t.innerHTML = '<span style="font-size:16px;">✓</span> تم تحديث النظام إلى أحدث نسخة';
+        document.body.appendChild(t);
+        requestAnimationFrame(() => { t.style.opacity = '1'; t.style.transform = 'translateX(-50%) translateY(0)'; });
+        setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(-50%) translateY(-10px)'; setTimeout(() => t.remove(), 350); }, 3500);
+      };
+      if (document.body) showToast();
+      else document.addEventListener('DOMContentLoaded', showToast, { once: true });
+    }
+    localStorage.setItem('lastSeenAppVersion', APP_VERSION);
+  } catch(e) {}
+})();
+
 // ============ إعداد الاتصال بـ Supabase ============
 const SUPABASE_URL = 'https://dfuqmmagtteemtpywody.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_kWfHiBqJC_8pzHSnAIfXUw_ZKwDOP4f';
