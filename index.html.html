@@ -4250,7 +4250,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v42-2026-07-14-logo-float';
+const APP_VERSION = 'v43-2026-07-14-voice-msg-fix';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -5673,50 +5673,15 @@ async function tryVoiceCommand(rawText) {
 }
 
 // فتح شات مباشر مع موظف وتعبئة الرسالة (لأوامر: "أرسل لعمر صبري وقوله كذا")
-async function voiceOpenChatAndPrefill(userId, userName, prefillMessage) {
-  // تأكد إننا في صفحة التواصل الداخلي (طبقة الشات ممكن تظهر بس منها)
-  if (!location.hash.startsWith('#conversations')) {
-    location.hash = '#conversations';
-    // انتظر رندر الصفحة
-    for (let i = 0; i < 25; i++) {
-      await new Promise(r => setTimeout(r, 100));
-      if (document.getElementById('taskChatPanel')) break;
-    }
-  }
-  try {
-    if (typeof window.openDirectChatFromDirectory === 'function') {
-      await window.openDirectChatFromDirectory(userId, userName);
-    }
-  } catch (e) { /* آمن للفشل */ }
-  if (!prefillMessage) return;
-
-  // انتظر ظهور مربع الإدخال
-  let chatInput = null;
-  for (let i = 0; i < 20; i++) {
-    await new Promise(r => setTimeout(r, 100));
-    chatInput = document.getElementById('chatInput');
-    if (chatInput) break;
-  }
-  if (!chatInput) return;
-  chatInput.value = prefillMessage;
-  chatInput.focus();
-  // ضع المؤشر آخر الكلام
-  try { chatInput.setSelectionRange(prefillMessage.length, prefillMessage.length); } catch (e) {}
-  chatInput.dispatchEvent(new Event('input', { bubbles: true }));
-  chatInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  toast('كلامك جاهز — جاري تحسين الصياغة تلقائيًا ✨', 'success');
-  // تحسين الصياغة تلقائيًا بالذكاء الاصطناعي
-  try {
-    const improved = await rewriteMessageWithAI(prefillMessage, 'default');
-    if (improved && improved !== prefillMessage) {
-      chatInput.value = improved;
-      chatInput.dispatchEvent(new Event('input', { bubbles: true }));
-      toast('تم تحسين الصياغة — راجعها واضغط إرسال', 'success');
-    }
-  } catch (err) {
-    // فشل الـ AI — النص الأصلي جاهز، مش لازم نزعج المستخدم برسالة خطأ
-    console.warn('AI rewrite skipped:', err.message);
-  }
+// نمرّر البيانات كـ query في الـ hash بدل الانتظار من الخارج على DOM صفحة
+// التواصل، لأن تلك الصفحة تنفّذ عدة استعلامات متتالية قد تتجاوز أي مهلة
+// انتظار هنا (خصوصًا على اتصال جوال بطيء) — المعالجة الفعلية تتم داخل
+// pageConversations نفسها فور انتهاء الرندر، فلا يوجد سباق توقيت أبدًا.
+function voiceOpenChatAndPrefill(userId, userName, prefillMessage) {
+  const qs = 'openChat=' + userId + '&openChatName=' + encodeURIComponent(userName || '') +
+    (prefillMessage ? '&openChatMsg=' + encodeURIComponent(prefillMessage) : '');
+  const targetHash = '#conversations?' + qs;
+  if (location.hash === targetHash) { renderApp(); } else { location.hash = targetHash; }
 }
 // ============ لوحة أمثلة الأوامر الصوتية ============
 function openVoiceHelpModal() {
@@ -11809,6 +11774,42 @@ async function pageConversations(body, query) {
   if (query && query.open) {
     const cid = Number(query.open);
     if (cid) setTimeout(() => window.openConversationThread(cid), 150);
+  }
+
+  // فتح محادثة مباشرة مع موظف (من الأمر الصوتي) — نمرر البيانات كـ query بدل الانتظار
+  // على DOM من الخارج، لأن هذه الصفحة نفسها تنفّذ عدة استعلامات متتالية وقد تستغرق
+  // وقتًا أطول من أي مهلة انتظار خارجية (خصوصًا على اتصال جوال بطيء)
+  if (query && query.openChat) {
+    const uid = Number(query.openChat);
+    const uname = query.openChatName || '';
+    const msg = query.openChatMsg || '';
+    if (uid) {
+      setTimeout(async () => {
+        await window.openDirectChatFromDirectory(uid, uname);
+        if (!msg) return;
+        let chatInput = null;
+        for (let i = 0; i < 20; i++) {
+          await new Promise(r => setTimeout(r, 100));
+          chatInput = document.getElementById('chatInput');
+          if (chatInput) break;
+        }
+        if (!chatInput) return;
+        chatInput.value = msg;
+        chatInput.focus();
+        try { chatInput.setSelectionRange(msg.length, msg.length); } catch (e) {}
+        chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+        chatInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        toast('كلامك جاهز — جاري تحسين الصياغة تلقائيًا ✨', 'success');
+        try {
+          const improved = await rewriteMessageWithAI(msg, 'default');
+          if (improved && improved !== msg) {
+            chatInput.value = improved;
+            chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+            toast('تم تحسين الصياغة — راجعها واضغط إرسال', 'success');
+          }
+        } catch (err) { console.warn('AI rewrite skipped:', err.message); }
+      }, 150);
+    }
   }
 }
 let __activeConversationId = null;
