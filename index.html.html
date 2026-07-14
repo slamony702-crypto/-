@@ -24,6 +24,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ar.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <style>
 :root {
   /* ═══════════════════════════════════════════════════
@@ -3589,26 +3590,32 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
     0%, 100% { transform: rotate(-0.8deg); }
     50%      { transform: rotate(0.8deg); }
   }
-  /* البلاطة المختارة (tap-swap) */
-  .m-tile-selected {
+  /* Sortable.js — البلاطة أثناء السحب (chosen) */
+  .m-tile.m-tile-chosen {
     animation: none !important;
-    transform: scale(1.06) !important;
-    z-index: 50; position: relative;
+    transform: scale(1.08) !important;
+    z-index: 100; position: relative;
     box-shadow:
-      0 20px 40px rgba(117,105,242,0.35),
-      0 0 0 3px #7569F2,
+      0 24px 48px rgba(117,105,242,0.40),
+      0 0 0 2px rgba(139,92,246,0.55),
       inset 0 1px 0 rgba(255,255,255,0.95) !important;
+    opacity: 1 !important;
+    cursor: grabbing !important;
   }
-  /* شارة "متبدل" */
-  .m-tile-selected::after {
-    content: '✓';
-    position: absolute; top: 8px; right: 8px;
-    width: 28px; height: 28px; border-radius: 50%;
-    background: linear-gradient(135deg, #8B7FF5, #5B4EE0);
-    color: #fff; font-size: 15px; font-weight: 900;
-    display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 6px 14px rgba(117,105,242,0.45);
-    animation: mFadeInDown 0.25s ease-out;
+  /* Sortable.js — Ghost placeholder (المكان الجديد) */
+  .m-tile.m-tile-ghost {
+    opacity: 0.35 !important;
+    background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(139,92,246,0.18)) !important;
+    border: 2px dashed rgba(139,92,246,0.55) !important;
+    animation: none !important;
+    transform: none !important;
+  }
+  .m-tile.m-tile-ghost * { visibility: hidden; }
+  /* Sortable.js — أثناء التحريك (drag preview) */
+  .m-tile.m-tile-drag {
+    animation: none !important;
+    opacity: 0.95 !important;
+    box-shadow: 0 20px 50px rgba(18,55,47,0.30) !important;
   }
   /* تلميح فوق الشبكة */
   .m-tiles-hint {
@@ -19749,21 +19756,46 @@ function openMobileCustomizeSheet() {
   });
 }
 
-/* ─── Tiles Reorder (long-press → drag → save) ─── */
+/* ─── Tiles Reorder — SortableJS drag & drop (native touch feel) ─── */
 function initTilesReorder() {
   document.getElementById('mTilesCustomizeBtn')?.addEventListener('click', openMobileCustomizeSheet);
   const grid = document.getElementById('mTilesGridReal');
   if (!grid) return;
+  if (typeof Sortable === 'undefined') return; // مكتبة SortableJS غير محملة بعد
+
   let editMode = false;
-  let selected = null;   // البلاطة المختارة الأولى
-  let pressTimer = null;
+  let sortable = null;
 
   function enterEdit() {
     if (editMode) return;
     editMode = true;
     grid.classList.add('m-tiles-editing');
     if (navigator.vibrate) try { navigator.vibrate(30); } catch(e){}
-    // زر "تم"
+
+    // فعّل السحب والإفلات
+    sortable = Sortable.create(grid, {
+      animation: 220,
+      easing: 'cubic-bezier(.2,.9,.3,1)',
+      chosenClass: 'm-tile-chosen',
+      ghostClass: 'm-tile-ghost',
+      dragClass: 'm-tile-drag',
+      forceFallback: true,          // نستخدم fallback عشان تجربة touch أفضل
+      fallbackClass: 'm-tile-drag',
+      fallbackOnBody: true,
+      fallbackTolerance: 5,
+      delay: 120,                    // long-press خفيف للتفريق بين tap و drag
+      delayOnTouchOnly: true,
+      touchStartThreshold: 4,
+      onStart: () => { if (navigator.vibrate) try { navigator.vibrate(15); } catch(e){} },
+      onEnd: () => {
+        if (navigator.vibrate) try { navigator.vibrate([10, 30, 10]); } catch(e){}
+        // احفظ الترتيب الحالي فورياً
+        const keys = [...grid.querySelectorAll('.m-tile')].map(t => t.dataset.tileKey);
+        try { localStorage.setItem('mHomeTilesOrder', JSON.stringify(keys)); } catch(e) {}
+      }
+    });
+
+    // زر "تم" العائم
     if (!document.getElementById('mTilesDoneBtn')) {
       const doneBtn = document.createElement('button');
       doneBtn.id = 'mTilesDoneBtn';
@@ -19777,7 +19809,7 @@ function initTilesReorder() {
       const hint = document.createElement('div');
       hint.id = 'mTilesHint';
       hint.className = 'm-tiles-hint';
-      hint.innerHTML = '<span data-lucide="hand-metal" style="width:14px;height:14px;"></span> اضغط <span data-lucide="layout-grid" style="width:14px;height:14px;vertical-align:middle;"></span> ثم اضغط <span data-lucide="layout-grid" style="width:14px;height:14px;vertical-align:middle;"></span> الجديد للتبديل بينهما';
+      hint.innerHTML = '<span data-lucide="move" style="width:14px;height:14px;"></span> اسحب أي قسم بإصبعك إلى مكانه الجديد';
       grid.parentNode.insertBefore(hint, grid);
     }
     if (window.lucide) lucide.createIcons();
@@ -19788,61 +19820,28 @@ function initTilesReorder() {
     grid.classList.remove('m-tiles-editing');
     document.getElementById('mTilesDoneBtn')?.remove();
     document.getElementById('mTilesHint')?.remove();
-    if (selected) { selected.classList.remove('m-tile-selected'); selected = null; }
-    // احفظ الترتيب الحالي
+    if (sortable) { try { sortable.destroy(); } catch(e){} sortable = null; }
+    // احفظ الترتيب النهائي
     const keys = [...grid.querySelectorAll('.m-tile')].map(t => t.dataset.tileKey);
     try { localStorage.setItem('mHomeTilesOrder', JSON.stringify(keys)); } catch(e) {}
-  }
-
-  // تبديل عنصرين في DOM باستخدام placeholder
-  function swapTiles(a, b) {
-    const p = document.createComment('swap');
-    a.replaceWith(p);
-    b.replaceWith(a);
-    p.replaceWith(b);
   }
 
   document.getElementById('mTilesEditBtn')?.addEventListener('click', () => {
     editMode ? exitEdit() : enterEdit();
   });
 
+  // Long-press على أي بلاطة (خارج وضع التحرير) للدخول تلقائياً
+  let pressTimer = null;
   grid.querySelectorAll('.m-tile').forEach(tile => {
-    // Long-press للدخول لوضع التحرير (خارج edit mode)
     const startPress = () => {
       if (editMode) return;
-      pressTimer = setTimeout(() => enterEdit(), 500);
+      pressTimer = setTimeout(() => enterEdit(), 550);
     };
     const cancelPress = () => clearTimeout(pressTimer);
     tile.addEventListener('touchstart', startPress, { passive: true });
     tile.addEventListener('touchend', cancelPress);
     tile.addEventListener('touchcancel', cancelPress);
     tile.addEventListener('touchmove', cancelPress);
-    tile.addEventListener('mousedown', startPress);
-    tile.addEventListener('mouseup', cancelPress);
-    tile.addEventListener('mouseleave', cancelPress);
-
-    // Tap-swap في edit mode
-    tile.addEventListener('click', (e) => {
-      if (!editMode) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if (!selected) {
-        // أول تحديد
-        selected = tile;
-        tile.classList.add('m-tile-selected');
-        if (navigator.vibrate) try { navigator.vibrate(15); } catch(e){}
-      } else if (selected === tile) {
-        // إلغاء التحديد بضغطة على نفس البلاطة
-        tile.classList.remove('m-tile-selected');
-        selected = null;
-      } else {
-        // تبديل الاتنين
-        swapTiles(selected, tile);
-        selected.classList.remove('m-tile-selected');
-        selected = null;
-        if (navigator.vibrate) try { navigator.vibrate([20, 40, 20]); } catch(e){}
-      }
-    });
   });
 }
 
