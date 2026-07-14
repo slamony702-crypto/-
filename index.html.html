@@ -210,39 +210,54 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 .login-logo-wrap {
   display: flex; flex-direction: column; align-items: center; margin-bottom: 8px;
 }
-/* Logo Container صفحة الدخول — إطار بتدرج أخضر→بنفسجي فاتح */
+/* Logo Container صفحة الدخول — مربع 1:1 مصغّر بتدرج فاتح */
 .login-logo-wrap {
-  padding: 18px 26px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px;
+  padding: 16px 18px 12px;
+  width: 160px; height: 160px;
+  box-sizing: border-box;
   background: linear-gradient(135deg, #A7F3D0 0%, #86EFAC 25%, #C4B5FD 65%, #DDD6FE 100%);
-  border-radius: var(--radius-2xl);
+  border-radius: var(--radius-xl);
   border: 1px solid rgba(255,255,255,0.65);
   box-shadow:
     0 2px 4px rgba(16,185,129,0.15),
     0 8px 22px -4px rgba(139,92,246,0.22),
     inset 0 1px 0 rgba(255,255,255,0.85);
   position: relative; overflow: hidden;
-  max-width: fit-content; margin: 0 auto 8px !important;
+  margin: 0 auto 20px !important;
 }
 .login-logo-wrap::before {
   content: '';
   position: absolute; top: -30%; right: -10%;
-  width: 120px; height: 120px; border-radius: 50%;
+  width: 100px; height: 100px; border-radius: 50%;
   background: radial-gradient(circle, rgba(255,255,255,0.5), transparent 70%);
   pointer-events: none;
 }
 .login-logo-wrap::after {
   content: '';
   position: absolute; bottom: -30%; left: -10%;
-  width: 100px; height: 100px; border-radius: 50%;
+  width: 90px; height: 90px; border-radius: 50%;
   background: radial-gradient(circle, rgba(255,255,255,0.35), transparent 70%);
   pointer-events: none;
 }
 .login-logo-wrap img {
   display: block !important;
-  max-width: 200px; height: auto;
+  max-width: 108px; height: auto; max-height: 82px; object-fit: contain;
   position: relative; z-index: 1;
-  filter: drop-shadow(0 4px 10px rgba(18,55,47,0.20));
+  filter: drop-shadow(0 3px 8px rgba(18,55,47,0.20));
 }
+/* Tagline داخل الإطار تحت اللوجو */
+.login-logo-wrap .login-tagline {
+  position: relative; z-index: 1;
+  margin: 0 !important; padding: 0 !important;
+  font-size: 10.5px; font-weight: 700;
+  color: #12372F;
+  letter-spacing: -0.1px;
+  line-height: 1.2;
+  text-align: center;
+}
+.login-logo-wrap .login-tagline::before { display: none !important; }
 .login-box .login-tagline {
   text-align: center; color: var(--primary-600);
   font-size: 12px; font-weight: 500;
@@ -5726,10 +5741,7 @@ function renderLogin() {
         <path d="M100 30 C60 55 45 105 60 150 C75 125 95 118 100 95 C105 118 125 125 140 150 C155 105 140 55 100 30 Z" fill="#245B4B" opacity="0.09"/>
       </svg>
       <div class="login-box">
-        <div class="login-logo-wrap">
-          <img src="logo-new.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI">
-        </div>
-        <p class="login-tagline">لتطوير وإدارة المطاعم</p>
+        <div class="login-logo-wrap"><img src="logo-new.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI"><p class="login-tagline">لتطوير وإدارة المطاعم</p></div>
         <h1>مرحبًا بعودتك</h1>
         <p class="subtitle">سجّل الدخول للوصول إلى نظام متابعة الاجتماعات والمهام</p>
         <div class="login-error" id="loginError"><span data-lucide="alert-circle"></span><span id="loginErrorText"></span></div>
