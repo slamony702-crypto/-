@@ -216,7 +216,7 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   display: flex; align-items: center; justify-content: center;
   width: 200px; height: 200px;
   box-sizing: border-box;
-  border-radius: var(--radius-xl);
+  border-radius: 22%;
   overflow: hidden;
   box-shadow:
     0 2px 4px rgba(16,185,129,0.12),
@@ -1635,7 +1635,7 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
 .sidebar .brand img {
   display: block !important;
   height: 56px; width: auto; max-width: 90%;
-  object-fit: contain;
+  object-fit: contain; border-radius: 22%;
   /* تحويل ألوان اللوجو (أحمر + أخضر) للأبيض لكي يتناسق مع الخلفية البنفسجية
      الداكنة — filter chain: brightness(0) يخلي كل شيء أسود، invert(1) يعكسه للأبيض */
   filter:
@@ -3443,7 +3443,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
     50%      { box-shadow: 0 3px 10px rgba(139,92,246,0.35), 0 0 0 10px rgba(239,68,68,0); }
   }
   .m-appbar-brand { display: flex; align-items: center; gap: 10px; }
-  .m-appbar-brand img { height: 34px; width: auto; }
+  .m-appbar-brand img { height: 34px; width: auto; border-radius: 22%; }
   .m-appbar-title { font-weight: 700; color: #12372F; font-size: 15px; letter-spacing: -0.3px; }
   .m-appbar-actions { display: flex; align-items: center; gap: 8px; }
   .m-appbar-btn {
@@ -4245,7 +4245,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v40-2026-07-14-hires-logo';
+const APP_VERSION = 'v41-2026-07-14-quality-maint';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -5193,7 +5193,7 @@ function initPremiumDateFields() {
 }
 
 // ============ الكتابة الصوتية العامة (Voice-to-text) ============
-const VOICE_EXCLUDE_SELECTOR = 'table, .qtbl-scroll, .search-wrap, .topbar-search, .filter-select-wrap, #loginForm, #signupRequestForm, .login-input-wrap, .mt-upload, .premium-date-wrapper';
+const VOICE_EXCLUDE_SELECTOR = 'table, .qtbl-scroll, .search-wrap, .topbar-search, .filter-select-wrap, #loginForm, #signupRequestForm, .login-input-wrap, .mt-upload, .premium-date-wrapper, .m-searchbar';
 function shouldSkipVoiceInput(el) {
   if (el.dataset.voiceSkip) return true;
   if (el.closest(VOICE_EXCLUDE_SELECTOR)) return true;
@@ -16474,6 +16474,56 @@ async function pageQualityVisitNew(body, param) {
       }
     }
     if (photoRows.length) await sb.from('quality_attachments').insert(photoRows);
+
+    // ─── ربط الجودة بالصيانة: إنشاء طلب صيانة تلقائي ───
+    if (isFinish) {
+      const MAINT_TRIGGERS = ['urgent_maintenance', 'raise_maintenance', 'replace_tool'];
+      const maintItems = itemRows.filter(r => r.corrective_action && MAINT_TRIGGERS.includes(r.corrective_action));
+      if (maintItems.length) {
+        const sevMap = { critical: 'critical', high: 'high', medium: 'medium', low: 'low', immediate: 'critical' };
+        const branchName = branches.find(b => b.id === Number(Q.meta.branch_id))?.name || '';
+        for (const mi of maintItems) {
+          const d = Q.items[mi.item_id] || {};
+          const actionLabel = label('quality_corrective', mi.corrective_action);
+          const maintPayload = {
+            branch_id: Number(Q.meta.branch_id),
+            requester_id: CURRENT_USER.id,
+            affected_area: 'other',
+            maintenance_type: mi.corrective_action === 'replace_tool' ? 'equipment' : 'other',
+            issue_title: mi.item_text || actionLabel,
+            description: `إجراء تصحيحي تلقائي من زيارة الجودة رقم ${visitId}\n` +
+              `البند: ${mi.item_text || '-'}\n` +
+              `الإجراء: ${actionLabel}\n` +
+              (mi.notes ? `ملاحظات: ${mi.notes}\n` : '') +
+              (d.custom ? `تفاصيل: ${d.custom}\n` : '') +
+              `المفتش: ${Q.meta.inspector_name || CURRENT_USER.full_name}`,
+            severity: sevMap[d.severity] || 'medium',
+            impact_on_operation: mi.corrective_action === 'urgent_maintenance' ? 'partial' : 'none',
+            stoppage_type: 'none',
+            affects_operation: mi.corrective_action === 'urgent_maintenance',
+            status: 'new',
+            is_draft: false,
+            reported_at: new Date().toISOString()
+          };
+          try {
+            const { data: created } = await sb.from('maintenance_requests').insert(maintPayload).select('id').single();
+            if (created?.id) {
+              logMaintTimeline(created.id, 'created', null, 'new', `طلب صيانة تلقائي من زيارة الجودة #${visitId}`);
+              const { data: maintUsers } = await sb.from('users').select('id').in('role', ['maintenance_officer', 'operations_manager', 'admin']).eq('is_active', true);
+              if (maintUsers?.length) {
+                notifyMaintUsers(
+                  maintUsers.map(u => u.id),
+                  'طلب صيانة جديد من الجودة',
+                  `تم إنشاء طلب صيانة تلقائي للفرع "${branchName}" بناءً على إجراء تصحيحي: ${mi.item_text || actionLabel}`,
+                  '#maintenance_detail/' + created.id
+                );
+              }
+            }
+          } catch (e) { /* لا نوقف الزيارة لو فشل إنشاء طلب الصيانة */ }
+        }
+        toast(`تم إنشاء ${maintItems.length} طلب صيانة تلقائي`, 'info', 4000);
+      }
+    }
 
     toast(isFinish ? `تم إنهاء الزيارة — الالتزام ${compliance}%` : 'تم حفظ المسودة', 'success');
     location.hash = isFinish ? '#quality_detail/' + visitId : '#quality';
