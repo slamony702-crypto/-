@@ -74,7 +74,7 @@
   --info:    #3B82F6;
 
   /* ═══ ألياسات توافقية (Backward-compat) ═══
-     المتغيرات القديمة تشير للجديدة عشان الشاشات القديمة تبقى شغالة */
+     المتغيرات القديمة تشير للجديدة لكي الشاشات القديمة تكون شغالة */
   --primary:       var(--primary-500);
   --primary-dark:  var(--primary-600);
   --primary-light: var(--primary-100);
@@ -1180,7 +1180,7 @@ tr:hover td { background: var(--primary-light); }
     transform: rotate(45deg); transition: all .2s ease; z-index: 2;
   }
 
-  /* حالة "مقفول": السهم يقلب لليمين والقسم يبقى مضغوط */
+  /* حالة "مقفول": السهم يقلب لليمين والقسم يكون مضغوط */
   .panel.collapsed > .panel-header::before,
   .meeting-form-card.collapsed > .meeting-section-title::before {
     transform: rotate(-45deg); margin-top: -2px;
@@ -1540,7 +1540,7 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
 .ccc-title { font-size: 13px; font-weight: 700; color: #0F172A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ccc-sub { font-size: 11px; color: #64748B; margin-top: 2px; }
 
-/* ============ رؤية الشركة - كروت الأقسام الفاخرة (تبقى كما هي) ============ */
+/* ============ رؤية الشركة - كروت الأقسام الفاخرة (تكون كما هي) ============ */
 .dept-vision-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
 .dept-vision-card {
   background: rgba(255,255,255,0.92); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.3);
@@ -1622,7 +1622,7 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
   display: block !important;
   height: 56px; width: auto; max-width: 90%;
   object-fit: contain;
-  /* تحويل ألوان اللوجو (أحمر + أخضر) للأبيض عشان يتناسق مع الخلفية البنفسجية
+  /* تحويل ألوان اللوجو (أحمر + أخضر) للأبيض لكي يتناسق مع الخلفية البنفسجية
      الداكنة — filter chain: brightness(0) يخلي كل شيء أسود، invert(1) يعكسه للأبيض */
   filter:
     brightness(0) invert(1)
@@ -3365,7 +3365,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
     -webkit-backdrop-filter: blur(18px) saturate(160%);
     border-bottom: 1px solid rgba(255,255,255,0.5);
   }
-  /* ندي مساحة فوق للـpage عشان الـfixed appbar ما يغطيهاش */
+  /* ندي مساحة فوق للـpage لكي الـfixed appbar ما يغطيهاش */
   body.mobile-app-ready .page-body {
     padding-top: calc(env(safe-area-inset-top, 0px) + 76px) !important;
   }
@@ -3887,7 +3887,7 @@ const SUPABASE_URL = 'https://dfuqmmagtteemtpywody.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_kWfHiBqJC_8pzHSnAIfXUw_ZKwDOP4f';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// لما رابط "استعادة كلمة المرور" المُرسَل بالبريد يُفتَح، Supabase بيبعت هذا الحدث
+// لما رابط "استعادة كلمة المرور" المُرسَل بالبريد يُفتَح، Supabase يرسل هذا الحدث
 let handlingPasswordRecovery = false;
 sb.auth.onAuthStateChange((event) => {
   if (event === 'PASSWORD_RECOVERY') {
@@ -3965,7 +3965,7 @@ function toggleTheme() {
   const cur = localStorage.getItem('shouon_theme') || 'light';
   applyTheme(cur === 'dark' ? 'light' : 'dark');
 }
-// تطبيق فوري قبل الرندر عشان مايحصلش flash
+// تطبيق فوري قبل الرندر لكي مايحصلش flash
 applyTheme(localStorage.getItem('shouon_theme') || 'light');
 
 // ============ نظام الصلاحيات الديناميكي ============
@@ -4404,7 +4404,7 @@ function exportToCsv(rows, filename) {
     const line = headers.map(h => `"${String(row[h] ?? '').replace(/"/g, '""')}"`).join(',');
     csvLines.push(line);
   });
-  const csvContent = '\uFEFF' + csvLines.join('\r\n'); // BOM عشان العربي يظهر صح في Excel
+  const csvContent = '\uFEFF' + csvLines.join('\r\n'); // BOM لكي العربي يظهر صح في Excel
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -4826,7 +4826,7 @@ function attachVoiceButtons(root) {
 // ============================================================
 // ============  «طيّ الأقسام» — Section Folding (Mobile) =======
 // ============================================================
-// نظام موحّد: أي قسم/كارت/شبكة إحصائيات على الموبايل يبقى قابل للطي
+// نظام موحّد: أي قسم/كارت/شبكة إحصائيات على الموبايل يكون قابل للطي
 // بعنوان واضح ودائرة ذهبية. يعمل تلقائيًا لأي محتوى جديد يظهر بعد
 // التنقل بين الصفحات.
 
@@ -5130,7 +5130,7 @@ const VOICE_CONTENT_SEPARATORS = [
   'واسنده','اسنده','واسنده مهمة',
   'المهمة هي','المهمه هي','المهمة','المهمه','المطلوب منه','المطلوب منها','المطلوب',
   'الموضوع هو','الموضوع','بخصوص',
-  'وبحيث','بحيث','وعلشان','علشان','وعشان','عشان',
+  'وبحيث','بحيث','وعلشان','لكي','وعشان','لكي',
   'وحطله','حطله','وحط له','حط له','وضيفله','ضيفله',
   'ومحتوى المهمة','محتوى المهمة',
   'وقول','قول'
@@ -5223,7 +5223,7 @@ async function tryVoiceCommand(rawText) {
   return true;
 }
 
-// فتح شات مباشر مع موظف وتعبئة الرسالة (لأوامر: "ابعت لعمر صبري وقوله كذا")
+// فتح شات مباشر مع موظف وتعبئة الرسالة (لأوامر: "أرسل لعمر صبري وقوله كذا")
 async function voiceOpenChatAndPrefill(userId, userName, prefillMessage) {
   // تأكد إننا في صفحة التواصل الداخلي (طبقة الشات ممكن تظهر بس منها)
   if (!location.hash.startsWith('#conversations')) {
@@ -5281,7 +5281,7 @@ function openVoiceHelpModal() {
       'حط لعمر صبري مهمة يراجع تقرير الصيانة'
     ]},
     { title: '💬 الرسائل', color: '#12372F', examples: [
-      'ابعت لعمر صبري قوله فين الرواتب',
+      'أرسل لعمر صبري قوله فين الرواتب',
       'كلم سارة قناوي بخصوص الاجتماع',
       'ابغى اكلم أحمد المدير قوله كذا كذا',
       'راسل خالد يوسف'
@@ -6141,7 +6141,7 @@ const MENU_GROUPS = [
     { key: 'settings', label: 'الإعدادات', icon: 'settings' },
   ]},
 ];
-// للتوافق مع الكود القديم اللي بيستخدم MENU_ITEMS
+// للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
 const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
@@ -6603,7 +6603,7 @@ function renderMeetingCreatePanel(departments, allUsersForMeeting) {
                 </div>
               </div>
 
-              <!-- حقل جدول الأعمال المخفي — يبقى للحفظ التوافقي بقيمة فارغة -->
+              <!-- حقل جدول الأعمال المخفي — يكون للحفظ التوافقي بقيمة فارغة -->
               <textarea id="mAgenda" style="display:none;"></textarea>
 
               <!-- 2) ملاحظات إضافية -->
@@ -9022,7 +9022,7 @@ async function pageEmergency(body) {
         <div id="emergency-table" style="overflow-x:auto;">
           ${(alerts||[]).length ? `<table><thead><tr><th>#</th><th>عنوان الحالة</th><th>النوع</th><th>المستوى</th><th>المستهدف</th><th>وقت الإرسال</th><th>الاستلام</th><th>المعالجة</th><th>إجراءات</th></tr></thead><tbody id="emTableBody">
             ${alerts.map((a,i) => emergencyRowHtml(a, i)).join('')}
-          </tbody></table>` : premiumEmptyState({ icon: 'shield-check', title: 'لا توجد تنبيهات طارئة', subtitle: 'الأمور مستقرة الآن. أي تنبيه طارئ من الفروع هيظهر هنا فورًا.', actions: [] })}
+          </tbody></table>` : premiumEmptyState({ icon: 'shield-check', title: 'لا توجد تنبيهات طارئة', subtitle: 'الأمور مستقرة الآن. أي تنبيه طارئ من الفروع سيظهر هنا فورًا.', actions: [] })}
         </div>
       </div>
     </div>
@@ -9973,7 +9973,7 @@ window.closeDecisionDrawer = function() {
 };
 
 window.deleteDecision = async function(id) {
-  // نجيب القرار كامل عشان نقدر نرجّعه
+  // نجيب القرار كامل لكي نقدر نرجّعه
   const { data: dec } = await sb.from('decisions').select('*').eq('id', id).maybeSingle();
   if (!dec) return;
   const backup = { ...dec }; delete backup.id;
@@ -10196,7 +10196,7 @@ async function checkMeetingReminders() {
   const now = new Date();
   const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-  // اجتماعات المستخدم اللي هيحضرها أو نظّمها
+  // اجتماعات المستخدم التي هيحضرها أو نظّمها
   const { data: myAttendance } = await sb.from('meeting_attendees')
     .select('meeting_id, meetings(id, title, meeting_datetime, status, location_type, location_detail)')
     .eq('user_id', CURRENT_USER.id).eq('attendance_status', 'invited');
@@ -10212,7 +10212,7 @@ async function checkMeetingReminders() {
   if (!upcoming.length) return;
 
   for (const m of upcoming) {
-    // منع التكرار: لو في إشعار بنفس العنوان لنفس الاجتماع لليوم دلوقتي، تخطاه
+    // منع التكرار: لو في إشعار بنفس العنوان لنفس الاجتماع لليوم الآن، تخطاه
     const { data: existing } = await sb.from('notifications')
       .select('id')
       .eq('user_id', CURRENT_USER.id)
@@ -10268,7 +10268,7 @@ async function renderAppCore() {
   const openGroupsRaw = localStorage.getItem('sidebar_open_groups');
   const openGroups = openGroupsRaw ? JSON.parse(openGroupsRaw) : null;
   function isGroupOpen(g) { return openGroups ? openGroups.includes(g.key) : g.defaultOpen; }
-  // اجعل المجموعة اللي فيها الصفحة الحالية مفتوحة تلقائيًا
+  // اجعل المجموعة التي فيها الصفحة الحالية مفتوحة تلقائيًا
   const groupContainingCurrent = MENU_GROUPS.find(g => g.items.some(it => it.key === page));
   const menuHtml = MENU_GROUPS.map(group => {
     const visibleItems = group.items.filter(item => ALWAYS_VISIBLE.includes(item.key) || can(item.key, 'view'));
@@ -10607,7 +10607,7 @@ async function route() {
         </div>`;
     } catch (e2) { /* حتى لو فشل عرض رسالة الخطأ، لا نترك التطبيق يقع */ }
   }
-  // كل خطوات ما بعد الرندر محميّة كل واحدة على حدة عشان فشل أي منها ما يوقفش الباقي
+  // كل خطوات ما بعد الرندر محميّة كل واحدة على حدة لكي فشل أي منها ما يوقفش الباقي
   try { if (window.lucide) lucide.createIcons(); } catch (e) { fwReport('lucide', e); }
   try { wireSearchIcons(); } catch (e) { fwReport('wireSearchIcons', e); }
   try { initPremiumDateFields(); } catch (e) { fwReport('initPremiumDateFields', e); }
@@ -10648,8 +10648,8 @@ function updateBackButtonVisibility(page) {
 // ═══════════════════════════════════════════════════════════
 // undoableAction({ message, action, undo, undoLabel, timeout })
 // - message: نص التوست ("تم الحذف")
-// - action(): يشتغل فورًا (اللي بيحذف مثلاً)
-// - undo(): يشتغل لو الشخص ضغط "تراجع"
+// - action(): يعمل فورًا (التي بيحذف مثلاً)
+// - undo(): يعمل لو الشخص ضغط "تراجع"
 // - timeout: مللي ثانية قبل التأكيد النهائي (default 5000)
 /* ═══ حفظ تلقائي للمسودات في localStorage ═══
    الاستخدام: enableAutoSave('containerId', 'draftKey')
@@ -10737,7 +10737,7 @@ window.enableAutoSave = enableAutoSave;
 
 /* ═══ نسخ رابط مباشر لعنصر (اجتماع/قرار/طلب صيانة) ═══
    الاستخدام: onclick="copyItemLink('#meeting_detail/123')"
-   ينسخ الرابط الكامل + يعرض Toast + يقترح النص للـ share اللي جاي */
+   ينسخ الرابط الكامل + يعرض Toast + يقترح النص للـ share التي جاي */
 async function copyItemLink(hashOrPath, label = 'الرابط') {
   const base = window.location.origin + window.location.pathname;
   const url = base + (hashOrPath.startsWith('#') ? hashOrPath : '#' + hashOrPath);
@@ -10756,7 +10756,7 @@ async function copyItemLink(hashOrPath, label = 'الرابط') {
     toast(`تم نسخ ${label} — الصقه في واتساب أو أي مكان`, 'success');
     // Web Share API لو متاح (على الموبايل)
     if (navigator.share) {
-      // ننتظر ربع ثانية عشان يشوف الـ toast الأول
+      // ننتظر ربع ثانية لكي يشوف الـ toast الأول
       setTimeout(() => {
         if (confirm('تريد مشاركة الرابط مباشرة؟')) {
           navigator.share({ title: label, url: url }).catch(() => {});
@@ -11447,7 +11447,7 @@ window.openSharedTasksModal = async function(otherUserId, otherUserName) {
     </div>
   `);
 
-  // مشاريع المهام اللي الاتنين أعضاء فيها
+  // مشاريع المهام التي الاتنين أعضاء فيها
   const { data: myProjects } = await sb.from('task_project_members').select('task_project_id').eq('user_id', CURRENT_USER.id);
   const myProjIds = (myProjects||[]).map(p=>p.task_project_id);
   let sharedProjects = [];
@@ -12948,7 +12948,7 @@ function renderUsersTabContent() {
             <tbody>${pendingSignups.map(renderRow).join('')}</tbody>
           </table>
           </div>
-          <p id="srNoMatch" class="empty-state hidden">لا توجد نتائج مطابقة للبحث</p>` : premiumEmptyState({ icon: 'user-check', title: 'لا توجد طلبات انضمام حاليًا', subtitle: 'كل الطلبات تمت مراجعتها. لما يقدّم مستخدم جديد طلب انضمام هيظهر هنا.', actions: [] })}
+          <p id="srNoMatch" class="empty-state hidden">لا توجد نتائج مطابقة للبحث</p>` : premiumEmptyState({ icon: 'user-check', title: 'لا توجد طلبات انضمام حاليًا', subtitle: 'كل الطلبات تمت مراجعتها. لما يقدّم مستخدم جديد طلب انضمام سيظهر هنا.', actions: [] })}
         </div>
       </div>
       ${(rejectedSignups||[]).length ? `
@@ -13691,8 +13691,8 @@ async function bootApp() {
       } catch (e) { /* لو Auth غير متاح، استمر بالنمط القديم */ }
       try { await loadPermissions(); } catch (e) { fwReport('loadPermissions', e); }
       await renderApp();
-      // مهام خلفية — تُؤجّل لثانية كاملة عشان الواجهة تظهر أسرع
-      // المستخدم يقدر يستخدم التطبيق فورًا، والمهام تشتغل في الخلفية
+      // مهام خلفية — تُؤجّل لثانية كاملة لكي الواجهة تظهر أسرع
+      // المستخدم يقدر يستخدم التطبيق فورًا، والمهام تعمل في الخلفية
       setTimeout(() => {
         try { checkTaskReminders(); } catch (e) { fwReport('checkTaskReminders', e); }
         try { checkMeetingReminders(); } catch (e) { fwReport('checkMeetingReminders', e); }
@@ -13708,7 +13708,7 @@ async function bootApp() {
     if (!document.getElementById('pageBody') && !document.querySelector('.login-page')) showRecoveryScreen();
   }
 }
-// تأخير بسيط عشان حدث PASSWORD_RECOVERY (لو موجود) يوصل الأول قبل ما نبدأ الإقلاع العادي
+// تأخير بسيط لكي حدث PASSWORD_RECOVERY (لو موجود) يوصل الأول قبل ما نبدأ الإقلاع العادي
 setTimeout(bootApp, 60);
 
 // ═══════════════════════════════════════════════════════════
@@ -14135,7 +14135,7 @@ window.closeGoalNotesDrawer = function() {
 };
 
 window.deleteGoal = async function(goalId) {
-  // نجيب النسخة الكاملة قبل الحذف عشان نقدر نرجّعها
+  // نجيب النسخة الكاملة قبل الحذف لكي نقدر نرجّعها
   const { data: goal } = await sb.from('department_goals').select('*').eq('id', goalId).maybeSingle();
   if (!goal) return;
   const backup = { ...goal }; delete backup.id;
@@ -14262,13 +14262,13 @@ async function pageMyDay(body) {
 
   // نجيب البيانات كلها بشكل متوازي
   const [meetsRes, tasksRes, decsRes, maintRes, notifsRes] = await Promise.all([
-    // اجتماعات اليوم اللي هو مدعو ليها أو منظمها
+    // اجتماعات اليوم التي هو مدعو ليها أو منظمها
     sb.from('meetings').select('id, title, meeting_datetime, meeting_type, status, organizer_id, departments(name), meeting_attendees(user_id)')
       .gte('meeting_datetime', dayStart).lte('meeting_datetime', dayEnd).order('meeting_datetime'),
     // مهامي المتأخرة والمستحقة قريبًا
     sb.from('meeting_tasks').select('id, title, due_date, priority, status, meeting_id, meetings(title)')
       .eq('assignee_id', uid).in('status', ['pending', 'in_progress']).order('due_date'),
-    // قراراتي المتأخرة أو اللي محتاجة اعتماد
+    // قراراتي المتأخرة أو التي محتاجة اعتماد
     sb.from('decisions').select('id, decision_text, due_date, status, priority, responsible_user_id')
       .eq('responsible_user_id', uid).in('status', ['new', 'in_progress', 'delayed', 'pending_approval']),
     // طلبات صيانة محتاجة تدخّل مني
@@ -14894,7 +14894,7 @@ async function pageGlobalSearch(body, query) {
     sb.from('users').select('id, full_name, position_title, username, department_id').eq('is_active', true).ilike('full_name', like).limit(8),
     sb.from('users').select('id, full_name, position_title, username, department_id').eq('is_active', true).ilike('username', like).limit(8)
   ]);
-  // دمج نتائج الصيانة والموظفين مع إزالة التكرار (بدل .or() اللي ممكن يفشل مع نصوص عربية فيها رموز خاصة)
+  // دمج نتائج الصيانة والموظفين مع إزالة التكرار (بدل .or() التي ممكن يفشل مع نصوص عربية فيها رموز خاصة)
   const maintMerged = [...(maintByTitle.data||[]), ...(maintByDesc.data||[])].filter((r,i,arr) => arr.findIndex(x=>x.id===r.id)===i);
   const usersMerged = [...(usersByName.data||[]), ...(usersByUsername.data||[])].filter((u,i,arr) => arr.findIndex(x=>x.id===u.id)===i);
 
@@ -15110,7 +15110,7 @@ async function pageNotifications(body, query) {
     pageNotifications(body, query);
   });
   document.getElementById('notifDeleteRead').addEventListener('click', async () => {
-    // نجيب الإشعارات المقروءة كاملة قبل الحذف عشان نقدر نرجّعها
+    // نجيب الإشعارات المقروءة كاملة قبل الحذف لكي نقدر نرجّعها
     const { data: readNotifs } = await sb.from('notifications')
       .select('*').eq('user_id', CURRENT_USER.id).eq('is_read', true);
     if (!readNotifs || !readNotifs.length) { toast('لا توجد إشعارات مقروءة', 'warning'); return; }
@@ -15474,11 +15474,11 @@ async function pageInstallApp(body) {
     'افتح الموقع من متصفح <b>Safari</b>.',
     'اضغط زر المشاركة <span data-lucide="share" style="width:15px;height:15px;display:inline-block;vertical-align:-3px;"></span> بأسفل الشاشة.',
     'اختر <b>«إضافة إلى الشاشة الرئيسية»</b>.',
-    'اضغط <b>«إضافة»</b> بالأعلى — وهيظهر التطبيق على جهازك.'
+    'اضغط <b>«إضافة»</b> بالأعلى — وسيظهر التطبيق على جهازك.'
   ] : [
     'اضغط زر القائمة <b>⋮</b> بأعلى المتصفح (Chrome).',
     'اختر <b>«تثبيت التطبيق»</b> أو <b>«إضافة إلى الشاشة الرئيسية»</b>.',
-    'أكِّد التثبيت — وهيظهر أيقونة التطبيق على جهازك.'
+    'أكِّد التثبيت — وسيظهر أيقونة التطبيق على جهازك.'
   ];
 
   body.innerHTML = `
@@ -15519,7 +15519,7 @@ async function pageInstallApp(body) {
       `}
 
       <div class="install-benefits">
-        <div class="ib-item"><span data-lucide="zap" style="width:18px;height:18px;"></span><div><strong>أسرع في الفتح</strong><span>يشتغل مباشرة من الشاشة الرئيسية</span></div></div>
+        <div class="ib-item"><span data-lucide="zap" style="width:18px;height:18px;"></span><div><strong>أسرع في الفتح</strong><span>يعمل مباشرة من الشاشة الرئيسية</span></div></div>
         <div class="ib-item"><span data-lucide="wifi-off" style="width:18px;height:18px;"></span><div><strong>يعمل بثبات</strong><span>واجهة كاملة الشاشة بدون شريط المتصفح</span></div></div>
         <div class="ib-item"><span data-lucide="bell" style="width:18px;height:18px;"></span><div><strong>تنبيهات فورية</strong><span>تصلك إشعارات المهام والاجتماعات</span></div></div>
       </div>
@@ -18982,7 +18982,7 @@ function renderCafeManage(host, items) {
     const id = Number(b.dataset.deleteItem);
     const it = items.find(x => x.id === id);
     if (!it) return;
-    // نحتفظ بنسخة كاملة عشان نقدر نرجّعها
+    // نحتفظ بنسخة كاملة لكي نقدر نرجّعها
     const backup = { ...it }; delete backup.id;
     b.disabled = true;
     const card = b.closest('.cafe-manage-card');
@@ -19097,7 +19097,7 @@ async function openCafeItemModal(existing) {
       let uploadRes = await sb.storage.from('cafe').upload(filePath, file, { contentType: file.type });
       let publicUrl;
       if (uploadRes.error) {
-        // fallback على bucket maintenance لو cafe مش متعمل لسه
+        // fallback على bucket maintenance لو cafe مش مُفعّل لا يزال
         const alt = await sb.storage.from('maintenance').upload('cafe/' + filePath, file, { contentType: file.type });
         if (alt.error) throw alt.error;
         publicUrl = sb.storage.from('maintenance').getPublicUrl('cafe/' + filePath).data.publicUrl;
@@ -19319,7 +19319,7 @@ function renderCafeReports(host, todayOrders, items) {
 
 /* ═══════════════════════════════════════════════════════════════
    📱 MOBILE PREMIUM UI — Bootstrap + Shell + Home Dashboard
-   يشتغل فقط على شاشات < 768px، الديسكتوب يبقى زي ما هو
+   يعمل فقط على شاشات < 768px، الديسكتوب يكون زي ما هو
    يستخدم نفس الـbackend والدوال الموجودة (لا تكرار للمنطق)
    ═══════════════════════════════════════════════════════════════ */
 const MOBILE_BREAKPOINT = 768;
@@ -19538,7 +19538,7 @@ function openMobileMoreSheet() {
             { key:'my_profile', hash:'#my_profile', icon:'user', label:'ملفي الشخصي' },
             { key:'settings', hash:'#settings', icon:'settings', label:'الإعدادات' }
           ];
-          // فقط اللي مش موجود في الرئيسية
+          // فقط التي مش موجود في الرئيسية
           const hidden = swappable.filter(s => !homeKeys.includes(s.key));
           return hidden.map(s =>
             `<a class="m-more-item" href="${s.hash}"><span data-lucide="${s.icon}" style="width:18px;height:18px;"></span> ${s.label}</a>`
@@ -19628,7 +19628,7 @@ function openMobileCustomizeSheet() {
       <div class="m-more-handle"></div>
       <div style="padding:0 4px 8px;">
         <h3 style="margin:0 0 4px;font-size:16px;font-weight:700;color:#17372D;">تخصيص الشاشة الرئيسية</h3>
-        <p style="margin:0 0 12px;font-size:12px;color:#6F7D76;">اختر الأقسام اللي تحب تظهر كبلاطات في الرئيسية. الباقي هيبقى في قائمة "المزيد".</p>
+        <p style="margin:0 0 12px;font-size:12px;color:#6F7D76;">اختر الأقسام التي تريد إظهارها في الرئيسية. الباقي سيظهر في قائمة "المزيد".</p>
       </div>
       <div class="m-custom-grid">
         ${all.map(k => {
@@ -19709,7 +19709,7 @@ function initTilesReorder() {
       const hint = document.createElement('div');
       hint.id = 'mTilesHint';
       hint.className = 'm-tiles-hint';
-      hint.innerHTML = '<span data-lucide="hand-metal" style="width:14px;height:14px;"></span> اضغط بلاطة ثم اضغط مكانها الجديد لتبديلهما';
+      hint.innerHTML = '<span data-lucide="hand-metal" style="width:14px;height:14px;"></span> اضغط <span data-lucide="layout-grid" style="width:14px;height:14px;vertical-align:middle;"></span> ثم اضغط <span data-lucide="layout-grid" style="width:14px;height:14px;vertical-align:middle;"></span> الجديد للتبديل بينهما';
       grid.parentNode.insertBefore(hint, grid);
     }
     if (window.lucide) lucide.createIcons();
@@ -19793,7 +19793,7 @@ async function renderMobileHome(body) {
       <div class="m-welcome-avatar">${esc(initials)}</div>
       <div class="m-welcome-txt">
         <p class="m-welcome-hi">${esc(greeting)}، ${esc(firstName)}</p>
-        <p class="m-welcome-sub">اختر القسم اللي تحب تشتغل فيه</p>
+        <p class="m-welcome-sub">اختر القسم الذي تريد العمل فيه</p>
       </div>
     </div>
     <div class="m-tiles-grid" id="mTilesGrid">
@@ -19898,7 +19898,7 @@ async function renderMobileHome(body) {
         <span data-lucide="sliders-horizontal" style="width:15px;height:15px;"></span>
         <span>تخصيص</span>
       </button>
-      <button type="button" id="mTilesEditBtn" class="m-tiles-edit-btn" aria-label="ترتيب البلاطات">
+      <button type="button" id="mTilesEditBtn" class="m-tiles-edit-btn" aria-label="ترتيب الأقسام">
         <span data-lucide="layout-grid" style="width:15px;height:15px;"></span>
         <span>ترتيب</span>
       </button>
