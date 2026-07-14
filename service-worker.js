@@ -1,5 +1,5 @@
 // نسخة المسجّل — تُبدَّل عند كل تحديث لضمان تنشيط SW جديد
-const SW_VERSION = 'v35-2026-07-14-force-cache-bust';
+const SW_VERSION = 'v36-2026-07-14-no-geo';
 const STATIC_CACHE = 'sg-static-' + SW_VERSION;
 
 self.addEventListener('install', () => self.skipWaiting());
