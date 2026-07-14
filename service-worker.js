@@ -1,5 +1,5 @@
 // نسخة المسجّل — تُبدَّل عند كل تحديث لضمان تنشيط SW جديد
-const SW_VERSION = 'v28-2026-07-14-update-banner-fix';
+const SW_VERSION = 'v29-2026-07-14-network-first-html';
 const STATIC_CACHE = 'sg-static-' + SW_VERSION;
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -56,11 +56,30 @@ self.addEventListener('fetch', (e) => {
   const isJs = url.pathname.endsWith('.js') && sameOrigin;
   const isJson = url.pathname.endsWith('.json') && sameOrigin;
 
-  // HTML و JS/JSON محلي: Stale-While-Revalidate
-  // - نرجّع من الكاش فورًا (سرعة!)
-  // - نحدّث الكاش من الشبكة في الخلفية للمرة الجاية
-  // - لو حدث تغيير في SW_VERSION، بيتم اكتشافه ويظهر بانر التحديث
-  if (isHtml || isJs || isJson) {
+  // HTML: Network-First (أولوية للنسخة الطازجة)
+  // كنا نستخدم SWR وكان يُظهر نسخة قديمة عند refresh — لذلك:
+  // - نحاول الشبكة أولاً بمهلة قصيرة
+  // - لو فشلت (بلا نت) → الكاش
+  if (isHtml) {
+    e.respondWith((async () => {
+      const cache = await caches.open(STATIC_CACHE);
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 4000);
+        const res = await fetch(e.request, { signal: controller.signal });
+        clearTimeout(timer);
+        if (res && res.ok) cache.put(e.request, res.clone()).catch(() => {});
+        return res;
+      } catch (err) {
+        const cached = await cache.match(e.request);
+        return cached || fetch(e.request);
+      }
+    })());
+    return;
+  }
+
+  // JS/JSON محلي: Stale-While-Revalidate (سرعة + تحديث خلفي)
+  if (isJs || isJson) {
     e.respondWith((async () => {
       const cache = await caches.open(STATIC_CACHE);
       const cached = await cache.match(e.request);
@@ -68,7 +87,6 @@ self.addEventListener('fetch', (e) => {
         if (res && res.ok) cache.put(e.request, res.clone()).catch(() => {});
         return res;
       }).catch(() => cached);
-      // لو عندنا نسخة مكاشة: نرجّعها فورًا، والتحديث في الخلفية
       return cached || fetchPromise;
     })());
     return;
