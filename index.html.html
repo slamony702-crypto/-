@@ -3429,6 +3429,18 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
     background: radial-gradient(circle, rgba(169,87,74,0.22), transparent 70%);
     pointer-events: none;
   }
+  /* إطار متدرّج أخضر↔بنفسجي بدون تلوين الداخل */
+  .m-welcome::after {
+    content: ''; position: absolute; inset: 0;
+    padding: 1.5px; border-radius: inherit;
+    background: linear-gradient(135deg, #10B981 0%, #34D399 45%, #8B5CF6 100%);
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
+  }
   .m-welcome-avatar {
     width: 54px; height: 54px; border-radius: 50%;
     background: linear-gradient(135deg, #245B4B, #12372F);
@@ -3713,12 +3725,23 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
     background: rgba(255,255,255,0.88);
     backdrop-filter: blur(22px) saturate(180%);
     -webkit-backdrop-filter: blur(22px) saturate(180%);
-    border: 1px solid rgba(255,255,255,0.75);
     border-radius: 26px;
     box-shadow:
       0 12px 32px rgba(18,55,47,0.14),
       0 4px 12px rgba(139,92,246,0.10),
       inset 0 1px 0 rgba(255,255,255,0.85);
+  }
+  /* إطار متدرّج أخضر↔بنفسجي بدون تلوين الداخل */
+  .m-bottomnav::after {
+    content: ''; position: absolute; inset: 0;
+    padding: 1.5px; border-radius: inherit;
+    background: linear-gradient(135deg, #10B981 0%, #34D399 45%, #8B5CF6 100%);
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
   }
   .m-bottomnav-item {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
