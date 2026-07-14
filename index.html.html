@@ -3814,24 +3814,16 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
   .m-more-item.m-more-customize { background: rgba(226,220,255,0.55); border-color: rgba(117,105,242,0.22); }
   .m-more-item.m-more-customize [data-lucide] { color: #7569F2; }
   .m-more-item.m-more-install {
-    background: linear-gradient(135deg, rgba(16,185,129,0.14) 0%, rgba(139,92,246,0.14) 100%);
-    border: 1.5px solid transparent;
-    background-image:
-      linear-gradient(135deg, rgba(16,185,129,0.14) 0%, rgba(139,92,246,0.14) 100%),
-      linear-gradient(135deg, #10B981 0%, #8B5CF6 100%);
-    background-origin: border-box;
-    background-clip: padding-box, border-box;
-    color: #059669;
+    background: linear-gradient(135deg, #ECFDF5 0%, #F3EEFE 100%);
+    border: 1.5px solid rgba(16,185,129,0.45);
+    color: #065F46;
     font-weight: 800;
   }
-  .m-more-item.m-more-install [data-lucide] { color: #059669; }
+  .m-more-item.m-more-install [data-lucide] { color: #047857; }
   .m-more-item.m-more-install:active {
-    background-image:
-      linear-gradient(135deg, #059669 0%, #10B981 40%, #8B5CF6 100%),
-      linear-gradient(135deg, #10B981 0%, #8B5CF6 100%);
-    color: #FFFFFF;
+    background: linear-gradient(135deg, #D1FAE5 0%, #E9DFFC 100%);
+    transform: scale(0.97);
   }
-  .m-more-item.m-more-install:active [data-lucide] { color: #FFFFFF; }
 
   /* ═══ Customize Sheet ═══ */
   .m-custom-grid {
@@ -19612,14 +19604,8 @@ function openMobileMoreSheet() {
         await dp.userChoice;
         window.__deferredInstallPrompt = null;
       } catch(e) {}
-      sheet.remove();
-    } else {
-      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-      const msg = isIOS
-        ? 'لتثبيت التطبيق على آيفون:\n1. اضغط زر المشاركة في Safari بالأسفل.\n2. اختر "إضافة إلى الشاشة الرئيسية".'
-        : 'لتثبيت التطبيق:\n1. اضغط زر القائمة (⋮) بأعلى المتصفح.\n2. اختر "تثبيت التطبيق" أو "إضافة إلى الشاشة الرئيسية".';
-      alert(msg);
     }
+    sheet.remove();
   });
   document.getElementById('mMoreCustomize')?.addEventListener('click', () => {
     sheet.remove();
