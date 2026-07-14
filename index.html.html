@@ -3594,6 +3594,64 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
   }
   .m-fab:active { transform: scale(0.94); }
 
+  /* ═══ More Sheet (bottom sheet مستقل) ═══ */
+  .m-more-overlay { position: fixed; inset: 0; z-index: 500; }
+  .m-more-backdrop {
+    position: absolute; inset: 0;
+    background: rgba(18,55,47,0.45);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    animation: mFade .2s ease;
+  }
+  .m-more-sheet {
+    position: absolute; inset: auto 0 0 0;
+    max-height: 82vh; overflow-y: auto;
+    background: linear-gradient(180deg, #FFFFFF 0%, #F5F7F6 100%);
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -20px 60px rgba(18,55,47,0.28);
+    padding: 8px 18px calc(24px + env(safe-area-inset-bottom, 0px));
+    animation: mSheetUp .35s cubic-bezier(.2,.9,.3,1);
+  }
+  .m-more-handle {
+    width: 44px; height: 4px; border-radius: 4px;
+    background: #CBD5E1; margin: 8px auto 14px;
+  }
+  .m-more-user {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px; margin-bottom: 14px;
+    background: linear-gradient(135deg, rgba(117,105,242,0.10), rgba(205,239,244,0.35));
+    border: 1px solid rgba(117,105,242,0.18);
+    border-radius: 18px;
+  }
+  .m-more-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+    margin-bottom: 14px;
+  }
+  .m-more-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 14px;
+    background: rgba(255,255,255,0.85);
+    border: 1px solid rgba(117,105,242,0.10);
+    border-radius: 16px;
+    color: #17372D; font-size: 13.5px; font-weight: 600;
+    text-decoration: none; cursor: pointer;
+    transition: transform .15s, background .15s;
+  }
+  .m-more-item:active { transform: scale(0.97); }
+  .m-more-item [data-lucide] { color: #7569F2; }
+  .m-more-item.m-more-refresh { background: rgba(205,239,244,0.55); border-color: rgba(6,163,205,0.18); }
+  .m-more-item.m-more-refresh [data-lucide] { color: #2894A6; }
+  .m-more-logout {
+    width: 100%; padding: 14px;
+    background: linear-gradient(135deg, #C85454, #B44444);
+    color: #FFFFFF; border: none;
+    border-radius: 16px; cursor: pointer;
+    font-family: inherit; font-size: 14px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    box-shadow: 0 8px 22px rgba(200,84,84,0.35);
+    transition: transform .15s;
+  }
+  .m-more-logout:active { transform: scale(0.98); }
+
   .m-empty { text-align: center; padding: 40px 20px; }
   .m-empty-icon { width: 68px; height: 68px; border-radius: 50%; background: rgba(36,91,75,0.10); color: #245B4B; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px; }
   .m-empty-title { font-size: 14px; font-weight: 700; color: #17372D; margin: 0 0 4px; }
@@ -19137,6 +19195,9 @@ function mobileAppShellHtml() {
           <span data-lucide="bell" style="width:17px;height:17px;"></span>
           <span class="m-badge" id="mNotifBadge" style="display:none;">0</span>
         </button>
+        <button class="m-appbar-btn" id="mBtnMenu" title="القائمة" aria-label="القائمة">
+          <span data-lucide="menu" style="width:17px;height:17px;"></span>
+        </button>
       </div>
     </header>
     <nav class="m-bottomnav" role="navigation" aria-label="التنقل السفلي">
@@ -19181,7 +19242,8 @@ function ensureMobileShell() {
         document.querySelectorAll('.m-bottomnav-item').forEach(b => b.removeAttribute('data-active'));
         btn.setAttribute('data-active', '1');
         if (nav === 'more') {
-          document.body.classList.add('more-open');
+          openMobileMoreSheet();
+          setTimeout(syncMobileBottomNav, 100);
         } else if (nav === 'dashboard') location.hash = '#dashboard';
         else if (nav === 'meetings') location.hash = '#meetings';
         else if (nav === 'tasks') location.hash = '#tasks';
@@ -19203,9 +19265,71 @@ function ensureMobileShell() {
       else location.hash = '#global_search';
     });
     document.getElementById('mBtnNotif')?.addEventListener('click', () => location.hash = '#notifications');
+    document.getElementById('mBtnMenu')?.addEventListener('click', openMobileMoreSheet);
     if (window.lucide) lucide.createIcons();
   }
   syncMobileBottomNav();
+}
+
+function openMobileMoreSheet() {
+  // نغلق الشيت لو موجود بالفعل
+  const existing = document.getElementById('mMoreSheet');
+  if (existing) { existing.remove(); return; }
+  const sheet = document.createElement('div');
+  sheet.id = 'mMoreSheet';
+  sheet.className = 'm-more-overlay';
+  const initials = (CURRENT_USER?.full_name || '').trim().split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('');
+  sheet.innerHTML = `
+    <div class="m-more-backdrop" onclick="this.parentElement.remove()"></div>
+    <div class="m-more-sheet">
+      <div class="m-more-handle"></div>
+      <div class="m-more-user">
+        <div class="m-welcome-avatar" style="width:44px;height:44px;font-size:15px;">${esc(initials)}</div>
+        <div style="flex:1;min-width:0;">
+          <p style="margin:0;font-weight:700;font-size:14px;color:#17372D;">${esc(CURRENT_USER?.full_name || '')}</p>
+          <p style="margin:2px 0 0;font-size:11.5px;color:#6F7D76;">${esc(CURRENT_USER?.username || '')} · ${esc(label('role', CURRENT_USER?.role) || CURRENT_USER?.role || '')}</p>
+        </div>
+      </div>
+      <div class="m-more-grid">
+        <a class="m-more-item" href="#decisions"><span data-lucide="gavel" style="width:18px;height:18px;"></span> القرارات</a>
+        <a class="m-more-item" href="#conversations"><span data-lucide="message-circle" style="width:18px;height:18px;"></span> التواصل الداخلي</a>
+        <a class="m-more-item" href="#quality"><span data-lucide="shield-check" style="width:18px;height:18px;"></span> الجودة</a>
+        <a class="m-more-item" href="#maintenance"><span data-lucide="wrench" style="width:18px;height:18px;"></span> الصيانة</a>
+        <a class="m-more-item" href="#cafe"><span data-lucide="coffee" style="width:18px;height:18px;"></span> ركن الكافيه</a>
+        <a class="m-more-item" href="#reports"><span data-lucide="bar-chart-3" style="width:18px;height:18px;"></span> التقارير</a>
+        <a class="m-more-item" href="#users"><span data-lucide="users" style="width:18px;height:18px;"></span> المستخدمون</a>
+        <a class="m-more-item" href="#my_profile"><span data-lucide="user" style="width:18px;height:18px;"></span> ملفي الشخصي</a>
+        <a class="m-more-item" href="#settings"><span data-lucide="settings" style="width:18px;height:18px;"></span> الإعدادات</a>
+        <button class="m-more-item m-more-refresh" type="button" id="mMoreRefresh"><span data-lucide="refresh-cw" style="width:18px;height:18px;"></span> تحديث كامل</button>
+      </div>
+      <button class="m-more-logout" type="button" id="mMoreLogout">
+        <span data-lucide="log-out" style="width:18px;height:18px;"></span>
+        تسجيل الخروج
+      </button>
+    </div>
+  `;
+  document.body.appendChild(sheet);
+  if (window.lucide) lucide.createIcons();
+  // ربط أي link يقفل الشيت بعد التوجيه
+  sheet.querySelectorAll('.m-more-item[href]').forEach(a => a.addEventListener('click', () => setTimeout(() => sheet.remove(), 50)));
+  document.getElementById('mMoreLogout').addEventListener('click', async () => {
+    sheet.remove();
+    if (typeof logout === 'function') { await logout(); }
+    else { localStorage.clear(); location.reload(); }
+  });
+  document.getElementById('mMoreRefresh').addEventListener('click', async () => {
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const r of regs) await r.unregister();
+      }
+    } catch(e) {}
+    location.reload();
+  });
 }
 
 function syncMobileBottomNav() {
