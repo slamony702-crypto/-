@@ -1,5 +1,5 @@
 // نسخة المسجّل — تُبدَّل عند كل تحديث لضمان تنشيط SW جديد
-const SW_VERSION = 'v32-2026-07-14-fab-fix';
+const SW_VERSION = 'v33-2026-07-14-brand-colors';
 const STATIC_CACHE = 'sg-static-' + SW_VERSION;
 
 self.addEventListener('install', () => self.skipWaiting());

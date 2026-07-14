@@ -3865,17 +3865,23 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
     transition: color .15s; font-size: 10.5px; font-weight: 600;
     position: relative;
   }
-  .m-bottomnav-item[data-active="1"] { color: #7569F2; }
+  .m-bottomnav-item[data-active="1"] {
+    color: transparent;
+    background: linear-gradient(135deg, #059669 0%, #10B981 45%, #8B5CF6 100%);
+    -webkit-background-clip: text;
+            background-clip: text;
+  }
+  .m-bottomnav-item[data-active="1"] .m-bottomnav-icon { color: #10B981; }
   .m-bottomnav-item[data-active="1"]::before {
     content: ''; position: absolute; top: 0;
     left: 50%; transform: translateX(-50%);
     width: 28px; height: 3px; border-radius: 3px;
-    background: linear-gradient(90deg, #7569F2, #A9C7F5);
+    background: linear-gradient(90deg, #10B981, #8B5CF6);
   }
   .m-bottomnav-item[data-active="1"] .m-bottomnav-icon::after {
     content: ''; position: absolute; inset: -4px -6px;
     border-radius: 12px;
-    background: radial-gradient(circle, rgba(117,105,242,0.18), transparent 70%);
+    background: radial-gradient(circle, rgba(16,185,129,0.18), rgba(139,92,246,0.10), transparent 70%);
     z-index: -1;
   }
   .m-bottomnav-icon { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; position: relative; }
@@ -3891,12 +3897,12 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
   .m-fab {
     position: fixed; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); left: 22px;
     width: 60px; height: 60px; border-radius: 50%;
-    background: linear-gradient(135deg, #8B7FF5 0%, #7569F2 60%, #5B4EE0 100%);
+    background: linear-gradient(135deg, #059669 0%, #10B981 45%, #8B5CF6 100%);
     color: #FFFFFF; border: none; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     box-shadow:
-      0 14px 36px rgba(117,105,242,0.45),
-      0 4px 10px rgba(117,105,242,0.25),
+      0 14px 36px rgba(16,185,129,0.35),
+      0 6px 14px rgba(139,92,246,0.30),
       inset 0 1px 0 rgba(255,255,255,0.35);
     z-index: 49; transition: transform .18s cubic-bezier(.2,.9,.3,1);
   }
@@ -4113,7 +4119,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v32-2026-07-14-fab-fix';
+const APP_VERSION = 'v33-2026-07-14-brand-colors';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
