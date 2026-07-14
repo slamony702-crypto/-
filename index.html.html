@@ -489,8 +489,11 @@ tr:hover td { background: var(--primary-light); }
 .badge-delayed { background: #f8d7da; color: #a12b3d; } .badge-high { background: #f8d7da; color: #a12b3d; }
 .badge-medium { background: #fff3cd; color: #8a6d1f; } .badge-low { background: #e2e3e5; color: #565e64; }
 .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); }
-.chat-box { display: flex; flex-direction: column; height: 380px; }
-.chat-messages { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+/* min-height:0 ضروري هنا: بدون هذا السطر، عناصر flex ما بتنكمشش تحت حجم محتواها
+   الطبيعي، فيتمدد .chat-messages ليحتوي كل الرسائل بدل ما يتوقف عند ارتفاع
+   .chat-box الثابت ويسكرول داخليًا — وهو سبب اختفاء السكرول في الشات */
+.chat-box { display: flex; flex-direction: column; height: 380px; min-height: 0; }
+.chat-messages { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .msg-bubble { max-width: 70%; padding: 8px 12px; border-radius: 10px; background: var(--bg); align-self: flex-start; border-right: 3px solid transparent; }
 .msg-bubble.own { background: var(--primary-light); align-self: flex-end; border-right: none; border-left: 3px solid transparent; }
 .msg-bubble.type-important { border-color: var(--warning); }
@@ -502,6 +505,17 @@ tr:hover td { background: var(--primary-light); }
 .msg-bubble .type-tag.follow_up { background: rgba(47,128,201,0.15); color: #2F80C9; }
 .msg-bubble .type-tag.decision { background: rgba(18,55,47,0.15); color: #12372F; }
 .msg-bubble .msg-text strong { font-weight: 700; }
+.msg-bubble .msg-text.deleted-msg { color: var(--text-muted); font-style: italic; }
+.msg-edit-textarea {
+  width: 100%; min-height: 52px; border-radius: 8px; border: 1px solid var(--primary);
+  padding: 6px 8px; font-family: inherit; font-size: 13px; resize: vertical; box-sizing: border-box;
+}
+.msg-edit-actions { display: flex; gap: 6px; margin-top: 6px; }
+.msg-edit-actions button {
+  border: none; border-radius: 6px; padding: 4px 12px; font-size: 11.5px; font-weight: 700; cursor: pointer; font-family: inherit;
+}
+.msg-edit-save { background: var(--primary); color: #fff; }
+.msg-edit-cancel { background: var(--bg); color: var(--text-muted); }
 
 .chat-input { display: flex; flex-direction: column; border-top: 1px solid var(--border); background: var(--surface); }
 .chat-toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 10px 0; }
@@ -4198,6 +4212,28 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 }
 
 /* ═══════════════════════════════════════════════════════════
+   💬 شاشة شات كاملة على الموبايل — بدل اللوحة المصغّرة المدمجة
+   في صفحة التواصل الداخلي، تفتح كشاشة مستقلة تغطي الشاشة بالكامل
+   وتسكرول داخليًا فقط (بدل ما تمدد الصفحة كلها لأسفل)
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  #taskChatPanel:not(.hidden) {
+    position: fixed !important; inset: 0 !important; z-index: 500;
+    display: flex !important; flex-direction: column;
+    background: var(--surface, #fff);
+    border-radius: 0; margin: 0; border: none; box-shadow: none;
+    padding: 0;
+  }
+  #taskChatPanel .panel-header {
+    flex: 0 0 auto;
+    padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px 12px;
+  }
+  #taskChatPanel .chat-box { flex: 1; min-height: 0; height: auto; }
+  #taskChatPanel .chat-messages { flex: 1; min-height: 0; }
+  #taskChatPanel .chat-input { flex: 0 0 auto; padding-bottom: env(safe-area-inset-bottom, 0px); }
+}
+
+/* ═══════════════════════════════════════════════════════════
    🧭 الجولة التعريفية للموبايل — هادئة وبسيطة، بدون وميض أو اهتزاز
    ═══════════════════════════════════════════════════════════ */
 .m-onboard-overlay {
@@ -4300,7 +4336,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v45-2026-07-15-transparent-logo';
+const APP_VERSION = 'v46-2026-07-15-chat-perf-fixes';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -5692,14 +5728,22 @@ async function tryVoiceCommand(rawText) {
   const content = split.content;
   if (name.length < 2) return false;
 
+  // نبحث بكل الاحتمالات (ة/ه، الاسم الأول فقط) في استعلام واحد بدل 4 استعلامات
+  // متتالية — كان بيسبب تأخير ملحوظ في تنفيذ الأمر الصوتي كل ما التعرف الصوتي
+  // يخطئ في حرف واحد (زي ة بدل ه) لأن كل محاولة فاشلة كانت تنتظر رحلة شبكة كاملة
+  // قبل ما تجرب الاحتمال التالي
   async function searchUsersByName(term) {
-    const { data } = await sb.from('users').select('id, full_name').eq('is_active', true).ilike('full_name', `%${term}%`).limit(5);
-    return data || [];
+    const variants = Array.from(new Set([
+      term, term.replace(/ة/g, 'ه'), term.replace(/ه/g, 'ة'), term.split(/\s+/)[0]
+    ].filter(t => t && t.length >= 2).map(t => t.replace(/[%,()]/g, ''))));
+    if (!variants.length) return [];
+    const orExpr = variants.map(v => `full_name.ilike.%${v}%`).join(',');
+    const { data } = await sb.from('users').select('id, full_name').eq('is_active', true).or(orExpr).limit(8);
+    if (!data || !data.length) return [];
+    const primary = normalizeArabic(term);
+    return [...data].sort((a, b) => levenshteinDist(normalizeArabic(a.full_name), primary) - levenshteinDist(normalizeArabic(b.full_name), primary));
   }
   let users = await searchUsersByName(name);
-  if (!users.length) users = await searchUsersByName(name.replace(/ة/g, 'ه'));
-  if (!users.length) users = await searchUsersByName(name.replace(/ه/g, 'ة'));
-  if (!users.length) users = await searchUsersByName(name.split(/\s+/)[0]);
   const target = users[0];
   if (!target) { toast(`لم يتم العثور على موظف باسم "${name}"`, 'warning'); return true; }
 
@@ -6176,7 +6220,7 @@ function renderLogin() {
       </svg>
       <div class="login-box">
         <div class="login-logo-wrap">
-          <img src="logo-wordmark-transparent.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI">
+          <img src="logo-wordmark-v2.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI">
           <span class="login-logo-tagline">لتطوير وإدارة المطاعم</span>
         </div>
         <h1>مرحبًا بعودتك</h1>
@@ -6275,7 +6319,7 @@ function renderSignupRequestPage() {
       </svg>
       <div class="login-box" id="signupBox">
         <div class="login-logo-wrap">
-          <img src="logo-wordmark-transparent.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI">
+          <img src="logo-wordmark-v2.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI">
           <span class="login-logo-tagline">لتطوير وإدارة المطاعم</span>
         </div>
         <h1>طلب انضمام جديد</h1>
@@ -6441,7 +6485,7 @@ function renderSetNewPasswordPage() {
       <div class="login-glow"></div>
       <div class="login-box">
         <div class="login-logo-wrap">
-          <img src="logo-wordmark-transparent.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI">
+          <img src="logo-wordmark-v2.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI">
           <span class="login-logo-tagline">لتطوير وإدارة المطاعم</span>
         </div>
         <h1>تعيين كلمة مرور جديدة</h1>
@@ -8275,15 +8319,21 @@ async function loadChatMessages(conversationId) {
     const replyMsg = m.reply_to_message_id ? byId[m.reply_to_message_id] : null;
     const isImage = m.attachment_type && m.attachment_type.startsWith('image/');
     const attIcon = m.attachment_url ? attachmentIcon(m.attachment_name, m.attachment_type) : null;
+    const isOwn = m.sender_id === CURRENT_USER.id;
+    const isDeleted = m.message_text === DELETED_MSG_TEXT;
+    const rawB64 = (() => { try { return btoa(unescape(encodeURIComponent(m.message_text || ''))); } catch (e) { return ''; } })();
     return `
-    <div class="msg-bubble ${m.sender_id === CURRENT_USER.id ? 'own' : ''} ${m.message_type && m.message_type !== 'normal' ? 'type-' + m.message_type : ''}" data-msg-id="${m.id}">
+    <div class="msg-bubble ${isOwn ? 'own' : ''} ${m.message_type && m.message_type !== 'normal' ? 'type-' + m.message_type : ''}" data-msg-id="${m.id}" data-raw-text="${rawB64}">
       <div class="meta">${m.users ? esc(m.users.full_name) : ''} · ${fmtDate(m.sent_at)} ${m.message_type && m.message_type !== 'normal' ? `<span class="type-tag ${m.message_type}">${typeLabel[m.message_type]}</span>` : ''} ${m.is_pinned ? '<span data-lucide="pin" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;color:#245B4B;"></span>' : ''}
         <button type="button" class="reply-btn" onclick="togglePinMessage(${m.id}, ${!m.is_pinned})" style="background:none; border:none; cursor:pointer; color:var(--text-muted); font-size:11px;" title="${m.is_pinned ? 'إلغاء التثبيت' : 'تثبيت الرسالة'}"><span data-lucide="pin" style="width:11px;height:11px;"></span></button>
-        <button type="button" class="reply-btn" onclick="setReplyTarget(${m.id}, '${esc(m.message_text).replace(/'/g,"")}', '${m.users ? esc(m.users.full_name).replace(/'/g,"") : ""}')" style="background:none; border:none; cursor:pointer; color:var(--text-muted); font-size:11px; margin-right:auto;">↩️ رد</button>
+        ${!isDeleted ? `<button type="button" class="reply-btn" onclick="setReplyTarget(${m.id}, '${esc(m.message_text).replace(/'/g,"")}', '${m.users ? esc(m.users.full_name).replace(/'/g,"") : ""}')" style="background:none; border:none; cursor:pointer; color:var(--text-muted); font-size:11px;">↩️ رد</button>` : ''}
+        ${isOwn && !isDeleted ? `
+        <button type="button" class="reply-btn" onclick="startEditMessage(${m.id})" style="background:none; border:none; cursor:pointer; color:var(--text-muted); font-size:11px;" title="تعديل"><span data-lucide="pencil" style="width:11px;height:11px;"></span></button>
+        <button type="button" class="reply-btn" onclick="deleteMessageConfirm(${m.id})" style="background:none; border:none; cursor:pointer; color:var(--danger); font-size:11px; margin-right:auto;" title="حذف"><span data-lucide="trash-2" style="width:11px;height:11px;"></span></button>` : ''}
       </div>
       ${replyMsg ? `<div style="background:rgba(0,0,0,0.05); border-right:2px solid var(--primary); padding:4px 8px; border-radius:5px; font-size:11.5px; margin-bottom:5px; color:var(--text-muted);">${esc(replyMsg.users ? '' : '')}↩️ ${esc((replyMsg.message_text||'').slice(0,50))}</div>` : ''}
-      ${m.attachment_url ? (isImage ? `<img src="${m.attachment_url}" style="max-width:220px; border-radius:8px; margin-bottom:5px; display:block;">` : `<a href="${m.attachment_url}" target="_blank" style="display:flex; align-items:center; gap:6px; background:rgba(0,0,0,0.05); padding:6px 10px; border-radius:6px; margin-bottom:5px; font-size:12.5px; color:${attIcon.color};"><span data-lucide="${attIcon.icon}" style="width:14px;height:14px;"></span> <span style="color:#0F172A;">${esc(m.attachment_name || 'ملف مرفق')}</span></a>`) : ''}
-      <div class="msg-text" style="${m.text_color ? `color:${m.text_color};` : ''} text-align:${m.text_align || 'right'};">${renderMsgText(m.message_text)}</div>
+      ${!isDeleted && m.attachment_url ? (isImage ? `<img src="${m.attachment_url}" style="max-width:220px; border-radius:8px; margin-bottom:5px; display:block;">` : `<a href="${m.attachment_url}" target="_blank" style="display:flex; align-items:center; gap:6px; background:rgba(0,0,0,0.05); padding:6px 10px; border-radius:6px; margin-bottom:5px; font-size:12.5px; color:${attIcon.color};"><span data-lucide="${attIcon.icon}" style="width:14px;height:14px;"></span> <span style="color:#0F172A;">${esc(m.attachment_name || 'ملف مرفق')}</span></a>`) : ''}
+      <div class="msg-text ${isDeleted ? 'deleted-msg' : ''}" id="msgText_${m.id}" style="${m.text_color && !isDeleted ? `color:${m.text_color};` : ''} text-align:${m.text_align || 'right'};">${isDeleted ? '🗑️ تم حذف هذه الرسالة' : renderMsgText(m.message_text)}</div>
     </div>`;
   }).join('');
   box.scrollTop = box.scrollHeight;
@@ -8294,6 +8344,53 @@ async function loadChatMessages(conversationId) {
     { onConflict: 'message_id,user_id' }
   );
 }
+
+// حذف الرسالة يستبدل نصها بدل حذف الصف فعليًا — يحافظ على سلامة الردود المرتبطة بها
+// (reply_to_message_id) بدون الحاجة لأي عمود جديد في قاعدة البيانات
+const DELETED_MSG_TEXT = 'تم حذف هذه الرسالة';
+function activeChatConvId() {
+  return (typeof __currentTaskConvId !== 'undefined' && __currentTaskConvId) || (typeof __activeConversationId !== 'undefined' && __activeConversationId) || null;
+}
+window.startEditMessage = function(msgId) {
+  const bubble = document.querySelector(`[data-msg-id="${msgId}"]`);
+  const textEl = document.getElementById('msgText_' + msgId);
+  if (!bubble || !textEl) return;
+  let raw = '';
+  try { raw = decodeURIComponent(escape(atob(bubble.dataset.rawText || ''))); } catch (e) {}
+  textEl.innerHTML = `
+    <textarea class="msg-edit-textarea">${esc(raw)}</textarea>
+    <div class="msg-edit-actions">
+      <button type="button" class="msg-edit-save" onclick="saveEditMessage(${msgId}, this)">حفظ</button>
+      <button type="button" class="msg-edit-cancel" onclick="cancelEditMessage()">إلغاء</button>
+    </div>`;
+  const ta = textEl.querySelector('textarea');
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+};
+window.saveEditMessage = async function(msgId, btn) {
+  const ta = btn.closest('.msg-text')?.querySelector('textarea');
+  const newText = (ta?.value || '').trim();
+  if (!newText) { toast('لا يمكن أن تكون الرسالة فارغة', 'error'); return; }
+  const { error } = await sb.from('messages').update({ message_text: newText }).eq('id', msgId);
+  if (error) { toast(error.message, 'error'); return; }
+  toast('تم تعديل الرسالة', 'success');
+  const cid = activeChatConvId();
+  if (cid) await loadChatMessages(cid);
+};
+window.cancelEditMessage = async function() {
+  const cid = activeChatConvId();
+  if (cid) await loadChatMessages(cid);
+};
+window.deleteMessageConfirm = async function(msgId) {
+  if (!confirm('هل تريد حذف هذه الرسالة؟ لا يمكن التراجع بعد الحذف.')) return;
+  const { error } = await sb.from('messages').update({
+    message_text: DELETED_MSG_TEXT, attachment_url: null, attachment_name: null, attachment_type: null, is_pinned: false
+  }).eq('id', msgId);
+  if (error) { toast(error.message, 'error'); return; }
+  toast('تم حذف الرسالة', 'success');
+  const cid = activeChatConvId();
+  if (cid) await loadChatMessages(cid);
+};
 
 window.togglePinMessage = async function(messageId, pin) {
   const { error } = await sb.from('messages').update({ is_pinned: pin }).eq('id', messageId);
@@ -10771,7 +10868,7 @@ async function renderAppCore() {
       <aside class="sidebar ${collapsed ? 'collapsed' : ''}" id="appSidebar">
         <button class="sidebar-toggle" id="sidebarToggleBtn" title="طي/فتح القائمة">${collapsed ? '›' : '‹'}</button>
         <div class="brand" style="border-radius:10px; display:flex; align-items:center; justify-content:center;">
-          <img src="logo-new-v3.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI" class="brand-text">
+          <img src="logo-icon-v4.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI" class="brand-text">
         </div>
         <nav>${menuHtml}</nav>
         <div class="sidebar-footer">
@@ -11492,9 +11589,18 @@ async function pageConversations(body, query) {
   }).map(a => a.user_id));
 
   // ============ حساب الرسائل غير المقروءة الحقيقي لكل محادثة ============
+  // نحصر النطاق الزمني بآخر 45 يوم بدل كل تاريخ الرسائل منذ إنشاء الحساب —
+  // بدون هذا الحد، الاستعلامين دول بيكبروا مع الوقت لحد ما يبقى تحميل صفحة
+  // التواصل الداخلي أبطأ كل أسبوع مع تراكم الرسائل (رسالة قديمة جدًا واتقرتش
+  // أصلًا نادرًا ما تكون مهمة كإشعار "غير مقروء" في الاستخدام الفعلي)
+  const UNREAD_LOOKBACK_DAYS = 45;
+  const unreadCutoffISO = new Date(Date.now() - UNREAD_LOOKBACK_DAYS * 86400000).toISOString();
   const { data: allConvsRaw } = await sb.from('conversations').select('id, conversation_type, meeting_id, task_id, department_id');
-  const { data: allMsgsRaw } = await sb.from('messages').select('id, conversation_id, sender_id').neq('sender_id', CURRENT_USER.id);
-  const { data: myReadsRaw } = await sb.from('message_reads').select('message_id').eq('user_id', CURRENT_USER.id);
+  const { data: allMsgsRaw } = await sb.from('messages').select('id, conversation_id, sender_id').neq('sender_id', CURRENT_USER.id).gte('sent_at', unreadCutoffISO);
+  const recentMsgIds = (allMsgsRaw||[]).map(m => m.id);
+  const { data: myReadsRaw } = recentMsgIds.length
+    ? await sb.from('message_reads').select('message_id').eq('user_id', CURRENT_USER.id).in('message_id', recentMsgIds)
+    : { data: [] };
   const myReadIds = new Set((myReadsRaw||[]).map(r => r.message_id));
   const unreadByConv = {};
   (allMsgsRaw||[]).forEach(m => {
@@ -19916,7 +20022,7 @@ function mobileAppShellHtml() {
   return `
     <header class="m-appbar">
       <div class="m-appbar-brand">
-        <img src="logo-new-v3.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI" onerror="this.style.display='none'">
+        <img src="logo-icon-v4.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI" onerror="this.style.display='none'">
         <span class="m-appbar-title">شؤون الغذاء</span>
       </div>
       <div class="m-appbar-actions">

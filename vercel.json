@@ -25,13 +25,13 @@
       ]
     },
     {
-      "source": "/logo-new-v3.png",
+      "source": "/logo-icon-v4.png",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
     },
     {
-      "source": "/logo-wordmark-transparent.png",
+      "source": "/logo-wordmark-v2.png",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
