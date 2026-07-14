@@ -19157,6 +19157,10 @@ function mobileAppShellHtml() {
         <button class="m-appbar-btn" id="mBtnSearch" title="بحث" aria-label="بحث">
           <span data-lucide="search" style="width:17px;height:17px;"></span>
         </button>
+        <button class="m-appbar-btn" id="mBtnMessages" title="الرسائل" aria-label="الرسائل">
+          <span data-lucide="message-circle" style="width:17px;height:17px;"></span>
+          <span class="m-badge" id="mMsgBadge" style="display:none;">0</span>
+        </button>
         <button class="m-appbar-btn" id="mBtnNotif" title="الإشعارات" aria-label="الإشعارات">
           <span data-lucide="bell" style="width:17px;height:17px;"></span>
           <span class="m-badge" id="mNotifBadge" style="display:none;">0</span>
@@ -19178,13 +19182,6 @@ function mobileAppShellHtml() {
       <button class="m-bottomnav-item" data-mnav="tasks">
         <span class="m-bottomnav-icon"><span data-lucide="check-square" style="width:19px;height:19px;"></span></span>
         المهام
-      </button>
-      <button class="m-bottomnav-item" data-mnav="notifications">
-        <span class="m-bottomnav-icon">
-          <span data-lucide="bell" style="width:19px;height:19px;"></span>
-          <span class="m-badge" id="mBottomNotifBadge" style="display:none;">0</span>
-        </span>
-        الإشعارات
       </button>
       <button class="m-bottomnav-item" data-mnav="more">
         <span class="m-bottomnav-icon"><span data-lucide="menu" style="width:19px;height:19px;"></span></span>
@@ -19231,6 +19228,7 @@ function ensureMobileShell() {
       else location.hash = '#global_search';
     });
     document.getElementById('mBtnNotif')?.addEventListener('click', () => location.hash = '#notifications');
+    document.getElementById('mBtnMessages')?.addEventListener('click', () => location.hash = '#conversations');
     document.getElementById('mBtnMenu')?.addEventListener('click', openMobileMoreSheet);
     if (window.lucide) lucide.createIcons();
   }
