@@ -20107,42 +20107,48 @@ function initTilesReorder() {
 /* ─── ساعة الترحيب: تاريخ ميلادي + هجري + وقت 12س + وقت الصلاة القادمة ─── */
 let _mDateTimeTimer = null;
 
+// تنظيف علامة الرفض القديمة (كانت تمنع الطلب نهائياً)
+try { localStorage.removeItem('geoDenied'); } catch(e){}
+
 // أسماء الصلوات بالعربي
 const PRAYER_NAMES_AR = {
   Fajr: 'الفجر', Sunrise: 'الشروق', Dhuhr: 'الظهر',
   Asr: 'العصر', Maghrib: 'المغرب', Isha: 'العشاء'
 };
 
-// كاش أوقات الصلاة (مفتاحه = التاريخ + إحداثيات مقرّبة)
+// أوقات الصلاة — يعمل دائماً؛ يبدأ بموقع افتراضي (الرياض) ويستبدله بالموقع الحقيقي لو المستخدم يوافق
+const DEFAULT_COORDS = { lat: 24.7136, lng: 46.6753, city: 'الرياض' }; // fallback
 async function loadPrayerTimes() {
   try {
     const now = new Date();
     const today = now.toISOString().slice(0,10);
     const cachedKey = localStorage.getItem('prayerTimesKey');
     const cachedData = localStorage.getItem('prayerTimesData');
-    // لو الكاش لليوم موجود، استخدمه
     if (cachedKey && cachedKey.startsWith(today) && cachedData) {
       return JSON.parse(cachedData);
     }
-    // اطلب إذن الموقع فقط لو المستخدم لسه ما اتطلب منه (كاش صغير للتذكّر)
-    const denied = localStorage.getItem('geoDenied');
-    if (denied === '1') return null;
-    if (!navigator.geolocation) return null;
 
-    const pos = await new Promise((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        p => resolve(p),
-        (err) => { if (err.code === 1) localStorage.setItem('geoDenied','1'); resolve(null); },
-        { timeout: 8000, maximumAge: 24*3600*1000 }
-      );
-    });
-    if (!pos) return null;
+    // نحاول جلب الموقع الحقيقي بصمت (بدون تعطيل التطبيق لو رفض)
+    let lat = DEFAULT_COORDS.lat, lng = DEFAULT_COORDS.lng;
+    if (navigator.geolocation) {
+      const pos = await new Promise((resolve) => {
+        try {
+          navigator.geolocation.getCurrentPosition(
+            p => resolve(p),
+            () => resolve(null),
+            { timeout: 6000, maximumAge: 24*3600*1000, enableHighAccuracy: false }
+          );
+        } catch(e) { resolve(null); }
+      });
+      if (pos && pos.coords) {
+        lat = +pos.coords.latitude.toFixed(3);
+        lng = +pos.coords.longitude.toFixed(3);
+      }
+    }
 
-    const lat = pos.coords.latitude.toFixed(3);
-    const lng = pos.coords.longitude.toFixed(3);
-    // AlAdhan API — طريقة أم القرى (4)، مجاني، لا يحتاج مفتاح
+    // AlAdhan API — طريقة أم القرى (4)
     const url = `https://api.aladhan.com/v1/timings/${today}?latitude=${lat}&longitude=${lng}&method=4`;
-    const res = await fetch(url);
+    const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) return null;
     const json = await res.json();
     const timings = json?.data?.timings;
@@ -20150,7 +20156,10 @@ async function loadPrayerTimes() {
     localStorage.setItem('prayerTimesKey', `${today}_${lat}_${lng}`);
     localStorage.setItem('prayerTimesData', JSON.stringify(timings));
     return timings;
-  } catch(e) { return null; }
+  } catch(e) {
+    console.warn('[prayer] load failed:', e);
+    return null;
+  }
 }
 
 // يحسب الصلاة القادمة والوقت المتبقي
