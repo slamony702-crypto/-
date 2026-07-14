@@ -3537,6 +3537,69 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
   .m-tile.t-aqua-2 .m-tile-icon { color: #1E6C8F; background: linear-gradient(135deg,#D8ECF8,#BEDDEE); }
   .m-tile.t-peach-2    { background: linear-gradient(135deg, rgba(255,220,208,0.85), rgba(255,255,255,0.75)); }
   .m-tile.t-peach-2 .m-tile-icon { color: #A9574A; background: linear-gradient(135deg,#FFDBC8,#FBC5AF); }
+
+  /* ═══ Reorder Mode ═══ */
+  .m-tiles-header {
+    display: flex; justify-content: flex-end;
+    margin: 4px 2px 8px;
+  }
+  .m-tiles-edit-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 999px;
+    background: rgba(255,255,255,0.72);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(117,105,242,0.20);
+    color: #7569F2; font-family: inherit;
+    font-size: 12px; font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(117,105,242,0.10);
+    transition: transform .15s;
+  }
+  .m-tiles-edit-btn:active { transform: scale(0.94); }
+  .m-tiles-edit-btn [data-lucide] { color: #7569F2; }
+
+  /* أثناء التحرير: البلاطات ترجّف */
+  .m-tiles-editing .m-tile {
+    animation: mTileWobble 0.4s ease-in-out infinite;
+    cursor: grab;
+  }
+  .m-tiles-editing .m-tile:nth-child(2n) { animation-delay: 0.05s; }
+  .m-tiles-editing .m-tile:nth-child(3n) { animation-delay: 0.10s; }
+  .m-tiles-editing .m-tile:nth-child(4n) { animation-delay: 0.15s; }
+  @keyframes mTileWobble {
+    0%, 100% { transform: rotate(-0.8deg); }
+    50%      { transform: rotate(0.8deg); }
+  }
+  /* البلاطة المسحوبة */
+  .m-tile-dragging {
+    animation: none !important;
+    z-index: 100;
+    position: relative;
+    opacity: 0.92;
+    box-shadow:
+      0 24px 48px rgba(18,55,47,0.28),
+      inset 0 1px 0 rgba(255,255,255,0.95) !important;
+    cursor: grabbing !important;
+  }
+  /* زر "تم" العائم */
+  .m-tiles-done {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 80px);
+    left: 16px; z-index: 200;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 22px; border-radius: 999px;
+    background: linear-gradient(135deg, #8B7FF5, #5B4EE0);
+    color: #fff; border: none;
+    font-family: inherit; font-size: 13.5px; font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 10px 26px rgba(117,105,242,0.45);
+    animation: mFadeInDown 0.25s ease-out;
+  }
+  .m-tiles-done:active { transform: scale(0.96); }
+  @keyframes mFadeInDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
   .m-quick-card {
     padding: 18px 14px;
     background: rgba(255,255,255,0.7);
@@ -19477,6 +19540,99 @@ window.addEventListener('hashchange', () => setTimeout(syncMobileBottomNav, 50))
 setTimeout(applyMobileMode, 100);
 
 /* ─── Mobile Home Dashboard ─── */
+/* ─── Tiles Reorder (long-press → drag → save) ─── */
+function initTilesReorder() {
+  const grid = document.getElementById('mTilesGridReal');
+  if (!grid) return;
+  let editMode = false, pressTimer = null;
+  let dragged = null, startX = 0, startY = 0, offsetX = 0, offsetY = 0;
+
+  const enterEdit = () => {
+    if (editMode) return;
+    editMode = true;
+    grid.classList.add('m-tiles-editing');
+    if (navigator.vibrate) navigator.vibrate(30);
+    if (document.getElementById('mTilesDoneBtn')) return;
+    const doneBtn = document.createElement('button');
+    doneBtn.id = 'mTilesDoneBtn';
+    doneBtn.className = 'm-tiles-done';
+    doneBtn.innerHTML = '<span data-lucide="check" style="width:15px;height:15px;"></span> تم';
+    doneBtn.addEventListener('click', exitEdit);
+    document.body.appendChild(doneBtn);
+    if (window.lucide) lucide.createIcons();
+  };
+  const exitEdit = () => {
+    editMode = false;
+    grid.classList.remove('m-tiles-editing');
+    document.getElementById('mTilesDoneBtn')?.remove();
+    // احفظ الترتيب الحالي
+    const keys = [...grid.querySelectorAll('.m-tile')].map(t => t.dataset.tileKey);
+    try { localStorage.setItem('mHomeTilesOrder', JSON.stringify(keys)); } catch(e) {}
+  };
+
+  document.getElementById('mTilesEditBtn')?.addEventListener('click', () => editMode ? exitEdit() : enterEdit());
+
+  grid.querySelectorAll('.m-tile').forEach(tile => {
+    tile.addEventListener('pointerdown', (e) => {
+      // Long press: 500ms → edit mode
+      if (!editMode) {
+        pressTimer = setTimeout(() => { enterEdit(); }, 500);
+        return;
+      }
+      // في edit mode → ابدأ السحب فوراً
+      e.preventDefault();
+      dragged = tile;
+      const rect = tile.getBoundingClientRect();
+      startX = e.clientX; startY = e.clientY;
+      offsetX = e.clientX - rect.left; offsetY = e.clientY - rect.top;
+      tile.classList.add('m-tile-dragging');
+      tile.style.width = rect.width + 'px';
+      tile.style.height = rect.height + 'px';
+      tile.setPointerCapture(e.pointerId);
+    });
+    tile.addEventListener('click', (e) => {
+      if (editMode) e.preventDefault();
+    });
+    tile.addEventListener('pointermove', (e) => {
+      if (!dragged || !editMode) return;
+      e.preventDefault();
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      dragged.style.transform = `translate(${dx}px, ${dy}px) scale(1.06)`;
+      // اكتشف البلاطة تحت المؤشر
+      dragged.style.pointerEvents = 'none';
+      const under = document.elementFromPoint(e.clientX, e.clientY);
+      dragged.style.pointerEvents = '';
+      const target = under?.closest('.m-tile');
+      if (target && target !== dragged && target.parentNode === grid) {
+        const kids = [...grid.children];
+        const targetIdx = kids.indexOf(target);
+        const draggedIdx = kids.indexOf(dragged);
+        // احسب translate الجديد بعد النقل
+        if (targetIdx < draggedIdx) grid.insertBefore(dragged, target);
+        else grid.insertBefore(dragged, target.nextSibling);
+        // إعادة تحديث start position للسحب المستمر
+        const newRect = dragged.getBoundingClientRect();
+        startX = newRect.left + offsetX;
+        startY = newRect.top + offsetY;
+        dragged.style.transform = '';
+      }
+    });
+    const endDrag = () => {
+      clearTimeout(pressTimer);
+      if (dragged) {
+        dragged.classList.remove('m-tile-dragging');
+        dragged.style.transform = '';
+        dragged.style.width = '';
+        dragged.style.height = '';
+        dragged = null;
+      }
+    };
+    tile.addEventListener('pointerup', endDrag);
+    tile.addEventListener('pointercancel', endDrag);
+  });
+}
+
 async function renderMobileHome(body) {
   const uid = CURRENT_USER.id;
   const today = new Date();
@@ -19532,10 +19688,9 @@ async function renderMobileHome(body) {
     }
   });
 
-  // ═══ البلاطات الفاخرة (Premium Section Tiles) ═══
-  // كل بلاطة: أيقونة كبيرة + اسم + سطر ملخص + badge أحمر لو فيه انتباه
+  // ═══ البلاطات الفاخرة (Premium Section Tiles) + Drag-to-reorder ═══
   const tile = (opts) => `
-    <a class="m-tile ${opts.tint}" href="${opts.href}" style="text-decoration:none;color:inherit;">
+    <a class="m-tile ${opts.tint}" href="${opts.href}" data-tile-key="${opts.key}" style="text-decoration:none;color:inherit;">
       ${opts.badge ? `<span class="m-tile-badge">${opts.badge}</span>` : ''}
       <div class="m-tile-icon"><span data-lucide="${opts.icon}" style="width:26px;height:26px;"></span></div>
       <div class="m-tile-body">
@@ -19544,45 +19699,45 @@ async function renderMobileHome(body) {
       </div>
     </a>
   `;
+  const defaultTiles = [
+    { key:'meetings',  href:'#meetings',  tint:'t-lavender',    icon:'calendar',
+      title:'الاجتماعات',   sub: meets.length ? `${meets.length} اليوم · ${meetsThisWeek} هذا الأسبوع` : (meetsThisWeek ? `${meetsThisWeek} هذا الأسبوع` : 'ابدأ بجدولة اجتماع'),
+      badge: meets.length || null },
+    { key:'tasks',     href:'#tasks',     tint:'t-mint',        icon:'check-square',
+      title:'المهام',       sub: openTasks.length ? `${openTasks.length} مهمة مفتوحة` : 'كل شيء في مكانه ✨',
+      badge: overdueTasks.length || null },
+    { key:'decisions', href:'#decisions', tint:'t-aqua',        icon:'gavel',
+      title:'القرارات',     sub: openDecs.length ? `${openDecs.length} قرار قيد التنفيذ` : 'لا توجد قرارات مفتوحة',
+      badge: overdueDecs.length || null },
+    { key:'maintenance', href:'#maintenance', tint:'t-peach',   icon:'wrench',
+      title:'الصيانة',      sub: maints.length ? `${maints.length} طلب مفتوح` : 'لا توجد طلبات',
+      badge: urgentMaints.length || null },
+    { key:'quality',   href:'#quality',   tint:'t-lavender-2',  icon:'shield-check',
+      title:'الجودة',       sub: openNonConf ? `${openNonConf} مخالفة تحتاج معالجة` : 'كل الفروع متوافقة',
+      badge: openNonConf ? (openNonConf > 99 ? '99+' : openNonConf) : null },
+    { key:'conversations', href:'#conversations', tint:'t-mint-2', icon:'message-circle',
+      title:'التواصل',      sub:'محادثات الأقسام والاجتماعات', badge:null },
+    { key:'cafe',      href:'#cafe',      tint:'t-aqua-2',      icon:'coffee',
+      title:'ركن الكافيه',  sub:'اطلب مشروبك واستمتع', badge:null },
+    { key:'reports',   href:'#reports',   tint:'t-peach-2',     icon:'bar-chart-3',
+      title:'التقارير',     sub:'إحصائيات وأداء الفريق', badge:null }
+  ];
+  // ترتيب المستخدم المحفوظ (إن وجد)
+  const savedOrder = (() => { try { return JSON.parse(localStorage.getItem('mHomeTilesOrder') || '[]'); } catch { return []; } })();
+  const byKey = Object.fromEntries(defaultTiles.map(t => [t.key, t]));
+  const orderedTiles = [
+    ...savedOrder.map(k => byKey[k]).filter(Boolean),
+    ...defaultTiles.filter(t => !savedOrder.includes(t.key))
+  ];
   const tilesHtml = `
-    <div class="m-tiles-grid">
-      ${tile({
-        href: '#meetings', tint: 't-lavender', icon: 'calendar',
-        title: 'الاجتماعات', sub: meets.length ? `${meets.length} اليوم · ${meetsThisWeek} هذا الأسبوع` : (meetsThisWeek ? `${meetsThisWeek} هذا الأسبوع` : 'ابدأ بجدولة اجتماع'),
-        badge: meets.length ? meets.length : null
-      })}
-      ${tile({
-        href: '#tasks', tint: 't-mint', icon: 'check-square',
-        title: 'المهام', sub: openTasks.length ? `${openTasks.length} مهمة مفتوحة` : 'كل شيء في مكانه ✨',
-        badge: overdueTasks.length ? overdueTasks.length : null
-      })}
-      ${tile({
-        href: '#decisions', tint: 't-aqua', icon: 'gavel',
-        title: 'القرارات', sub: openDecs.length ? `${openDecs.length} قرار قيد التنفيذ` : 'لا توجد قرارات مفتوحة',
-        badge: overdueDecs.length ? overdueDecs.length : null
-      })}
-      ${tile({
-        href: '#maintenance', tint: 't-peach', icon: 'wrench',
-        title: 'الصيانة', sub: maints.length ? `${maints.length} طلب مفتوح` : 'لا توجد طلبات',
-        badge: urgentMaints.length ? urgentMaints.length : null
-      })}
-      ${tile({
-        href: '#quality', tint: 't-lavender-2', icon: 'shield-check',
-        title: 'الجودة', sub: openNonConf ? `${openNonConf} مخالفة تحتاج معالجة` : 'كل الفروع متوافقة',
-        badge: openNonConf ? (openNonConf > 99 ? '99+' : openNonConf) : null
-      })}
-      ${tile({
-        href: '#conversations', tint: 't-mint-2', icon: 'message-circle',
-        title: 'التواصل', sub: 'محادثات الأقسام والاجتماعات', badge: null
-      })}
-      ${tile({
-        href: '#cafe', tint: 't-aqua-2', icon: 'coffee',
-        title: 'ركن الكافيه', sub: 'اطلب مشروبك واستمتع', badge: null
-      })}
-      ${tile({
-        href: '#reports', tint: 't-peach-2', icon: 'bar-chart-3',
-        title: 'التقارير', sub: 'إحصائيات وأداء الفريق', badge: null
-      })}
+    <div class="m-tiles-header">
+      <button type="button" id="mTilesEditBtn" class="m-tiles-edit-btn" aria-label="ترتيب البلاطات">
+        <span data-lucide="layout-grid" style="width:15px;height:15px;"></span>
+        <span>ترتيب</span>
+      </button>
+    </div>
+    <div class="m-tiles-grid" id="mTilesGridReal">
+      ${orderedTiles.map(t => tile(t)).join('')}
     </div>
   `;
 
@@ -19650,6 +19805,7 @@ async function renderMobileHome(body) {
 
   document.getElementById('mTilesGrid')?.remove();
   document.getElementById('mHomeContent').innerHTML = tilesHtml + meetsBlock + tasksBlock;
+  initTilesReorder();
   if (window.lucide) lucide.createIcons();
 }
 
