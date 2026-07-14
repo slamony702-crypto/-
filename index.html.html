@@ -3777,6 +3777,48 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
   .m-more-item [data-lucide] { color: #7569F2; }
   .m-more-item.m-more-refresh { background: rgba(205,239,244,0.55); border-color: rgba(6,163,205,0.18); }
   .m-more-item.m-more-refresh [data-lucide] { color: #2894A6; }
+  .m-more-item.m-more-customize { background: rgba(226,220,255,0.55); border-color: rgba(117,105,242,0.22); }
+  .m-more-item.m-more-customize [data-lucide] { color: #7569F2; }
+
+  /* ═══ Customize Sheet ═══ */
+  .m-custom-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 10px; margin-bottom: 14px;
+  }
+  .m-custom-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px;
+    background: rgba(255,255,255,0.85);
+    border: 1.5px solid rgba(117,105,242,0.10);
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all .15s;
+    position: relative;
+  }
+  .m-custom-item:active { transform: scale(0.97); }
+  .m-custom-item.is-on {
+    background: linear-gradient(135deg, rgba(226,220,255,0.85), rgba(255,255,255,0.85));
+    border-color: rgba(117,105,242,0.35);
+    box-shadow: 0 4px 12px rgba(117,105,242,0.15);
+  }
+  .m-custom-icon {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: rgba(117,105,242,0.12);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .m-custom-icon [data-lucide] { color: #7569F2; }
+  .m-custom-label { flex: 1; font-size: 13px; font-weight: 600; color: #17372D; }
+  .m-custom-check {
+    width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(117,105,242,0.12);
+    color: #7569F2;
+  }
+  .m-custom-item.is-on .m-custom-check {
+    background: linear-gradient(135deg, #8B7FF5, #5B4EE0);
+    color: #FFFFFF;
+    box-shadow: 0 4px 8px rgba(117,105,242,0.35);
+  }
   .m-more-logout {
     width: 100%; padding: 14px;
     background: linear-gradient(135deg, #C85454, #B44444);
@@ -19474,16 +19516,31 @@ function openMobileMoreSheet() {
           <p style="margin:2px 0 0;font-size:11.5px;color:#6F7D76;">${esc(CURRENT_USER?.username || '')} · ${esc(label('role', CURRENT_USER?.role) || CURRENT_USER?.role || '')}</p>
         </div>
       </div>
-      <div class="m-more-grid">
-        <a class="m-more-item" href="#decisions"><span data-lucide="gavel" style="width:18px;height:18px;"></span> القرارات</a>
-        <a class="m-more-item" href="#conversations"><span data-lucide="message-circle" style="width:18px;height:18px;"></span> التواصل الداخلي</a>
-        <a class="m-more-item" href="#quality"><span data-lucide="shield-check" style="width:18px;height:18px;"></span> الجودة</a>
-        <a class="m-more-item" href="#maintenance"><span data-lucide="wrench" style="width:18px;height:18px;"></span> الصيانة</a>
-        <a class="m-more-item" href="#cafe"><span data-lucide="coffee" style="width:18px;height:18px;"></span> ركن الكافيه</a>
-        <a class="m-more-item" href="#reports"><span data-lucide="bar-chart-3" style="width:18px;height:18px;"></span> التقارير</a>
-        <a class="m-more-item" href="#users"><span data-lucide="users" style="width:18px;height:18px;"></span> المستخدمون</a>
-        <a class="m-more-item" href="#my_profile"><span data-lucide="user" style="width:18px;height:18px;"></span> ملفي الشخصي</a>
-        <a class="m-more-item" href="#settings"><span data-lucide="settings" style="width:18px;height:18px;"></span> الإعدادات</a>
+      <div class="m-more-grid" id="mMoreGridDynamic">
+        ${(() => {
+          const homeKeys = window._mHomeSectionKeys || [];
+          const swappable = [
+            { key:'meetings', hash:'#meetings', icon:'calendar', label:'الاجتماعات' },
+            { key:'tasks', hash:'#tasks', icon:'check-square', label:'المهام' },
+            { key:'decisions', hash:'#decisions', icon:'gavel', label:'القرارات' },
+            { key:'maintenance', hash:'#maintenance', icon:'wrench', label:'الصيانة' },
+            { key:'quality', hash:'#quality', icon:'shield-check', label:'الجودة' },
+            { key:'conversations', hash:'#conversations', icon:'message-circle', label:'التواصل الداخلي' },
+            { key:'cafe', hash:'#cafe', icon:'coffee', label:'ركن الكافيه' },
+            { key:'reports', hash:'#reports', icon:'bar-chart-3', label:'التقارير' }
+          ];
+          // فقط اللي مش موجود في الرئيسية
+          const hidden = swappable.filter(s => !homeKeys.includes(s.key));
+          const fixed = [
+            { hash:'#users', icon:'users', label:'المستخدمون' },
+            { hash:'#my_profile', icon:'user', label:'ملفي الشخصي' },
+            { hash:'#settings', icon:'settings', label:'الإعدادات' }
+          ];
+          return [...hidden, ...fixed].map(s =>
+            `<a class="m-more-item" href="${s.hash}"><span data-lucide="${s.icon}" style="width:18px;height:18px;"></span> ${s.label}</a>`
+          ).join('');
+        })()}
+        <button class="m-more-item m-more-customize" type="button" id="mMoreCustomize"><span data-lucide="sliders-horizontal" style="width:18px;height:18px;"></span> تخصيص الرئيسية</button>
         <button class="m-more-item m-more-refresh" type="button" id="mMoreRefresh"><span data-lucide="refresh-cw" style="width:18px;height:18px;"></span> تحديث كامل</button>
       </div>
       <button class="m-more-logout" type="button" id="mMoreLogout">
@@ -19500,6 +19557,10 @@ function openMobileMoreSheet() {
     sheet.remove();
     if (typeof logout === 'function') { await logout(); }
     else { localStorage.clear(); location.reload(); }
+  });
+  document.getElementById('mMoreCustomize')?.addEventListener('click', () => {
+    sheet.remove();
+    openMobileCustomizeSheet();
   });
   document.getElementById('mMoreRefresh').addEventListener('click', async () => {
     try {
@@ -19540,8 +19601,83 @@ window.addEventListener('hashchange', () => setTimeout(syncMobileBottomNav, 50))
 setTimeout(applyMobileMode, 100);
 
 /* ─── Mobile Home Dashboard ─── */
+/* ─── Customize Home Tiles (اختيار الأقسام المرئية) ─── */
+function openMobileCustomizeSheet() {
+  const existing = document.getElementById('mCustomSheet');
+  if (existing) { existing.remove(); return; }
+  const all = window._mAllSectionKeys || [];
+  const labels = {
+    meetings: ['الاجتماعات','calendar'], tasks: ['المهام','check-square'],
+    decisions: ['القرارات','gavel'], maintenance: ['الصيانة','wrench'],
+    quality: ['الجودة','shield-check'], conversations: ['التواصل','message-circle'],
+    cafe: ['ركن الكافيه','coffee'], reports: ['التقارير','bar-chart-3']
+  };
+  const visible = window._mHomeSectionKeys || all;
+  const sheet = document.createElement('div');
+  sheet.id = 'mCustomSheet';
+  sheet.className = 'm-more-overlay';
+  sheet.innerHTML = `
+    <div class="m-more-backdrop" onclick="this.parentElement.remove()"></div>
+    <div class="m-more-sheet">
+      <div class="m-more-handle"></div>
+      <div style="padding:0 4px 8px;">
+        <h3 style="margin:0 0 4px;font-size:16px;font-weight:700;color:#17372D;">تخصيص الشاشة الرئيسية</h3>
+        <p style="margin:0 0 12px;font-size:12px;color:#6F7D76;">اختر الأقسام اللي تحب تظهر كبلاطات في الرئيسية. الباقي هيبقى في قائمة "المزيد".</p>
+      </div>
+      <div class="m-custom-grid">
+        ${all.map(k => {
+          const [name, icon] = labels[k] || [k, 'square'];
+          const checked = visible.includes(k);
+          return `
+            <label class="m-custom-item ${checked?'is-on':''}">
+              <input type="checkbox" data-custom-key="${k}" ${checked?'checked':''} style="display:none;">
+              <span class="m-custom-icon"><span data-lucide="${icon}" style="width:18px;height:18px;"></span></span>
+              <span class="m-custom-label">${name}</span>
+              <span class="m-custom-check"><span data-lucide="${checked?'check':'plus'}" style="width:14px;height:14px;"></span></span>
+            </label>
+          `;
+        }).join('')}
+      </div>
+      <button class="m-more-logout" type="button" id="mCustomSave" style="background:linear-gradient(135deg,#8B7FF5,#5B4EE0);box-shadow:0 8px 22px rgba(117,105,242,0.4);">
+        <span data-lucide="check" style="width:18px;height:18px;"></span>
+        حفظ التخصيص
+      </button>
+    </div>
+  `;
+  document.body.appendChild(sheet);
+  if (window.lucide) lucide.createIcons();
+  // Toggle checkbox visually
+  sheet.querySelectorAll('.m-custom-item').forEach(item => {
+    const cb = item.querySelector('input[type=checkbox]');
+    const check = item.querySelector('.m-custom-check');
+    item.addEventListener('click', (e) => {
+      e.preventDefault();
+      cb.checked = !cb.checked;
+      item.classList.toggle('is-on', cb.checked);
+      check.innerHTML = cb.checked
+        ? '<span data-lucide="check" style="width:14px;height:14px;"></span>'
+        : '<span data-lucide="plus" style="width:14px;height:14px;"></span>';
+      if (window.lucide) lucide.createIcons();
+    });
+  });
+  document.getElementById('mCustomSave').addEventListener('click', () => {
+    const selected = [...sheet.querySelectorAll('input[data-custom-key]:checked')].map(c => c.dataset.customKey);
+    // ضمان بلاطة واحدة على الأقل
+    const finalList = selected.length ? selected : ['meetings'];
+    try { localStorage.setItem('mHomeTilesVisible', JSON.stringify(finalList)); } catch(e){}
+    sheet.remove();
+    // إعادة رندر الرئيسية لتعكس التخصيص
+    if (typeof renderMobileHome === 'function' && location.hash.replace('#','').startsWith('dashboard')) {
+      renderMobileHome(document.getElementById('pageBody'));
+    } else {
+      location.hash = '#dashboard';
+    }
+  });
+}
+
 /* ─── Tiles Reorder (long-press → drag → save) ─── */
 function initTilesReorder() {
+  document.getElementById('mTilesCustomizeBtn')?.addEventListener('click', openMobileCustomizeSheet);
   const grid = document.getElementById('mTilesGridReal');
   if (!grid) return;
   let editMode = false, pressTimer = null;
@@ -19722,22 +19858,36 @@ async function renderMobileHome(body) {
     { key:'reports',   href:'#reports',   tint:'t-peach-2',     icon:'bar-chart-3',
       title:'التقارير',     sub:'إحصائيات وأداء الفريق', badge:null }
   ];
-  // ترتيب المستخدم المحفوظ (إن وجد)
+  // ترتيب + الرؤية المحفوظة (كلاهما في localStorage)
   const savedOrder = (() => { try { return JSON.parse(localStorage.getItem('mHomeTilesOrder') || '[]'); } catch { return []; } })();
+  const savedVisible = (() => {
+    try {
+      const v = JSON.parse(localStorage.getItem('mHomeTilesVisible') || 'null');
+      return Array.isArray(v) ? v : defaultTiles.map(t => t.key); // افتراضي: كلها ظاهرة
+    } catch { return defaultTiles.map(t => t.key); }
+  })();
   const byKey = Object.fromEntries(defaultTiles.map(t => [t.key, t]));
-  const orderedTiles = [
+  const visibleTiles = [
     ...savedOrder.map(k => byKey[k]).filter(Boolean),
     ...defaultTiles.filter(t => !savedOrder.includes(t.key))
-  ];
+  ].filter(t => savedVisible.includes(t.key));
+  // نحفظ قائمة كل الأقسام والمرئية لصنع More sheet ذكي بدون تكرار
+  window._mHomeSectionKeys = savedVisible; // للاستخدام في openMobileMoreSheet
+  window._mAllSectionKeys = defaultTiles.map(t => t.key);
+
   const tilesHtml = `
     <div class="m-tiles-header">
+      <button type="button" id="mTilesCustomizeBtn" class="m-tiles-edit-btn" aria-label="تخصيص الأقسام">
+        <span data-lucide="sliders-horizontal" style="width:15px;height:15px;"></span>
+        <span>تخصيص</span>
+      </button>
       <button type="button" id="mTilesEditBtn" class="m-tiles-edit-btn" aria-label="ترتيب البلاطات">
         <span data-lucide="layout-grid" style="width:15px;height:15px;"></span>
         <span>ترتيب</span>
       </button>
     </div>
     <div class="m-tiles-grid" id="mTilesGridReal">
-      ${orderedTiles.map(t => tile(t)).join('')}
+      ${visibleTiles.map(t => tile(t)).join('')}
     </div>
   `;
 
