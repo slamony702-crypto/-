@@ -1,5 +1,5 @@
 // نسخة المسجّل — تُبدَّل عند كل تحديث لضمان تنشيط SW جديد
-const SW_VERSION = 'v25-2026-07-14-mobile-perf';
+const SW_VERSION = 'v26-2026-07-14-tiles-clean';
 const STATIC_CACHE = 'sg-static-' + SW_VERSION;
 
 self.addEventListener('install', () => self.skipWaiting());

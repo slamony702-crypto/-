@@ -3597,11 +3597,11 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
   .m-tiles-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
   .m-tile {
     position: relative;
-    padding: 18px 16px;
-    border-radius: 22px;
-    min-height: 140px;
+    padding: 16px 14px;
+    border-radius: 20px;
+    min-height: 108px;
     display: flex; flex-direction: column;
-    justify-content: space-between; gap: 12px;
+    justify-content: space-between; gap: 10px;
     text-decoration: none; color: inherit;
     cursor: pointer; overflow: hidden;
     border: 1px solid rgba(255,255,255,0.7);
@@ -3622,18 +3622,20 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
     background: radial-gradient(circle, rgba(255,255,255,0.6), transparent 65%);
     pointer-events: none;
   }
-  /* أيقونة كبيرة */
+  /* أيقونة أصغر وأنيقة */
   .m-tile-icon {
-    width: 48px; height: 48px; border-radius: 14px;
+    width: 38px; height: 38px; border-radius: 11px;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(255,255,255,0.7);
-    box-shadow: 0 4px 12px rgba(18,55,47,0.08), inset 0 1px 0 rgba(255,255,255,0.9);
+    background: rgba(255,255,255,0.75);
+    box-shadow: 0 2px 8px rgba(18,55,47,0.06), inset 0 1px 0 rgba(255,255,255,0.9);
     color: #17372D;
     position: relative; z-index: 1;
   }
+  .m-tile-icon [data-lucide] { width: 19px; height: 19px; }
+  .m-tile-icon svg { stroke-width: 1.7; }
   .m-tile-body { position: relative; z-index: 1; }
-  .m-tile-title { font-size: 15px; font-weight: 700; color: #17372D; margin: 0 0 2px; letter-spacing: -0.2px; }
-  .m-tile-sub { font-size: 11.5px; color: #6F7D76; margin: 0; line-height: 1.5; }
+  .m-tile-title { font-size: 15px; font-weight: 700; color: #17372D; margin: 0; letter-spacing: -0.2px; }
+  .m-tile-sub { display: none; }
   /* Badge أحمر في زاوية علوية يمنى — يظهر بس لو فيه عدد */
   .m-tile-badge {
     position: absolute; top: 12px; left: 12px;
@@ -20355,7 +20357,7 @@ async function renderMobileHome(body) {
   const tile = (opts) => `
     <a class="m-tile ${opts.tint}" href="${opts.href}" data-tile-key="${opts.key}" style="text-decoration:none;color:inherit;">
       ${opts.badge ? `<span class="m-tile-badge">${opts.badge}</span>` : ''}
-      <div class="m-tile-icon"><span data-lucide="${opts.icon}" style="width:26px;height:26px;"></span></div>
+      <div class="m-tile-icon"><span data-lucide="${opts.icon}"></span></div>
       <div class="m-tile-body">
         <p class="m-tile-title">${opts.title}</p>
         <p class="m-tile-sub">${opts.sub}</p>
