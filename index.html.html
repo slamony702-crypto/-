@@ -3454,6 +3454,30 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
   .m-welcome-txt { flex: 1; min-width: 0; position: relative; z-index: 1; }
   .m-welcome-hi { font-size: 15px; font-weight: 700; color: #12372F; letter-spacing: -0.3px; margin: 0; }
   .m-welcome-sub { font-size: 12px; color: #6F7D76; margin: 3px 0 0; }
+  /* شريط التاريخ والوقت داخل الترحيب */
+  .m-datetime {
+    display: flex; align-items: center; gap: 8px;
+    margin: 7px 0 0; flex-wrap: nowrap;
+    font-variant-numeric: tabular-nums;
+    direction: rtl;
+  }
+  .m-dt-cell {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11.5px; font-weight: 600;
+    color: #245B4B; letter-spacing: -0.1px;
+    white-space: nowrap;
+  }
+  .m-dt-icon {
+    width: 12px; height: 12px;
+    color: #7569F2;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .m-dt-icon svg { width: 12px; height: 12px; stroke-width: 2.2; }
+  .m-dt-val { color: #17372D; font-weight: 700; }
+  .m-dt-sep {
+    width: 1px; height: 12px;
+    background: linear-gradient(180deg, transparent, rgba(117,105,242,0.35), transparent);
+  }
 
   .m-section-title {
     display: flex; align-items: center; justify-content: space-between;
@@ -19845,6 +19869,55 @@ function initTilesReorder() {
   });
 }
 
+/* ─── ساعة الترحيب: تاريخ ميلادي + هجري + وقت (يحدّث كل 15ث) ─── */
+let _mDateTimeTimer = null;
+function startMobileDateTimeClock() {
+  const upd = () => {
+    const timeEl = document.getElementById('mDtTime');
+    const gregEl = document.getElementById('mDtGreg');
+    const hijEl  = document.getElementById('mDtHijri');
+    if (!timeEl && !gregEl && !hijEl) {
+      // العناصر لم تعد موجودة (المستخدم غادر الشاشة)
+      if (_mDateTimeTimer) { clearInterval(_mDateTimeTimer); _mDateTimeTimer = null; }
+      return;
+    }
+    const now = new Date();
+    // الوقت — أرقام لاتينية بصيغة 24س
+    if (timeEl) {
+      const hh = String(now.getHours()).padStart(2,'0');
+      const mm = String(now.getMinutes()).padStart(2,'0');
+      timeEl.textContent = `${hh}:${mm}`;
+    }
+    // التاريخ الميلادي بالعربي (٢٦ يوليو ٢٠٢٦ → 14 يوليو 2026)
+    if (gregEl) {
+      try {
+        gregEl.textContent = new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
+          day: 'numeric', month: 'long', year: 'numeric'
+        }).format(now);
+      } catch(e) {
+        gregEl.textContent = now.toLocaleDateString('ar');
+      }
+    }
+    // التاريخ الهجري (أم القرى)
+    if (hijEl) {
+      try {
+        hijEl.textContent = new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn', {
+          day: 'numeric', month: 'long', year: 'numeric'
+        }).format(now).replace(/هـ|هجري/g,'').trim();
+      } catch(e) {
+        try {
+          hijEl.textContent = new Intl.DateTimeFormat('ar-SA-u-ca-islamic', {
+            day: 'numeric', month: 'long', year: 'numeric'
+          }).format(now);
+        } catch(e2) { hijEl.textContent = ''; }
+      }
+    }
+  };
+  upd();
+  if (_mDateTimeTimer) clearInterval(_mDateTimeTimer);
+  _mDateTimeTimer = setInterval(upd, 15000);
+}
+
 async function renderMobileHome(body) {
   const uid = CURRENT_USER.id;
   const today = new Date();
@@ -19860,6 +19933,13 @@ async function renderMobileHome(body) {
       <div class="m-welcome-avatar">${esc(initials)}</div>
       <div class="m-welcome-txt">
         <p class="m-welcome-hi">${esc(greeting)}، ${esc(firstName)}</p>
+        <div class="m-datetime" id="mDateTimeRow">
+          <span class="m-dt-cell"><span data-lucide="clock" class="m-dt-icon"></span><span class="m-dt-val" id="mDtTime">--:--</span></span>
+          <span class="m-dt-sep"></span>
+          <span class="m-dt-cell"><span data-lucide="calendar" class="m-dt-icon"></span><span class="m-dt-val" id="mDtGreg">—</span></span>
+          <span class="m-dt-sep"></span>
+          <span class="m-dt-cell"><span data-lucide="moon" class="m-dt-icon"></span><span class="m-dt-val" id="mDtHijri">—</span></span>
+        </div>
       </div>
     </div>
     <div class="m-tiles-grid" id="mTilesGrid">
@@ -19867,6 +19947,9 @@ async function renderMobileHome(body) {
     </div>
     <div id="mHomeContent"></div>
   `;
+
+  // تشغيل ساعة الترحيب (يحدّث كل 15 ثانية) + التواريخ
+  startMobileDateTimeClock();
 
   // نجيب البيانات (نفس queries الديسكتوب — bandwidth واحد)
   const [meetsRes, tasksRes, decsRes, maintRes, notifsRes, meetsWeekRes, qualityRes] = await Promise.all([
