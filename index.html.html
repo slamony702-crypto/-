@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>شركة شؤون الغذاء للمتابعة</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1B5E20">
+<meta name="theme-color" content="#C1502C">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -18,7 +18,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://unpkg.com" crossorigin>
 <link rel="dns-prefetch" href="https://api.qrserver.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Tajawal:wght@400;500;700&family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Tajawal:wght@400;500;700&family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -26,31 +26,137 @@
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ar.js"></script>
 <style>
 :root {
-  --primary: #1B5E20; --primary-dark: #14431a; --primary-light: #e8f2e9;
-  --accent: #F9A825; --success: #2E7D32; --warning: #F9A825; --danger: #C62828;
-  --bg: #F5F5F5; --surface: #ffffff; --border: #e4e4e4;
-  --text: #212121; --text-muted: #757575;
-  --radius: 8px; --radius-sm: 4px;
-  --shadow: 0 1px 3px rgba(0,0,0,0.12); --shadow-md: 0 4px 14px rgba(0,0,0,0.10);
-  --sidebar-w: 240px; --sidebar-w-collapsed: 64px;
-  --card-cream: #FFFDF7; --card-warm: #F1EEE2; --input-bg: #ffffff;
-  --hard-bg-1: #F7F8F5; --hard-bg-2: #FBFAF4; --hard-bg-3: #F9F6EC;
-  --hard-text-1: #24352E; --hard-text-2: #6B756F; --hard-text-3: #0F3D2E;
-  --hard-border-1: #E8E3D6; --hard-border-2: #D8C27A;
+  /* ═══════════════════════════════════════════════════
+     🎨 نظام الهوية الجديد — Modern Terracotta
+     Primary: أحمر طوبي عصري
+     Success: أخضر للـ progress والمكتمل
+     Neutral: رمادي بارد أنيق
+     ═══════════════════════════════════════════════════ */
+
+  /* Primary — Terracotta الأحمر الطوبي */
+  --primary-50:  #FDF3EF;
+  --primary-100: #F9E4DC;
+  --primary-200: #F2C4B0;
+  --primary-300: #E39880;
+  --primary-400: #DA7758;
+  --primary-500: #C1502C;  /* اللون الأساسي */
+  --primary-600: #A03D1D;
+  --primary-700: #7F2E12;
+
+  /* Success — أخضر للتتبع */
+  --success-50:  #ECFDF5;
+  --success-100: #D1FAE5;
+  --success-500: #10B981;
+  --success-600: #059669;
+  --success-700: #047857;
+
+  /* Neutral — رمادي بارد */
+  --neutral-50:  #F8FAFC;
+  --neutral-100: #F1F5F9;
+  --neutral-200: #E2E8F0;
+  --neutral-300: #CBD5E1;
+  --neutral-400: #94A3B8;
+  --neutral-500: #64748B;
+  --neutral-700: #334155;
+  --neutral-800: #1E293B;
+  --neutral-900: #0F172A;
+
+  /* Accents (للفئات في الأيقونات) */
+  --accent-orange: #F59E0B;
+  --accent-pink:   #EC4899;
+  --accent-blue:   #3B82F6;
+  --accent-teal:   #14B8A6;
+  --accent-purple: #8B5CF6;
+
+  /* حالات */
+  --danger:  #EF4444;
+  --warning: #F59E0B;
+  --info:    #3B82F6;
+
+  /* ═══ ألياسات توافقية (Backward-compat) ═══
+     المتغيرات القديمة تشير للجديدة عشان الشاشات القديمة تبقى شغالة */
+  --primary:       var(--primary-500);
+  --primary-dark:  var(--primary-600);
+  --primary-light: var(--primary-100);
+  --accent:        var(--primary-500);
+  --success:       var(--success-500);
+  --bg:            var(--neutral-50);
+  --surface:       #FFFFFF;
+  --border:        var(--neutral-200);
+  --text:          var(--neutral-900);
+  --text-muted:    var(--neutral-500);
+
+  /* Border radius scale */
+  --radius-sm:  8px;
+  --radius:     12px;
+  --radius-md:  12px;
+  --radius-lg:  16px;
+  --radius-xl:  20px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm:      0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow:         0 4px 12px rgba(15, 23, 42, 0.06);
+  --shadow-md:      0 4px 12px rgba(15, 23, 42, 0.06);
+  --shadow-lg:      0 8px 24px rgba(15, 23, 42, 0.08);
+  --shadow-primary: 0 8px 20px rgba(193, 80, 44, 0.25);
+
+  /* Sidebar */
+  --sidebar-w: 240px;
+  --sidebar-w-collapsed: 64px;
+
+  /* Aliases قديمة (backward-compat) */
+  --card-cream:    #FFFFFF;
+  --card-warm:     var(--primary-50);
+  --input-bg:      #FFFFFF;
+  --hard-bg-1:     var(--neutral-50);
+  --hard-bg-2:     #FFFFFF;
+  --hard-bg-3:     var(--primary-50);
+  --hard-text-1:   var(--neutral-900);
+  --hard-text-2:   var(--neutral-500);
+  --hard-text-3:   var(--primary-600);
+  --hard-border-1: var(--neutral-200);
+  --hard-border-2: var(--primary-200);
 }
 :root[data-theme="dark"] {
-  --primary: #2E9E4C; --primary-dark: #1F7A3A; --primary-light: rgba(46,158,76,0.14);
-  --bg: #0F1613; --surface: #1B2621; --border: #2A3831;
-  --text: #E8ECEA; --text-muted: #94A29C;
-  --shadow: 0 1px 3px rgba(0,0,0,0.5); --shadow-md: 0 4px 14px rgba(0,0,0,0.6);
-  --card-cream: #1B2621; --card-warm: #232F29; --input-bg: #131C18;
-  --hard-bg-1: #131C18; --hard-bg-2: #182220; --hard-bg-3: #232F29;
-  --hard-text-1: #E8ECEA; --hard-text-2: #A2B0A9; --hard-text-3: #7BC48A;
+  /* Dark mode — نفس فلسفة terracotta بس بدرجات داكنة */
+  --primary-50:  #2A1811;
+  --primary-100: #3D211A;
+  --primary-500: #DA7758;  /* أفتح شوية في dark */
+  --primary-600: #E39880;
+
+  --neutral-50:  #0F172A;
+  --neutral-100: #1E293B;
+  --neutral-200: #334155;
+  --neutral-500: #94A3B8;
+  --neutral-700: #CBD5E1;
+  --neutral-900: #F1F5F9;
+
+  --primary:       var(--primary-500);
+  --primary-dark:  var(--primary-600);
+  --primary-light: rgba(218,119,88,0.16);
+  --bg:            #0B1220;
+  --surface:       #131C2E;
+  --border:        #263148;
+  --text:          #E8ECEF;
+  --text-muted:    #94A3B8;
+  --shadow:        0 1px 3px rgba(0,0,0,0.5);
+  --shadow-md:     0 4px 14px rgba(0,0,0,0.6);
+  --card-cream:    #131C2E;
+  --card-warm:     #1A253B;
+  --input-bg:      #0F1728;
+  --hard-bg-1:     #0F1728;
+  --hard-bg-2:     #131C2E;
+  --hard-bg-3:     #1A253B;
+  --hard-text-1:   #E8ECEF;
+  --hard-text-2:   #A2B0BE;
+  --hard-text-3:   #DA7758;
   --hard-border-1: #2A3831; --hard-border-2: #3D5548;
   color-scheme: dark;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { direction: rtl; font-family: 'Cairo', 'IBM Plex Sans Arabic', 'Tajawal', 'Segoe UI', Tahoma, Arial, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6; }
+html, body { direction: rtl; font-family: 'Readex Pro', 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, Arial, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 .mono-num { font-family: 'Tajawal', 'Cairo', sans-serif; font-weight: 500; }
 a { color: inherit; text-decoration: none; } ul { list-style: none; }
 button { font-family: inherit; cursor: pointer; }
