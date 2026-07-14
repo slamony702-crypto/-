@@ -3467,6 +3467,76 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
   .m-stat-badge { position: absolute; top: 10px; left: 10px; padding: 2px 8px; border-radius: 8px; font-size: 10px; font-weight: 700; background: rgba(200,84,84,0.14); color: #C85454; }
 
   .m-quick-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 6px; }
+
+  /* ═══ Premium Section Tiles ═══ */
+  .m-tiles-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
+  .m-tile {
+    position: relative;
+    padding: 18px 16px;
+    border-radius: 22px;
+    min-height: 140px;
+    display: flex; flex-direction: column;
+    justify-content: space-between; gap: 12px;
+    text-decoration: none; color: inherit;
+    cursor: pointer; overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.7);
+    box-shadow:
+      0 10px 24px rgba(18,55,47,0.06),
+      inset 0 1px 0 rgba(255,255,255,0.92);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    transition: transform .2s cubic-bezier(.2,.9,.3,1), box-shadow .2s;
+  }
+  .m-tile:active { transform: scale(0.97); }
+  .m-tile:hover { box-shadow: 0 14px 32px rgba(18,55,47,0.10), inset 0 1px 0 rgba(255,255,255,0.95); }
+  /* دائرة زخرفية علوية شفافة */
+  .m-tile::before {
+    content: ''; position: absolute;
+    top: -30%; left: -15%;
+    width: 100px; height: 100px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.6), transparent 65%);
+    pointer-events: none;
+  }
+  /* أيقونة كبيرة */
+  .m-tile-icon {
+    width: 48px; height: 48px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.7);
+    box-shadow: 0 4px 12px rgba(18,55,47,0.08), inset 0 1px 0 rgba(255,255,255,0.9);
+    color: #17372D;
+    position: relative; z-index: 1;
+  }
+  .m-tile-body { position: relative; z-index: 1; }
+  .m-tile-title { font-size: 15px; font-weight: 700; color: #17372D; margin: 0 0 2px; letter-spacing: -0.2px; }
+  .m-tile-sub { font-size: 11.5px; color: #6F7D76; margin: 0; line-height: 1.5; }
+  /* Badge أحمر في زاوية علوية يمنى — يظهر بس لو فيه عدد */
+  .m-tile-badge {
+    position: absolute; top: 12px; left: 12px;
+    min-width: 22px; height: 22px; padding: 0 7px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #E56464, #C85454);
+    color: #fff; font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 10px rgba(200,84,84,0.35);
+    z-index: 2;
+  }
+  /* Tint variants — pastel accent مختلف لكل قسم */
+  .m-tile.t-lavender   { background: linear-gradient(135deg, rgba(226,220,255,0.85), rgba(255,255,255,0.75)); }
+  .m-tile.t-lavender .m-tile-icon { color: #6D28D9; background: linear-gradient(135deg,#EDE9FE,#DDD6FE); }
+  .m-tile.t-mint       { background: linear-gradient(135deg, rgba(215,242,225,0.85), rgba(255,255,255,0.75)); }
+  .m-tile.t-mint .m-tile-icon { color: #047857; background: linear-gradient(135deg,#DFF5E9,#C5EDD4); }
+  .m-tile.t-aqua       { background: linear-gradient(135deg, rgba(199,235,240,0.85), rgba(255,255,255,0.75)); }
+  .m-tile.t-aqua .m-tile-icon { color: #0E7490; background: linear-gradient(135deg,#CDEFF4,#B4E4EC); }
+  .m-tile.t-peach      { background: linear-gradient(135deg, rgba(255,228,214,0.85), rgba(255,255,255,0.75)); }
+  .m-tile.t-peach .m-tile-icon { color: #9A4A2E; background: linear-gradient(135deg,#FFE4D6,#FFD1BA); }
+  .m-tile.t-lavender-2 { background: linear-gradient(135deg, rgba(220,225,255,0.85), rgba(255,255,255,0.75)); }
+  .m-tile.t-lavender-2 .m-tile-icon { color: #5B4EE0; background: linear-gradient(135deg,#E0E4FF,#CACFF7); }
+  .m-tile.t-mint-2     { background: linear-gradient(135deg, rgba(200,238,220,0.85), rgba(255,255,255,0.75)); }
+  .m-tile.t-mint-2 .m-tile-icon { color: #059669; background: linear-gradient(135deg,#D1F5DE,#B0E8C7); }
+  .m-tile.t-aqua-2     { background: linear-gradient(135deg, rgba(210,232,244,0.85), rgba(255,255,255,0.75)); }
+  .m-tile.t-aqua-2 .m-tile-icon { color: #1E6C8F; background: linear-gradient(135deg,#D8ECF8,#BEDDEE); }
+  .m-tile.t-peach-2    { background: linear-gradient(135deg, rgba(255,220,208,0.85), rgba(255,255,255,0.75)); }
+  .m-tile.t-peach-2 .m-tile-icon { color: #A9574A; background: linear-gradient(135deg,#FFDBC8,#FBC5AF); }
   .m-quick-card {
     padding: 18px 14px;
     background: rgba(255,255,255,0.7);
@@ -19422,32 +19492,38 @@ async function renderMobileHome(body) {
       <div class="m-welcome-avatar">${esc(initials)}</div>
       <div class="m-welcome-txt">
         <p class="m-welcome-hi">${esc(greeting)}، ${esc(firstName)}</p>
-        <p class="m-welcome-sub">إليك ملخص أعمالك اليوم</p>
+        <p class="m-welcome-sub">اختر القسم اللي تحب تشتغل فيه</p>
       </div>
     </div>
-    <div class="m-stats-grid">
-      ${[1,2,3,4].map(()=>'<div class="m-stat"><div class="m-skeleton" style="width:38px;height:38px;"></div><div class="m-skeleton" style="width:60%;height:22px;"></div><div class="m-skeleton" style="width:80%;height:12px;"></div></div>').join('')}
+    <div class="m-tiles-grid" id="mTilesGrid">
+      ${[1,2,3,4,5,6].map(()=>'<div class="m-tile m-skeleton" style="height:130px;"></div>').join('')}
     </div>
     <div id="mHomeContent"></div>
   `;
 
   // نجيب البيانات (نفس queries الديسكتوب — bandwidth واحد)
-  const [meetsRes, tasksRes, decsRes, maintRes, notifsRes] = await Promise.all([
+  const [meetsRes, tasksRes, decsRes, maintRes, notifsRes, meetsWeekRes, qualityRes] = await Promise.all([
     sb.from('meetings').select('id, title, meeting_datetime, meeting_type, status, department_id, organizer_id, departments(name), meeting_attendees(user_id, users(full_name))').gte('meeting_datetime', todayISO + 'T00:00:00').lte('meeting_datetime', todayISO + 'T23:59:59').order('meeting_datetime'),
     sb.from('meeting_tasks').select('id, title, due_date, priority, status, progress_percent, meeting_id, meetings(title)').eq('assignee_id', uid).in('status', ['pending','in_progress']).order('due_date'),
     sb.from('decisions').select('id, decision_text, due_date, status, priority').eq('responsible_user_id', uid).in('status', ['new','in_progress','delayed','pending_approval']),
-    sb.from('maintenance_requests').select('id, request_no, issue_title, status, severity').or(`owner_id.eq.${uid},requester_id.eq.${uid}`).not('status','in','(closed,rejected)').limit(5),
-    sb.from('notifications').select('id').eq('user_id', uid).eq('is_read', false)
+    sb.from('maintenance_requests').select('id, severity, status').not('status','in','(closed,rejected)'),
+    sb.from('notifications').select('id').eq('user_id', uid).eq('is_read', false),
+    sb.from('meetings').select('id', { count: 'exact', head: true }).gte('meeting_datetime', todayISO).lte('meeting_datetime', new Date(Date.now()+7*86400000).toISOString().slice(0,10) + 'T23:59:59').eq('status','scheduled'),
+    sb.from('quality_visits').select('id, non_conform_count', { count: 'exact' }).gt('non_conform_count', 0).eq('status', 'completed').order('created_at', {ascending:false}).limit(10)
   ]);
 
   const meets = (meetsRes.data || []).filter(m => (m.organizer_id === uid) || (m.meeting_attendees || []).some(a => a.user_id === uid));
   const openTasks = tasksRes.data || [];
   const overdueTasks = openTasks.filter(t => t.due_date && t.due_date < todayISO);
   const openDecs = decsRes.data || [];
+  const overdueDecs = openDecs.filter(d => d.due_date && d.due_date < todayISO);
   const maints = maintRes.data || [];
+  const urgentMaints = maints.filter(m => ['high','critical'].includes(m.severity));
   const notifsCount = (notifsRes.data || []).length;
+  const meetsThisWeek = meetsWeekRes.count || 0;
+  const openNonConf = (qualityRes.data || []).reduce((s,v) => s + Number(v.non_conform_count || 0), 0);
 
-  // Update notif badges
+  // Update badges
   ['mNotifBadge','mBottomNotifBadge'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
@@ -19456,53 +19532,57 @@ async function renderMobileHome(body) {
     }
   });
 
-  // Stats
-  const statsHtml = `
-    <div class="m-stats-grid">
-      <div class="m-stat" onclick="location.hash='#meetings?date=today'">
-        <div class="m-stat-icon i-blue"><span data-lucide="calendar" style="width:19px;height:19px;"></span></div>
-        <div class="m-stat-value">${meets.length}</div>
-        <div class="m-stat-label">اجتماعات اليوم</div>
+  // ═══ البلاطات الفاخرة (Premium Section Tiles) ═══
+  // كل بلاطة: أيقونة كبيرة + اسم + سطر ملخص + badge أحمر لو فيه انتباه
+  const tile = (opts) => `
+    <a class="m-tile ${opts.tint}" href="${opts.href}" style="text-decoration:none;color:inherit;">
+      ${opts.badge ? `<span class="m-tile-badge">${opts.badge}</span>` : ''}
+      <div class="m-tile-icon"><span data-lucide="${opts.icon}" style="width:26px;height:26px;"></span></div>
+      <div class="m-tile-body">
+        <p class="m-tile-title">${opts.title}</p>
+        <p class="m-tile-sub">${opts.sub}</p>
       </div>
-      <div class="m-stat" onclick="location.hash='#tasks'">
-        <div class="m-stat-icon i-gold"><span data-lucide="check-square" style="width:19px;height:19px;"></span></div>
-        <div class="m-stat-value">${openTasks.length}</div>
-        <div class="m-stat-label">مهامي المفتوحة</div>
-      </div>
-      <div class="m-stat" onclick="location.hash='#tasks?status=delayed'">
-        <div class="m-stat-icon i-red"><span data-lucide="alert-triangle" style="width:19px;height:19px;"></span></div>
-        <div class="m-stat-value">${overdueTasks.length}</div>
-        <div class="m-stat-label">مهام متأخرة</div>
-        ${overdueTasks.length ? '<span class="m-stat-badge">تحتاج متابعة</span>' : ''}
-      </div>
-      <div class="m-stat" onclick="location.hash='#decisions'">
-        <div class="m-stat-icon i-green"><span data-lucide="gavel" style="width:19px;height:19px;"></span></div>
-        <div class="m-stat-value">${openDecs.length}</div>
-        <div class="m-stat-label">قرارات مفتوحة</div>
-      </div>
-    </div>
+    </a>
   `;
-
-  // Quick Actions
-  const quickHtml = `
-    <div class="m-section-title"><h3>الوصول السريع</h3></div>
-    <div class="m-quick-grid">
-      <a class="m-quick-card" href="#meetings">
-        <div class="m-quick-icon"><span data-lucide="calendar" style="width:20px;height:20px;"></span></div>
-        <div><p class="m-quick-title">الاجتماعات</p><p class="m-quick-sub">جدولة ومتابعة</p></div>
-      </a>
-      <a class="m-quick-card" href="#tasks">
-        <div class="m-quick-icon"><span data-lucide="check-square" style="width:20px;height:20px;"></span></div>
-        <div><p class="m-quick-title">المهام</p><p class="m-quick-sub">مهامي وأسندتها</p></div>
-      </a>
-      <a class="m-quick-card" href="#decisions">
-        <div class="m-quick-icon"><span data-lucide="gavel" style="width:20px;height:20px;"></span></div>
-        <div><p class="m-quick-title">القرارات</p><p class="m-quick-sub">تتبع التنفيذ</p></div>
-      </a>
-      <a class="m-quick-card" href="#reports">
-        <div class="m-quick-icon"><span data-lucide="bar-chart-3" style="width:20px;height:20px;"></span></div>
-        <div><p class="m-quick-title">التقارير</p><p class="m-quick-sub">إحصاءات الأداء</p></div>
-      </a>
+  const tilesHtml = `
+    <div class="m-tiles-grid">
+      ${tile({
+        href: '#meetings', tint: 't-lavender', icon: 'calendar',
+        title: 'الاجتماعات', sub: meets.length ? `${meets.length} اليوم · ${meetsThisWeek} هذا الأسبوع` : (meetsThisWeek ? `${meetsThisWeek} هذا الأسبوع` : 'ابدأ بجدولة اجتماع'),
+        badge: meets.length ? meets.length : null
+      })}
+      ${tile({
+        href: '#tasks', tint: 't-mint', icon: 'check-square',
+        title: 'المهام', sub: openTasks.length ? `${openTasks.length} مهمة مفتوحة` : 'كل شيء في مكانه ✨',
+        badge: overdueTasks.length ? overdueTasks.length : null
+      })}
+      ${tile({
+        href: '#decisions', tint: 't-aqua', icon: 'gavel',
+        title: 'القرارات', sub: openDecs.length ? `${openDecs.length} قرار قيد التنفيذ` : 'لا توجد قرارات مفتوحة',
+        badge: overdueDecs.length ? overdueDecs.length : null
+      })}
+      ${tile({
+        href: '#maintenance', tint: 't-peach', icon: 'wrench',
+        title: 'الصيانة', sub: maints.length ? `${maints.length} طلب مفتوح` : 'لا توجد طلبات',
+        badge: urgentMaints.length ? urgentMaints.length : null
+      })}
+      ${tile({
+        href: '#quality', tint: 't-lavender-2', icon: 'shield-check',
+        title: 'الجودة', sub: openNonConf ? `${openNonConf} مخالفة تحتاج معالجة` : 'كل الفروع متوافقة',
+        badge: openNonConf ? (openNonConf > 99 ? '99+' : openNonConf) : null
+      })}
+      ${tile({
+        href: '#conversations', tint: 't-mint-2', icon: 'message-circle',
+        title: 'التواصل', sub: 'محادثات الأقسام والاجتماعات', badge: null
+      })}
+      ${tile({
+        href: '#cafe', tint: 't-aqua-2', icon: 'coffee',
+        title: 'ركن الكافيه', sub: 'اطلب مشروبك واستمتع', badge: null
+      })}
+      ${tile({
+        href: '#reports', tint: 't-peach-2', icon: 'bar-chart-3',
+        title: 'التقارير', sub: 'إحصائيات وأداء الفريق', badge: null
+      })}
     </div>
   `;
 
@@ -19568,8 +19648,8 @@ async function renderMobileHome(body) {
     </div>
   `;
 
-  document.querySelector('.m-stats-grid')?.remove();
-  document.getElementById('mHomeContent').innerHTML = statsHtml + quickHtml + meetsBlock + tasksBlock;
+  document.getElementById('mTilesGrid')?.remove();
+  document.getElementById('mHomeContent').innerHTML = tilesHtml + meetsBlock + tasksBlock;
   if (window.lucide) lucide.createIcons();
 }
 
