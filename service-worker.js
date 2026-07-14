@@ -1,5 +1,5 @@
 // نسخة المسجّل — تُبدَّل عند كل تحديث لضمان تنشيط SW جديد
-const SW_VERSION = 'v20-2026-07-14-welcome-datetime';
+const SW_VERSION = 'v21-2026-07-14-perf-opt';
 const STATIC_CACHE = 'sg-static-' + SW_VERSION;
 
 self.addEventListener('install', () => self.skipWaiting());

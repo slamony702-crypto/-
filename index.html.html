@@ -22,9 +22,9 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ar.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ar.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <style>
 :root {
   /* ═══════════════════════════════════════════════════
@@ -3972,6 +3972,34 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 </div>
 
 <script>
+/* ═══════════════════════════════════════════════════════════
+   ⚡ تحسين أداء: تجميع نداءات lucide.createIcons() في إطار واحد
+   بدل مسح كامل الـDOM لكل نداء (كان يحصل ١٢٣ مرة)، ندمج
+   كل النداءات المتلاحقة في إطار رسوم واحد → مسح واحد فقط.
+   ══════════════════════════════════════════════════════════ */
+(function() {
+  let scheduled = false;
+  let realCreate = null;
+  function tryPatch() {
+    if (!window.lucide || realCreate) return;
+    realCreate = window.lucide.createIcons.bind(window.lucide);
+    window.lucide.createIcons = function() {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        try { realCreate(); } catch(e) {}
+      });
+    };
+  }
+  tryPatch();
+  if (!realCreate) {
+    // في حال أن lucide لم يُحمَّل بعد (نادر لأنه في <head>)، نحاول مرة أخرى
+    const iv = setInterval(() => { tryPatch(); if (realCreate) clearInterval(iv); }, 50);
+    setTimeout(() => clearInterval(iv), 5000);
+  }
+})();
+
 // ============ إعداد الاتصال بـ Supabase ============
 const SUPABASE_URL = 'https://dfuqmmagtteemtpywody.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_kWfHiBqJC_8pzHSnAIfXUw_ZKwDOP4f';
