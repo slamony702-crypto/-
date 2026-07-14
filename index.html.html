@@ -4194,6 +4194,54 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
     animation: none !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   🧭 الجولة التعريفية للموبايل — هادئة وبسيطة، بدون وميض أو اهتزاز
+   ═══════════════════════════════════════════════════════════ */
+.m-onboard-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  pointer-events: none;
+  opacity: 0; transition: opacity .35s ease;
+}
+.m-onboard-overlay.show { opacity: 1; }
+.m-onboard-hole {
+  position: fixed;
+  border-radius: 18px;
+  box-shadow: 0 0 0 9999px rgba(15,23,20,0.55);
+  transition: top .4s cubic-bezier(.4,0,.2,1), left .4s cubic-bezier(.4,0,.2,1),
+              width .4s cubic-bezier(.4,0,.2,1), height .4s cubic-bezier(.4,0,.2,1);
+  pointer-events: none;
+}
+.m-onboard-card {
+  position: fixed; left: 16px; right: 16px;
+  max-width: 380px; margin: 0 auto;
+  background: #fff; border-radius: 18px;
+  padding: 16px 18px; pointer-events: auto;
+  box-shadow: 0 12px 32px -8px rgba(0,0,0,0.28);
+  opacity: 0; transform: translateY(6px);
+  transition: opacity .3s ease, transform .3s ease, top .4s cubic-bezier(.4,0,.2,1), bottom .4s cubic-bezier(.4,0,.2,1);
+}
+.m-onboard-card.show { opacity: 1; transform: translateY(0); }
+.m-onboard-title { font-size: 14.5px; font-weight: 700; color: #12372F; margin: 0 0 4px; }
+.m-onboard-text { font-size: 12.5px; color: #56645D; line-height: 1.7; margin: 0 0 12px; }
+.m-onboard-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.m-onboard-skip {
+  background: none; border: none; color: #8A958E; font-size: 12px; font-weight: 600;
+  cursor: pointer; padding: 6px 4px; font-family: inherit;
+}
+.m-onboard-dots { display: flex; gap: 5px; }
+.m-onboard-dots span {
+  width: 5px; height: 5px; border-radius: 50%; background: #D8DED9; transition: background .25s ease, width .25s ease;
+}
+.m-onboard-dots span.active { background: #10B981; width: 14px; border-radius: 3px; }
+.m-onboard-next {
+  background: linear-gradient(135deg, #10B981, #8B5CF6); color: #fff; border: none;
+  font-size: 12.5px; font-weight: 700; padding: 8px 18px; border-radius: 10px;
+  cursor: pointer; font-family: inherit;
+}
+@media (prefers-reduced-motion: reduce) {
+  .m-onboard-overlay, .m-onboard-hole, .m-onboard-card { transition: none !important; }
+}
 </style>
 </head>
 <body>
@@ -4250,7 +4298,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v43-2026-07-14-voice-msg-fix';
+const APP_VERSION = 'v44-2026-07-15-onboarding-tour';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -20773,6 +20821,78 @@ async function renderMobileHome(body) {
   document.getElementById('mHomeContent').innerHTML = tilesHtml + meetsBlock + tasksBlock;
   initTilesReorder();
   if (window.lucide) lucide.createIcons();
+
+  // جولة تعريفية هادئة لأول مرة يدخل فيها المستخدم على الموبايل فقط
+  setTimeout(() => maybeStartOnboardingTour(), 500);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   🧭 جولة تعريفية هادئة للمستخدم الجديد (مرة واحدة فقط، تُتخطى بسهولة)
+   ═══════════════════════════════════════════════════════════ */
+function onboardingDoneKey() {
+  return 'm_onboard_done_' + (CURRENT_USER?.id || 'anon');
+}
+const ONBOARD_STEPS = [
+  { sel: '#mSearchBarWrap', title: 'ابحث بسرعة', text: 'اكتب هنا أو استخدم المايكروفون للبحث والأوامر الصوتية في أي وقت.' },
+  { sel: '#mBtnMessages', title: 'الرسائل', text: 'رسائلك ومحادثاتك مع الزملاء والأقسام تصلك من هنا.' },
+  { sel: '#mBtnNotif', title: 'الإشعارات', text: 'أي تنبيه جديد يظهر هنا فورًا.' },
+  { sel: '#mBtnNewTask', title: 'إضافة سريعة', text: 'اضغط هنا لإنشاء مهمة جديدة في ثوانٍ معدودة.' },
+  { sel: '#mTilesCustomizeBtn', title: 'خصّص شاشتك', text: 'رتّب الأقسام واختر ما يظهر لك في الرئيسية من هنا.' },
+  { sel: '.m-bottomnav', title: 'التنقل السريع', text: 'تنقّل بين الرئيسية والاجتماعات والمهام والمزيد من هذا الشريط.' }
+];
+function maybeStartOnboardingTour() {
+  if (!isMobileView()) return;
+  if (localStorage.getItem(onboardingDoneKey())) return;
+  if (document.querySelector('.modal-overlay, .m-more-overlay, #mOnboardOverlay')) return;
+  startOnboardingTour();
+}
+function startOnboardingTour() {
+  let idx = 0;
+  const overlay = document.createElement('div');
+  overlay.className = 'm-onboard-overlay';
+  overlay.id = 'mOnboardOverlay';
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('show'));
+
+  function finish() {
+    localStorage.setItem(onboardingDoneKey(), '1');
+    overlay.classList.remove('show');
+    setTimeout(() => overlay.remove(), 350);
+  }
+
+  function renderStep() {
+    while (idx < ONBOARD_STEPS.length && !document.querySelector(ONBOARD_STEPS[idx].sel)) idx++;
+    if (idx >= ONBOARD_STEPS.length) { finish(); return; }
+    const step = ONBOARD_STEPS[idx];
+    const target = document.querySelector(step.sel);
+    // نتأكد إن العنصر ظاهر في الشاشة (البلاطات جوّا محتوى قابل للتمرير، عكس الشريط العلوي/السفلي الثابتين)
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => paintStep(step, target), 320);
+  }
+
+  function paintStep(step, target) {
+    const r = target.getBoundingClientRect();
+    const pad = 8;
+    const vh = window.innerHeight;
+    const showBelow = r.top < vh * 0.55;
+
+    overlay.innerHTML = `
+      <div class="m-onboard-hole" style="top:${r.top - pad}px;left:${r.left - pad}px;width:${r.width + pad * 2}px;height:${r.height + pad * 2}px;"></div>
+      <div class="m-onboard-card" id="mOnboardCard" style="${showBelow ? `top:${r.bottom + pad + 14}px;` : `bottom:${vh - r.top + pad + 14}px;`}">
+        <p class="m-onboard-title">${esc(step.title)}</p>
+        <p class="m-onboard-text">${esc(step.text)}</p>
+        <div class="m-onboard-actions">
+          <button type="button" class="m-onboard-skip" id="mOnboardSkip">تخطي</button>
+          <div class="m-onboard-dots">${ONBOARD_STEPS.map((_, i) => `<span class="${i === idx ? 'active' : ''}"></span>`).join('')}</div>
+          <button type="button" class="m-onboard-next" id="mOnboardNext">${idx === ONBOARD_STEPS.length - 1 ? 'تمام، فهمت' : 'التالي'}</button>
+        </div>
+      </div>
+    `;
+    requestAnimationFrame(() => document.getElementById('mOnboardCard')?.classList.add('show'));
+    document.getElementById('mOnboardSkip').addEventListener('click', finish);
+    document.getElementById('mOnboardNext').addEventListener('click', () => { idx++; renderStep(); });
+  }
+  renderStep();
 }
 
 /* ═══════ Mobile Meetings Page ═══════ */
