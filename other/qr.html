@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QR — نظام شؤون الغذاء</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <style>
+    :root {
+      --primary: #0F3D2E;
+      --primary-2: #146B3A;
+      --gold: #D6A437;
+      --gold-dark: #9A6B12;
+      --cream: #FFFDF7;
+      --bg: #F4F1E8;
+      --text: #24352E;
+      --muted: #6B756F;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: 'Tajawal', sans-serif;
+      background: linear-gradient(135deg, var(--bg), #EFEBDB);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 30px 20px;
+    }
+    .poster {
+      background: var(--cream);
+      border: 3px solid var(--gold);
+      border-radius: 26px;
+      width: 100%;
+      max-width: 460px;
+      padding: 40px 32px 28px;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(15,61,46,0.15);
+      position: relative;
+      overflow: hidden;
+    }
+    .poster::before {
+      content: '';
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(circle at top left, rgba(214,164,55,0.08), transparent 40%),
+        radial-gradient(circle at bottom right, rgba(15,61,46,0.06), transparent 45%);
+      pointer-events: none;
+    }
+    .poster > * { position: relative; z-index: 1; }
+    .brand {
+      color: var(--primary);
+      font-weight: 900;
+      font-size: 26px;
+      letter-spacing: -0.5px;
+      margin-bottom: 4px;
+    }
+    .brand-sub {
+      color: var(--gold-dark);
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 22px;
+    }
+    .divider {
+      width: 60px; height: 3px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      margin: 0 auto 24px;
+      border-radius: 3px;
+    }
+    .qr-frame {
+      background: #fff;
+      border: 2px dashed rgba(214,164,55,0.4);
+      border-radius: 20px;
+      padding: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 22px;
+      box-shadow: 0 10px 30px rgba(15,61,46,0.08);
+    }
+    #qr { display: block; }
+    #qr canvas { display: block; border-radius: 12px; }
+    .instructions {
+      color: var(--text);
+      font-size: 15.5px;
+      font-weight: 700;
+      line-height: 1.9;
+      margin-bottom: 8px;
+    }
+    .steps {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 6px;
+      text-align: right;
+      margin: 12px auto 20px;
+      background: rgba(214,164,55,0.08);
+      padding: 12px 16px;
+      border-radius: 12px;
+      border-right: 3px solid var(--gold);
+    }
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .step-num {
+      width: 22px; height: 22px;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 900;
+      flex-shrink: 0;
+    }
+    .url {
+      display: inline-block;
+      background: var(--primary);
+      color: #fff;
+      padding: 8px 18px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      direction: ltr;
+      margin-top: 6px;
+    }
+    .footer {
+      margin-top: 24px;
+      color: var(--muted);
+      font-size: 11.5px;
+      font-weight: 600;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      background: linear-gradient(90deg, var(--primary-2), var(--primary));
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 22px;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+      font-family: inherit;
+      transition: filter .15s ease, transform .12s ease;
+    }
+    .btn:hover { filter: brightness(1.08); }
+    .btn:active { transform: scale(0.98); }
+    .btn-outline {
+      background: transparent;
+      color: var(--primary);
+      border: 2px solid var(--gold);
+    }
+    .btn-outline:hover { background: rgba(214,164,55,0.1); }
+
+    /* حالة الطباعة */
+    @media print {
+      body { background: #fff; padding: 0; }
+      .poster { border: 2px solid var(--gold); box-shadow: none; max-width: 100%; }
+      .actions { display: none; }
+      .print-hide { display: none !important; }
+    }
+
+    /* الموبايل */
+    @media (max-width: 480px) {
+      .poster { padding: 28px 20px; border-radius: 20px; }
+      .brand { font-size: 22px; }
+      .qr-frame { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="poster" id="poster">
+    <div class="brand">شؤون الغذاء</div>
+    <div class="brand-sub">لتطوير وإدارة المطاعم</div>
+    <div class="divider"></div>
+
+    <div class="qr-frame">
+      <canvas id="qr"></canvas>
+    </div>
+
+    <div class="instructions">امسح الرمز للوصول إلى النظام</div>
+
+    <div class="steps">
+      <div class="step"><span class="step-num">1</span> افتح كاميرا الجوال</div>
+      <div class="step"><span class="step-num">2</span> وجّه الكاميرا نحو الرمز</div>
+      <div class="step"><span class="step-num">3</span> اضغط على الرابط الظاهر</div>
+    </div>
+
+    <div class="url" id="urlText">shouon-al-ghithaa.vercel.app</div>
+
+    <div class="actions print-hide">
+      <button class="btn" onclick="window.print()">🖨️ طباعة</button>
+      <button class="btn btn-outline" onclick="downloadQR()">⬇️ تحميل الصورة</button>
+    </div>
+
+    <div class="footer">© شركة شؤون الغذاء لتطوير وإدارة المطاعم</div>
+  </div>
+
+  <script>
+    const APP_URL = 'https://shouon-al-ghithaa.vercel.app';
+    const canvas = document.getElementById('qr');
+
+    QRCode.toCanvas(canvas, APP_URL, {
+      width: 260,
+      margin: 1,
+      color: {
+        dark: '#0F3D2E',
+        light: '#FFFDF7'
+      },
+      errorCorrectionLevel: 'H'
+    }, function (err) {
+      if (err) console.error(err);
+    });
+
+    function downloadQR() {
+      const link = document.createElement('a');
+      link.download = 'shouon-al-ghithaa-qr.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+  </script>
+</body>
+</html>

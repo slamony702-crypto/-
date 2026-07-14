@@ -1,0 +1,122 @@
+Continue working on the existing project: "شركة شؤون الغذاء للمتابعة".
+
+You are not creating a new project. You are upgrading the current product into a premium, cheerful, modern and professional responsive platform, with a native-app-like mobile experience, while preserving the existing desktop system, backend, database, authentication, roles, permissions, APIs, routes, business rules and real data.
+
+I attached a detailed Word specification named "دليل UI UX الشامل لنظام شؤون الغذاء". Read the entire document, including all embedded reference images, before modifying code. Treat the document as the single source of truth. Do not reproduce or summarize the document in your response. Inspect the existing project first, then implement in controlled phases.
+
+FINAL APPROVED VISUAL DIRECTION
+- Premium Pastel Glass UI.
+- Cheerful but not childish.
+- Soft lavender, aqua, mint, warm cream and very light blue reflections.
+- The original "شؤون الغذاء" logo remains unchanged and is the brand anchor.
+- Use the logo green and brick-red as the strongest brand accents, while pastel lavender/aqua/mint are supporting surface and glow colors.
+- No harsh purple, neon, saturated gradients, heavy dark backgrounds or generic AI-template appearance.
+- Glassmorphism must remain readable: controlled transparency, blur, white overlays, clear contrast and solid fallbacks.
+- Arabic RTL everywhere.
+- Use the exact attached reference images for layout quality, spacing, glass depth, soft reflections, mobile card composition and bottom navigation behavior.
+
+NON-NEGOTIABLE ENGINEERING RULES
+1. Do not start from scratch or migrate framework.
+2. Do not break desktop, authentication, database, Supabase/SQLite/Node APIs, permissions, routes, notifications, reports, meetings, tasks, decisions, quality, maintenance, communication, café, users or settings.
+3. Reuse existing components, functions, tables and CSS variables wherever safe.
+4. Do not duplicate business logic or create fake data if real data exists.
+5. Do not print full unchanged files. Apply focused diffs and keep token usage low.
+6. Work in phases. Test each phase before continuing.
+7. Preserve current desktop functionality; add a responsive mobile shell under the chosen breakpoint.
+8. Any detail/card click opens a separate page/view/route, not an inline expansion below the current card.
+9. Keep forms, tables and reports readable; do not apply blur to long text or data-heavy content.
+10. Use existing icon library, preferably Lucide. Do not use decorative AI-looking icons.
+
+IMPLEMENTATION ORDER
+Phase 0 - Audit
+- Inspect project structure, routing, global styles, component patterns, database schema, APIs, roles, permissions and existing responsive rules.
+- Identify reusable code and risky areas.
+- Create a short internal implementation checklist; do not send a long explanation.
+
+Phase 1 - Design System and App Shell
+- Add/extend centralized design tokens for colors, typography, spacing, radii, shadows, glass opacity, motion and responsive breakpoints.
+- Build reusable components/classes: MobileHeader, GlassCard, StatCard, ActionCard, ListCard, SearchBar, FilterChips, FilterBottomSheet, StatusBadge, ProgressBar, ProgressRing, AvatarGroup, EmptyState, Skeleton, FloatingActionButton, BottomNavigation, Alert, Toast, ConfirmDialog, Drawer and PageHeader.
+- Add safe fallback when backdrop-filter is unsupported.
+- Add reduced-motion support.
+- Preserve the desktop sidebar; replace it on mobile with fixed bottom navigation: الرئيسية، الاجتماعات، المهام، الإشعارات، المزيد.
+- "المزيد" opens a premium bottom sheet/full page containing القرارات، التواصل الداخلي، الجودة، الصيانة، ركن الكافيه، التقارير، المستخدمون والصلاحيات، الإعدادات، تسجيل الخروج.
+
+Phase 2 - Mobile Home, Meetings, Tasks and Notifications
+- Redesign the mobile dashboard using real data: greeting, daily overview, urgent items, quick access, upcoming meetings and important tasks.
+- Mobile meeting list uses search, filter chips, vertical cards and a floating add button. Meeting click opens a separate details page.
+- Mobile task page has tabs: مهامي، أسندتها، متأخرة، مشاريع التنفيذ. Task click opens a separate details page.
+- Task execution project must show members, sub-tasks, individual progress and total progress; sub-task progress must continue updating the main task using existing logic.
+- Notifications open the related entity.
+
+Phase 3 - Remaining Modules
+- Decisions: executive cards, filters, list cards, details drawer/page, convert-to-task, activity log.
+- Internal communication: compact department cards; button text "محادثة داخل القسم"; click opens a new page; custom chat creator supports departments, full department or selected people, chat name, notifications and inactivity archiving workflow.
+- Quality: branch and all-branches reports, violations, corrective actions, risk, trends, visits and inspectors. Mobile uses cards; desktop keeps tables.
+- Maintenance: status, branch, type, critical, overdue, repair time, costs, quotations, repeated failures, replacement recommendations, preventive maintenance and staff performance reports.
+- Café Corner: product images are required; availability, quantities, cart, notes, location, order workflow, notifications, my orders, café employee management and reports.
+- Users and permissions: departments, profiles, roles, permissions, activity log and responsive management UI.
+
+MEETING-SPECIFIC UX RULES
+- In New Meeting, the department field belongs in the third section "حضور قسم الاجتماع", not basic information.
+- Rename "استخدم قالب جاهز" to "استخدم أهداف أعمال جاهزة".
+- Remove decorative template icons and the gold mark beside it.
+- Under "هدف الاجتماع", add: "اختياري: التحديد من الأهداف المقترحة".
+- Remove the entire agenda builder, add-point icon/button, agenda numbered list and meeting agenda preview rectangle.
+- Keep objective suggestions and additional notes.
+- Any missing required field shows a reusable premium validation popup titled "بيانات مطلوبة", lists exactly what is missing, allows the user to close it, and scrolls/focuses the first missing field.
+- Rename meetings filter reset button to "إعادة فلتر البحث داخل الاجتماعات" without changing its function.
+
+REPORTS DESIGN
+- Reports must look executive, not like raw tables.
+- Each report page: title, subtitle, global filters, KPI cards, tabs, chart/visual section, detailed table/list and export actions.
+- Desktop: professional tables with sticky headers, zebra rows, status badges, column sorting, pagination and horizontal scroll only when necessary.
+- Mobile: KPI cards, chart cards and vertical records; full details open on separate pages; filters use bottom sheets.
+- Exports: Excel, PDF and print where existing logic supports it.
+- Quality and maintenance report definitions and calculations are specified in the attached Word document; implement them against existing data and add only missing safe fields/tables.
+
+TYPOGRAPHY AND RTL
+- Preferred Arabic UI font: Tajawal if already available; otherwise Noto Sans Arabic or Cairo.
+- Headings may use Noto Kufi Arabic/Tajawal ExtraBold.
+- Use a clear scale: display 28-32px mobile, H1 22-26px, H2 18-20px, card title 15-17px, body 14-16px, caption 12-13px.
+- Use proper Arabic line height, no cramped text and no extremely thin weights.
+- Use logical properties (margin-inline, padding-inline, inset-inline) and correct RTL icon placement.
+
+VISUAL TOKENS
+Use the exact palette and opacity table from the attached specification. Core fallback tokens:
+- Brand Green #12372F
+- Secondary Green #245B4B
+- Brick Red #A9574A
+- Lavender Accent #7569F2 (supporting only)
+- Soft Aqua #CDEFF4
+- Soft Mint #DFF5E9
+- Warm Cream #FFFDF8
+- Base Background #F5F7F6
+- Text #17372D
+- Muted #6F7D76
+- Danger #C85454
+- White Glass rgba(255,255,255,0.68-0.82)
+
+PWA
+- Add/verify manifest, icons using the original logo, standalone display, safe service worker, install prompt and static offline shell.
+- Do not cache confidential authenticated responses.
+- App name: نظام شؤون الغذاء للمتابعة
+- Short name: شؤون الغذاء
+
+PERFORMANCE AND ACCESSIBILITY
+- Optimize images and lazy-load non-critical screens.
+- Avoid duplicate CSS/JS and repeated API requests.
+- Minimum touch target 44px; visible focus; proper labels; adequate contrast; keyboard support; reduced motion; safe areas.
+- Test at 360, 375, 390, 412, 768 and desktop widths.
+- No horizontal overflow, hidden content behind bottom navigation, route errors, console errors or broken RTL.
+
+TOKEN-SAVING WORKFLOW
+- Read the attached specification once and use it as reference.
+- Do not repeat the requirements back to me.
+- Before each phase, inspect only relevant files.
+- Edit the minimum required files.
+- Prefer shared tokens and reusable components over per-page CSS.
+- Do not paste complete source files unless a file is newly created and small.
+- After each phase, reply only with: files changed, what is complete, test result, and any blocker.
+- If tool-use limit is reached, stop at a clean checkpoint and state the exact next file/action only.
+
+Start now with Phase 0 and Phase 1, then implement the mobile dashboard, meetings and tasks. Do not modify unrelated business logic. Final output must be working code, not a mockup only.
