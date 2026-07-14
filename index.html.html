@@ -3478,6 +3478,21 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
     width: 1px; height: 12px;
     background: linear-gradient(180deg, transparent, rgba(117,105,242,0.35), transparent);
   }
+  /* شريط وقت الصلاة القادمة */
+  .m-prayer {
+    display: flex; align-items: center; gap: 6px;
+    margin: 6px 0 0; padding: 6px 10px;
+    background: linear-gradient(135deg, rgba(16,185,129,0.10), rgba(139,92,246,0.10));
+    border: 1px solid rgba(139,92,246,0.20);
+    border-radius: 10px;
+    font-size: 11.5px; font-weight: 600;
+    color: #245B4B; letter-spacing: -0.1px;
+    direction: rtl;
+  }
+  .m-prayer .m-dt-icon { color: #8B5CF6; }
+  .m-prayer-txt { flex: 1; }
+  .m-prayer-txt b { color: #17372D; font-weight: 800; }
+  .m-prayer-time { color: #6F7D76; font-weight: 700; }
 
   .m-section-title {
     display: flex; align-items: center; justify-content: space-between;
@@ -19897,53 +19912,147 @@ function initTilesReorder() {
   });
 }
 
-/* ─── ساعة الترحيب: تاريخ ميلادي + هجري + وقت (يحدّث كل 15ث) ─── */
+/* ─── ساعة الترحيب: تاريخ ميلادي + هجري + وقت 12س + وقت الصلاة القادمة ─── */
 let _mDateTimeTimer = null;
+
+// أسماء الصلوات بالعربي
+const PRAYER_NAMES_AR = {
+  Fajr: 'الفجر', Sunrise: 'الشروق', Dhuhr: 'الظهر',
+  Asr: 'العصر', Maghrib: 'المغرب', Isha: 'العشاء'
+};
+
+// كاش أوقات الصلاة (مفتاحه = التاريخ + إحداثيات مقرّبة)
+async function loadPrayerTimes() {
+  try {
+    const now = new Date();
+    const today = now.toISOString().slice(0,10);
+    const cachedKey = localStorage.getItem('prayerTimesKey');
+    const cachedData = localStorage.getItem('prayerTimesData');
+    // لو الكاش لليوم موجود، استخدمه
+    if (cachedKey && cachedKey.startsWith(today) && cachedData) {
+      return JSON.parse(cachedData);
+    }
+    // اطلب إذن الموقع فقط لو المستخدم لسه ما اتطلب منه (كاش صغير للتذكّر)
+    const denied = localStorage.getItem('geoDenied');
+    if (denied === '1') return null;
+    if (!navigator.geolocation) return null;
+
+    const pos = await new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        p => resolve(p),
+        (err) => { if (err.code === 1) localStorage.setItem('geoDenied','1'); resolve(null); },
+        { timeout: 8000, maximumAge: 24*3600*1000 }
+      );
+    });
+    if (!pos) return null;
+
+    const lat = pos.coords.latitude.toFixed(3);
+    const lng = pos.coords.longitude.toFixed(3);
+    // AlAdhan API — طريقة أم القرى (4)، مجاني، لا يحتاج مفتاح
+    const url = `https://api.aladhan.com/v1/timings/${today}?latitude=${lat}&longitude=${lng}&method=4`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const timings = json?.data?.timings;
+    if (!timings) return null;
+    localStorage.setItem('prayerTimesKey', `${today}_${lat}_${lng}`);
+    localStorage.setItem('prayerTimesData', JSON.stringify(timings));
+    return timings;
+  } catch(e) { return null; }
+}
+
+// يحسب الصلاة القادمة والوقت المتبقي
+function nextPrayerFrom(timings, now) {
+  if (!timings) return null;
+  const order = ['Fajr','Dhuhr','Asr','Maghrib','Isha'];
+  for (const name of order) {
+    const raw = timings[name];
+    if (!raw) continue;
+    const [h,m] = raw.split(':').map(Number);
+    const pdate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m || 0, 0);
+    if (pdate > now) {
+      const diff = Math.round((pdate - now) / 60000);
+      return { name, timeStr: raw, arName: PRAYER_NAMES_AR[name] || name, minutes: diff, date: pdate };
+    }
+  }
+  // كل صلوات اليوم فاتت → الفجر القادم غداً
+  const [h,m] = (timings.Fajr || '00:00').split(':').map(Number);
+  const pdate = new Date(now.getFullYear(), now.getMonth(), now.getDate()+1, h, m || 0, 0);
+  const diff = Math.round((pdate - now) / 60000);
+  return { name:'Fajr', timeStr: timings.Fajr, arName: 'الفجر', minutes: diff, date: pdate };
+}
+
+// تنسيق الوقت 12س بصيغة "8:45 ص" / "1:20 م"
+function to12hArabic(hours24, minutes) {
+  const suffix = hours24 < 12 ? 'ص' : 'م';
+  let h = hours24 % 12; if (h === 0) h = 12;
+  const mm = String(minutes).padStart(2,'0');
+  return `${h}:${mm} ${suffix}`;
+}
+
+// تنسيق "متبقي X" بصيغة مقروءة
+function formatRemain(mins) {
+  if (mins < 1) return 'أقل من دقيقة';
+  if (mins < 60) return `${mins} دقيقة`;
+  const h = Math.floor(mins / 60), m = mins % 60;
+  if (m === 0) return `${h} ساعة`;
+  return `${h}س ${m}د`;
+}
+
 function startMobileDateTimeClock() {
-  const upd = () => {
+  const upd = async (fetchPrayer = false) => {
     const timeEl = document.getElementById('mDtTime');
     const gregEl = document.getElementById('mDtGreg');
     const hijEl  = document.getElementById('mDtHijri');
     if (!timeEl && !gregEl && !hijEl) {
-      // العناصر لم تعد موجودة (المستخدم غادر الشاشة)
       if (_mDateTimeTimer) { clearInterval(_mDateTimeTimer); _mDateTimeTimer = null; }
       return;
     }
     const now = new Date();
-    // الوقت — أرقام لاتينية بصيغة 24س
-    if (timeEl) {
-      const hh = String(now.getHours()).padStart(2,'0');
-      const mm = String(now.getMinutes()).padStart(2,'0');
-      timeEl.textContent = `${hh}:${mm}`;
-    }
-    // التاريخ الميلادي بالعربي (٢٦ يوليو ٢٠٢٦ → 14 يوليو 2026)
+    // الوقت — صيغة 12 ساعة عربية
+    if (timeEl) timeEl.textContent = to12hArabic(now.getHours(), now.getMinutes());
+    // التاريخ الميلادي
     if (gregEl) {
       try {
         gregEl.textContent = new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
           day: 'numeric', month: 'long', year: 'numeric'
         }).format(now);
-      } catch(e) {
-        gregEl.textContent = now.toLocaleDateString('ar');
-      }
+      } catch(e) { gregEl.textContent = now.toLocaleDateString('ar'); }
     }
-    // التاريخ الهجري (أم القرى)
+    // التاريخ الهجري
     if (hijEl) {
       try {
         hijEl.textContent = new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn', {
           day: 'numeric', month: 'long', year: 'numeric'
         }).format(now).replace(/هـ|هجري/g,'').trim();
       } catch(e) {
-        try {
-          hijEl.textContent = new Intl.DateTimeFormat('ar-SA-u-ca-islamic', {
-            day: 'numeric', month: 'long', year: 'numeric'
-          }).format(now);
-        } catch(e2) { hijEl.textContent = ''; }
+        try { hijEl.textContent = new Intl.DateTimeFormat('ar-SA-u-ca-islamic', { day:'numeric', month:'long', year:'numeric' }).format(now); }
+        catch(e2) { hijEl.textContent = ''; }
+      }
+    }
+    // شريط الصلاة
+    const prayerRow = document.getElementById('mPrayerRow');
+    if (prayerRow) {
+      let timings = window.__cachedPrayerTimings;
+      if (!timings || fetchPrayer) {
+        timings = await loadPrayerTimes();
+        window.__cachedPrayerTimings = timings;
+      }
+      if (timings) {
+        const nxt = nextPrayerFrom(timings, now);
+        if (nxt) {
+          const [ph,pm] = nxt.timeStr.split(':').map(Number);
+          document.getElementById('mPrayerRemain').textContent = formatRemain(nxt.minutes);
+          document.getElementById('mPrayerName').textContent = nxt.arName;
+          document.getElementById('mPrayerTime').textContent = to12hArabic(ph, pm || 0);
+          prayerRow.style.display = 'flex';
+        }
       }
     }
   };
-  upd();
+  upd(true);
   if (_mDateTimeTimer) clearInterval(_mDateTimeTimer);
-  _mDateTimeTimer = setInterval(upd, 15000);
+  _mDateTimeTimer = setInterval(() => upd(false), 30000);
 }
 
 async function renderMobileHome(body) {
@@ -19967,6 +20076,13 @@ async function renderMobileHome(body) {
           <span class="m-dt-cell"><span data-lucide="calendar" class="m-dt-icon"></span><span class="m-dt-val" id="mDtGreg">—</span></span>
           <span class="m-dt-sep"></span>
           <span class="m-dt-cell"><span data-lucide="moon" class="m-dt-icon"></span><span class="m-dt-val" id="mDtHijri">—</span></span>
+        </div>
+        <div class="m-prayer" id="mPrayerRow" style="display:none;">
+          <span data-lucide="sunset" class="m-dt-icon"></span>
+          <span class="m-prayer-txt">
+            متبقي <b id="mPrayerRemain">—</b> لصلاة <b id="mPrayerName">—</b>
+            <span class="m-prayer-time">(<span id="mPrayerTime">—</span>)</span>
+          </span>
         </div>
       </div>
     </div>
