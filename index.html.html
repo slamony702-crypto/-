@@ -3887,6 +3887,39 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
   }
   .m-chip.active { background: linear-gradient(135deg, #12372F, #245B4B); color: #FFFDF8; border-color: transparent; box-shadow: 0 4px 12px rgba(18,55,47,0.25); }
 
+  /* زر "النسخة الكاملة" على شاشات الموبايل */
+  .m-full-view-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 6px 12px; border-radius: 999px;
+    background: linear-gradient(135deg, rgba(16,185,129,0.14), rgba(139,92,246,0.14));
+    border: 1.5px solid transparent;
+    background-image:
+      linear-gradient(135deg, rgba(16,185,129,0.14), rgba(139,92,246,0.14)),
+      linear-gradient(135deg, #10B981, #8B5CF6);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    color: #047857;
+    font-family: inherit; font-size: 11.5px; font-weight: 700;
+    cursor: pointer; white-space: nowrap;
+  }
+  .m-full-view-btn:active { transform: scale(0.95); }
+  .m-full-view-btn [data-lucide] { color: #059669; }
+  /* زر رجوع للنسخة المبسطة */
+  .m-back-to-mobile {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; margin: 8px 0 12px;
+    padding: 10px 14px; border-radius: 12px;
+    background: linear-gradient(135deg, #059669, #10B981, #8B5CF6);
+    color: #fff; border: none;
+    font-family: inherit; font-size: 13px; font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(16,185,129,0.25);
+  }
+  .m-back-to-mobile [data-lucide] { width: 14px; height: 14px; }
+  /* لما نعرض نسخة الديسكتوب داخل شاشة الموبايل: نسمح بالسكرول الأفقي للجداول */
+  .m-full-desktop-view { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .m-full-desktop-view table { max-width: none; }
+
   /* أزرار واتساب داخل كارت الاجتماع */
   .m-wa-actions {
     display: flex; align-items: center; gap: 6px;
@@ -4212,7 +4245,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v38-2026-07-14-whatsapp-voice';
+const APP_VERSION = 'v39-2026-07-14-full-view-toggle';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -20691,8 +20724,11 @@ const MMeetState = { filter: 'all', search: '' };
 async function renderMobileMeetings(body) {
   const isAdmin = ['admin','company_manager'].includes(CURRENT_USER.role);
   body.innerHTML = `
-    <div class="m-section-title" style="margin-top:4px;">
+    <div class="m-section-title" style="margin-top:4px;justify-content:space-between;align-items:center;">
       <h3 style="font-size:20px;font-weight:800;">الاجتماعات</h3>
+      <button type="button" id="mFullMeetsView" class="m-full-view-btn" title="عرض النسخة الكاملة">
+        <span data-lucide="layout-list" style="width:14px;height:14px;"></span> النسخة الكاملة
+      </button>
     </div>
     <div class="m-chips" id="mMeetChips">
       <button class="m-chip active" data-mf="all">الكل</button>
@@ -20779,6 +20815,8 @@ async function renderMobileMeetings(body) {
   document.getElementById('mFabNewMeeting')?.addEventListener('click', () => {
     openMobileCreateMeeting();
   });
+  // زر النسخة الكاملة (الديسكتوب)
+  document.getElementById('mFullMeetsView')?.addEventListener('click', () => openFullDesktopView('meetings'));
 }
 
 /* ─── WhatsApp: يفتح واتساب المنسق برسالة جاهزة (دعوة أو تذكير) ─── */
@@ -20847,8 +20885,11 @@ const MTaskState = { tab: 'mine' };
 async function renderMobileTasks(body) {
   const uid = CURRENT_USER.id;
   body.innerHTML = `
-    <div class="m-section-title" style="margin-top:4px;">
+    <div class="m-section-title" style="margin-top:4px;justify-content:space-between;align-items:center;">
       <h3 style="font-size:20px;font-weight:800;">المهام</h3>
+      <button type="button" id="mFullTasksView" class="m-full-view-btn" title="عرض النسخة الكاملة">
+        <span data-lucide="layout-list" style="width:14px;height:14px;"></span> النسخة الكاملة
+      </button>
     </div>
     <div class="m-chips" id="mTaskChips">
       <button class="m-chip active" data-mt="mine">مهامي</button>
@@ -20925,6 +20966,41 @@ async function renderMobileTasks(body) {
     });
   });
   renderList();
+  // زر النسخة الكاملة (الديسكتوب) — يعرض كل الفلاتر والأعمدة والحالات
+  document.getElementById('mFullTasksView')?.addEventListener('click', () => openFullDesktopView('tasks'));
+}
+
+/* يفتح نسخة الديسكتوب الكاملة لأي صفحة داخل شاشة الموبايل */
+async function openFullDesktopView(pageName) {
+  const body = document.getElementById('pageBody');
+  if (!body) return;
+  const map = {
+    tasks: _originalPageTasks,
+    meetings: _originalPageMeetings,
+    notifications: _originalPageNotifications,
+    dashboard: _originalPageDashboard
+  };
+  const fn = map[pageName];
+  if (!fn) { toast('النسخة الكاملة غير متاحة', 'warning'); return; }
+  body.innerHTML = '';
+  // نضيف class عشان CSS يظهر الجداول بحواف قابلة للسحب أفقياً
+  body.classList.add('m-full-desktop-view');
+  try {
+    await fn(body, {});
+    // أضف زر رجوع للنسخة المبسطة
+    if (!document.getElementById('mBackToMobile')) {
+      const back = document.createElement('button');
+      back.id = 'mBackToMobile';
+      back.className = 'm-back-to-mobile';
+      back.innerHTML = '<span data-lucide="arrow-right"></span> رجوع للنسخة المبسطة';
+      back.onclick = () => { body.classList.remove('m-full-desktop-view'); back.remove(); if (typeof renderMobileTasks === 'function' && pageName === 'tasks') renderMobileTasks(body); else if (pageName === 'meetings') renderMobileMeetings(body); else location.reload(); };
+      body.parentNode.insertBefore(back, body);
+      if (window.lucide) lucide.createIcons();
+    }
+  } catch(e) {
+    console.warn('[full-view]', e);
+    toast('حدث خطأ', 'error');
+  }
 }
 
 /* ═══════ Mobile Notifications Page ═══════ */
