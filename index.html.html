@@ -210,18 +210,16 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 .login-logo-wrap {
   display: flex; flex-direction: column; align-items: center; margin-bottom: 8px;
 }
-/* Logo Container صفحة الدخول — إطار زجاجي بنفسجي حول اللوجو */
+/* Logo Container صفحة الدخول — إطار بتدرج أخضر→بنفسجي فاتح */
 .login-logo-wrap {
   padding: 18px 26px;
-  background:
-    linear-gradient(135deg, rgba(36,91,75,0.06) 0%, rgba(169,87,74,0.05) 100%),
-    #FFFFFF;
+  background: linear-gradient(135deg, #A7F3D0 0%, #86EFAC 25%, #C4B5FD 65%, #DDD6FE 100%);
   border-radius: var(--radius-2xl);
-  border: 1px solid rgba(36,91,75,0.15);
+  border: 1px solid rgba(255,255,255,0.65);
   box-shadow:
-    0 1px 2px rgba(36,91,75,0.08),
-    0 4px 12px -2px rgba(36,91,75,0.12),
-    inset 0 1px 0 rgba(255,255,255,0.8);
+    0 2px 4px rgba(16,185,129,0.15),
+    0 8px 22px -4px rgba(139,92,246,0.22),
+    inset 0 1px 0 rgba(255,255,255,0.85);
   position: relative; overflow: hidden;
   max-width: fit-content; margin: 0 auto 8px !important;
 }
@@ -229,21 +227,21 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   content: '';
   position: absolute; top: -30%; right: -10%;
   width: 120px; height: 120px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(36,91,75,0.14), transparent 70%);
+  background: radial-gradient(circle, rgba(255,255,255,0.5), transparent 70%);
   pointer-events: none;
 }
 .login-logo-wrap::after {
   content: '';
   position: absolute; bottom: -30%; left: -10%;
   width: 100px; height: 100px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(169,87,74,0.10), transparent 70%);
+  background: radial-gradient(circle, rgba(255,255,255,0.35), transparent 70%);
   pointer-events: none;
 }
 .login-logo-wrap img {
   display: block !important;
   max-width: 200px; height: auto;
   position: relative; z-index: 1;
-  filter: drop-shadow(0 4px 12px rgba(36,91,75,0.18));
+  filter: drop-shadow(0 4px 10px rgba(18,55,47,0.20));
 }
 .login-box .login-tagline {
   text-align: center; color: var(--primary-600);
@@ -5729,7 +5727,7 @@ function renderLogin() {
       </svg>
       <div class="login-box">
         <div class="login-logo-wrap">
-          <img src="${LOGO_DATA_URI}" alt="شؤون الغذاء">
+          <img src="logo-new.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI">
         </div>
         <p class="login-tagline">لتطوير وإدارة المطاعم</p>
         <h1>مرحبًا بعودتك</h1>
@@ -5827,7 +5825,7 @@ function renderSignupRequestPage() {
         <path d="M100 30 C60 55 45 105 60 150 C75 125 95 118 100 95 C105 118 125 125 140 150 C155 105 140 55 100 30 Z" fill="#245B4B" opacity="0.10"/>
       </svg>
       <div class="login-box" id="signupBox">
-        <div class="login-logo-wrap"><img src="${LOGO_DATA_URI}" alt="شؤون الغذاء"></div>
+        <div class="login-logo-wrap"><img src="logo-new.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI"></div>
         <h1>طلب انضمام جديد</h1>
         <p class="subtitle">عبّي بياناتك وهنراجعها ونتواصل معاك</p>
         <div class="login-error" id="srError"><span data-lucide="alert-circle"></span><span id="srErrorText"></span></div>
@@ -5990,7 +5988,7 @@ function renderSetNewPasswordPage() {
     <div class="login-page">
       <div class="login-glow"></div>
       <div class="login-box">
-        <div class="login-logo-wrap"><img src="${LOGO_DATA_URI}" alt="شؤون الغذاء"></div>
+        <div class="login-logo-wrap"><img src="logo-new.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI"></div>
         <h1>تعيين كلمة مرور جديدة</h1>
         <p class="subtitle">أدخل كلمة المرور الجديدة لحسابك</p>
         <div class="login-error" id="npError"><span data-lucide="alert-circle"></span><span id="npErrorText"></span></div>
@@ -10318,7 +10316,7 @@ async function renderAppCore() {
       <aside class="sidebar ${collapsed ? 'collapsed' : ''}" id="appSidebar">
         <button class="sidebar-toggle" id="sidebarToggleBtn" title="طي/فتح القائمة">${collapsed ? '›' : '‹'}</button>
         <div class="brand" style="border-radius:10px; display:flex; align-items:center; justify-content:center;">
-          <img src="${LOGO_DATA_URI}" alt="شؤون الغذاء" class="brand-text">
+          <img src="logo-new.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI" class="brand-text">
         </div>
         <nav>${menuHtml}</nav>
         <div class="sidebar-footer">
@@ -19351,7 +19349,7 @@ function mobileAppShellHtml() {
   return `
     <header class="m-appbar">
       <div class="m-appbar-brand">
-        <img src="${LOGO_DATA_URI}" alt="شؤون الغذاء" onerror="this.style.display='none'">
+        <img src="logo-new.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI" onerror="this.style.display='none'">
         <span class="m-appbar-title">شؤون الغذاء</span>
       </div>
       <div class="m-appbar-actions">
