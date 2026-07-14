@@ -4112,13 +4112,11 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
-// عند تغيّره: يُعرض بانر "تم التحديث بنجاح" للمستخدم بشكل مضمون
-// (بدون الاعتماد على أحداث Service Worker)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v30-2026-07-14-app-ver-check';
+const APP_VERSION = 'v31-2026-07-14-live-update-poll';
 
-// فحص الإصدار عند التحميل: لو اختلف عن آخر مرة رآها المستخدم → toast تحديث ناجح
-(function checkAppVersion() {
+// (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
+(function checkAppVersionOnLoad() {
   try {
     const last = localStorage.getItem('lastSeenAppVersion');
     if (last && last !== APP_VERSION) {
@@ -4128,14 +4126,72 @@ const APP_VERSION = 'v30-2026-07-14-app-ver-check';
         t.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top,0px) + 16px);left:50%;transform:translateX(-50%);z-index:99999;padding:12px 20px;border-radius:14px;background:linear-gradient(135deg,#10B981,#059669);color:#fff;font-family:Tajawal,"Noto Sans Arabic",sans-serif;font-size:14px;font-weight:700;box-shadow:0 12px 30px rgba(16,185,129,0.35);display:flex;align-items:center;gap:8px;opacity:0;transition:opacity .3s ease,transform .3s ease;';
         t.innerHTML = '<span style="font-size:16px;">✓</span> تم تحديث النظام إلى أحدث نسخة';
         document.body.appendChild(t);
-        requestAnimationFrame(() => { t.style.opacity = '1'; t.style.transform = 'translateX(-50%) translateY(0)'; });
-        setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(-50%) translateY(-10px)'; setTimeout(() => t.remove(), 350); }, 3500);
+        requestAnimationFrame(() => { t.style.opacity = '1'; });
+        setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 350); }, 3500);
       };
-      if (document.body) showToast();
-      else document.addEventListener('DOMContentLoaded', showToast, { once: true });
+      if (document.body) showToast(); else document.addEventListener('DOMContentLoaded', showToast, { once: true });
     }
     localStorage.setItem('lastSeenAppVersion', APP_VERSION);
   } catch(e) {}
+})();
+
+// (ب) بينما المستخدم شغّال: فحص دوري لملف service-worker.js
+// - كل 45 ثانية نجيبه بـno-store ونستخرج SW_VERSION
+// - لو مختلف عن APP_VERSION → نعرض بانر واضح "تحديث جديد متاح"
+// - هذا بديل مضمون بديلاً عن أحداث SW التي قد لا تصل بشكل موثوق
+(function liveUpdatePoll() {
+  let liveBannerShown = false;
+  const showLiveBanner = (newVer) => {
+    if (liveBannerShown || document.getElementById('appLiveUpdateBanner')) return;
+    liveBannerShown = true;
+    const bar = document.createElement('div');
+    bar.id = 'appLiveUpdateBanner';
+    bar.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top,0px) + 12px);left:12px;right:12px;z-index:99999;padding:14px 18px;border-radius:16px;background:linear-gradient(135deg,#059669 0%,#10B981 40%,#8B5CF6 100%);color:#fff;font-family:Tajawal,"Noto Sans Arabic",sans-serif;font-size:14px;font-weight:700;box-shadow:0 14px 34px rgba(16,185,129,0.35),0 6px 16px rgba(139,92,246,0.30);display:flex;align-items:center;gap:10px;';
+    bar.innerHTML = `
+      <span style="font-size:20px;line-height:1;">✨</span>
+      <span style="flex:1;line-height:1.4;">تحديث جديد متاح — اضغط للتحديث الآن</span>
+      <button id="appLiveUpdateBtn" style="background:#fff;color:#059669;border:none;padding:8px 16px;border-radius:10px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;">تحديث</button>
+      <button id="appLiveUpdateDismiss" aria-label="إغلاق" style="background:none;border:none;color:#fff;font-size:18px;line-height:1;cursor:pointer;padding:4px 6px;opacity:.85;">✕</button>
+    `;
+    document.body.appendChild(bar);
+    document.getElementById('appLiveUpdateBtn').onclick = () => location.reload();
+    document.getElementById('appLiveUpdateDismiss').onclick = () => bar.remove();
+    // اهتزاز خفيف على الأجهزة الداعمة
+    try { navigator.vibrate && navigator.vibrate([25, 60, 25]); } catch(e) {}
+    // إشعار متصفح لو مسموح
+    try {
+      if ('Notification' in window && Notification.permission === 'granted' && navigator.serviceWorker?.ready) {
+        navigator.serviceWorker.ready.then(reg => reg.showNotification('تحديث جديد جاهز', {
+          body: 'اضغط لتحميل آخر تحسينات نظام شؤون الغذاء', icon: '/icon-192-v2.png', badge: '/icon-192-v2.png',
+          tag: 'app-update', renotify: true
+        })).catch(()=>{});
+      }
+    } catch(e) {}
+  };
+
+  const checkForUpdate = async () => {
+    if (liveBannerShown) return;
+    try {
+      const res = await fetch('service-worker.js?_=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) return;
+      const text = await res.text();
+      const m = text.match(/SW_VERSION\s*=\s*['"]([^'"]+)['"]/);
+      if (!m) return;
+      const remoteVer = m[1];
+      if (remoteVer && remoteVer !== APP_VERSION) {
+        showLiveBanner(remoteVer);
+      }
+    } catch(e) { /* شبكة انقطعت — نتجاهل */ }
+  };
+
+  // أول فحص بعد 20 ثانية من التحميل
+  setTimeout(checkForUpdate, 20 * 1000);
+  // ثم كل 45 ثانية
+  setInterval(checkForUpdate, 45 * 1000);
+  // وعند رجوع المستخدم للتبويب
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') setTimeout(checkForUpdate, 500);
+  });
 })();
 
 // ============ إعداد الاتصال بـ Supabase ============
