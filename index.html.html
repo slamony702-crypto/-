@@ -4113,7 +4113,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v31-2026-07-14-live-update-poll';
+const APP_VERSION = 'v32-2026-07-14-fab-fix';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -20625,7 +20625,7 @@ async function renderMobileMeetings(body) {
       <button class="m-chip" data-mf="postponed">مؤجلة</button>
     </div>
     <div id="mMeetList"></div>
-    <button class="m-fab" onclick="location.hash='#meetings'; setTimeout(()=>document.getElementById('toggleCreateBtn')?.click(),100);" aria-label="جدولة اجتماع جديد">
+    <button class="m-fab" id="mFabNewMeeting" aria-label="جدولة اجتماع جديد">
       <span data-lucide="plus" style="width:22px;height:22px;"></span>
     </button>
   `;
@@ -20689,6 +20689,34 @@ async function renderMobileMeetings(body) {
     });
   });
   renderList();
+
+  // FAB: افتح نموذج إنشاء اجتماع (يستخدم نموذج الديسكتوب — يظهر داخل الصفحة)
+  document.getElementById('mFabNewMeeting')?.addEventListener('click', () => {
+    openMobileCreateMeeting();
+  });
+}
+
+/* يفتح نموذج إنشاء اجتماع من الديسكتوب داخل الشاشة الحالية بالكامل */
+async function openMobileCreateMeeting() {
+  const body = document.getElementById('pageBody');
+  if (!body || !_originalPageMeetings) { location.hash = '#meetings'; return; }
+  // ارسم صفحة الاجتماعات كاملة (نسخة الديسكتوب) ثم افتح لوحة الإنشاء
+  body.innerHTML = '';
+  try {
+    await _originalPageMeetings(body, {});
+    setTimeout(() => {
+      const btn = document.getElementById('toggleCreateBtn');
+      if (btn) {
+        btn.click();
+        // سكرول لأعلى ولوحة الإنشاء
+        const panel = document.getElementById('createPanel');
+        if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 200);
+  } catch(e) {
+    console.warn('[new-meeting] fallback', e);
+    location.hash = '#meetings';
+  }
 }
 
 /* ═══════ Mobile Tasks Page ═══════ */
