@@ -204,6 +204,8 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   border: 1px solid var(--neutral-100);
   box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25), 0 8px 20px rgba(0,0,0,0.08);
   animation: loginBoxIn .5s cubic-bezier(.2,.9,.3,1);
+  padding-top: 120px;
+  overflow: visible;
 }
 @keyframes loginBoxIn { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
@@ -211,7 +213,7 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 .login-logo-wrap {
   display: flex; flex-direction: column; align-items: center; margin-bottom: 8px;
 }
-/* Logo Container صفحة الدخول — الصورة نفسها فيها التدرج والـ tagline */
+/* Logo Container صفحة الدخول — يطفو فوق البطاقة البيضاء */
 .login-logo-wrap {
   display: flex; align-items: center; justify-content: center;
   width: 200px; height: 200px;
@@ -219,10 +221,12 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   border-radius: 22%;
   overflow: hidden;
   box-shadow:
-    0 2px 4px rgba(16,185,129,0.12),
-    0 12px 28px -6px rgba(139,92,246,0.22);
-  margin: 0 auto 20px !important;
+    0 4px 16px rgba(16,185,129,0.18),
+    0 12px 28px -6px rgba(139,92,246,0.25);
+  margin: -160px auto 10px !important;
   background: transparent;
+  position: relative;
+  z-index: 2;
 }
 .login-logo-wrap img {
   display: block !important;
@@ -1281,8 +1285,9 @@ tr:hover td { background: var(--primary-light); }
   .drawer { width: 100%; max-width: 100%; }
   .modal-box { width: 94% !important; overflow-x: auto; }
   .modal-box table { min-width: 480px; }
-  .login-box { padding: 28px 18px 22px; border-radius: 22px; }
-  .login-logo-wrap img { max-width: 180px; padding: 10px 16px; border-radius: 14px; }
+  .login-box { padding: 100px 18px 22px; border-radius: 22px; overflow: visible; }
+  .login-logo-wrap { width: 170px; height: 170px; margin: -140px auto 8px !important; }
+  .login-logo-wrap img { max-width: 100%; border-radius: 22%; }
   .login-box h1 { font-size: 19px; }
   .login-input-wrap { height: 52px; padding: 0 12px; gap: 8px; }
   .login-input-wrap input { font-size: 13.5px; }
@@ -4245,7 +4250,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v41-2026-07-14-quality-maint';
+const APP_VERSION = 'v42-2026-07-14-logo-float';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
