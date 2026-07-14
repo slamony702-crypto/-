@@ -3410,6 +3410,72 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
     border-radius: 8px; font-size: 10px; font-weight: 700;
     display: flex; align-items: center; justify-content: center;
   }
+  /* عندما يوجد إشعارات/رسائل غير مقروءة → توهج نابض */
+  .m-appbar-btn.has-alert {
+    animation: mBtnPulse 1.8s ease-in-out infinite;
+    background-image:
+      linear-gradient(135deg, rgba(255,235,239,0.95), rgba(255,245,235,0.95)),
+      linear-gradient(135deg, #EF4444 0%, #F59E0B 50%, #8B5CF6 100%);
+  }
+  .m-appbar-btn.has-alert [data-lucide] {
+    color: #EF4444;
+    animation: mBellShake 2s ease-in-out infinite;
+    transform-origin: 50% 20%;
+  }
+  @keyframes mBtnPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.35); }
+    50%      { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+  }
+  @keyframes mBellShake {
+    0%, 92%, 100% { transform: rotate(0); }
+    94%           { transform: rotate(-14deg); }
+    96%           { transform: rotate(12deg); }
+    98%           { transform: rotate(-6deg); }
+  }
+  /* شيت الإشعارات/الرسائل السريع */
+  .m-quick-sheet-title {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 6px 12px;
+    font-size: 15px; font-weight: 700; color: #17372D;
+  }
+  .m-quick-sheet-title [data-lucide] { width: 18px; height: 18px; color: #7569F2; }
+  .m-quick-list {
+    display: flex; flex-direction: column; gap: 8px;
+    max-height: 55vh; overflow-y: auto; margin-bottom: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .m-quick-item {
+    display: block; padding: 12px 14px;
+    background: rgba(255,255,255,0.85);
+    border: 1px solid rgba(117,105,242,0.10);
+    border-radius: 14px; text-decoration: none; color: #17372D;
+    cursor: pointer; transition: transform .12s;
+  }
+  .m-quick-item:active { transform: scale(0.98); }
+  .m-quick-item.is-unread {
+    background: linear-gradient(135deg, rgba(226,220,255,0.65), rgba(255,255,255,0.85));
+    border-color: rgba(117,105,242,0.28);
+  }
+  .m-quick-item-head {
+    display: flex; align-items: center; gap: 6px;
+    font-weight: 700; font-size: 13.5px;
+  }
+  .m-quick-item-head [data-lucide] { width: 14px; height: 14px; color: #7569F2; }
+  .m-quick-item-body { font-size: 12px; color: #6F7D76; margin-top: 4px; line-height: 1.4; }
+  .m-quick-item-time { font-size: 10.5px; color: #9CA3AF; margin-top: 5px; }
+  .m-quick-empty {
+    padding: 32px 14px; text-align: center;
+    color: #6F7D76; font-size: 13px;
+  }
+  .m-quick-empty [data-lucide] { color: #C4B5FD; }
+  .m-quick-all {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 12px; border-radius: 14px;
+    background: linear-gradient(135deg, rgba(16,185,129,0.10), rgba(139,92,246,0.10));
+    border: 1px solid rgba(139,92,246,0.20);
+    color: #245B4B; font-size: 13px; font-weight: 700;
+    text-decoration: none; cursor: pointer;
+  }
 
   /* Welcome */
   .m-welcome {
@@ -19534,8 +19600,8 @@ function ensureMobileShell() {
     });
     // Search + Notif
     document.getElementById('mBtnSearch')?.addEventListener('click', openMobileSearchSheet);
-    document.getElementById('mBtnNotif')?.addEventListener('click', () => location.hash = '#notifications');
-    document.getElementById('mBtnMessages')?.addEventListener('click', () => location.hash = '#conversations');
+    document.getElementById('mBtnNotif')?.addEventListener('click', openMobileNotifsSheet);
+    document.getElementById('mBtnMessages')?.addEventListener('click', openMobileMessagesSheet);
     document.getElementById('mBtnMenu')?.addEventListener('click', openMobileMoreSheet);
     if (window.lucide) lucide.createIcons();
   }
@@ -19631,6 +19697,132 @@ function openMobileSearchSheet() {
     };
     try { recognition.start(); } catch(e) { hint.textContent = '❌ لا يمكن بدء التسجيل'; }
   });
+}
+
+/* ─── Quick Sheets: Notifications & Messages (تفتح بدل التنقل لصفحة) ─── */
+function openMobileQuickSheet({ title, icon, itemsHtml, allHref, allLabel }) {
+  const existing = document.getElementById('mQuickSheet');
+  if (existing) { existing.remove(); return; }
+  const sheet = document.createElement('div');
+  sheet.id = 'mQuickSheet';
+  sheet.className = 'm-more-overlay';
+  sheet.innerHTML = `
+    <div class="m-more-backdrop" onclick="this.parentElement.remove()"></div>
+    <div class="m-more-sheet" style="max-height:75vh;">
+      <div class="m-more-handle"></div>
+      <div class="m-quick-sheet-title"><span data-lucide="${icon}"></span> ${title}</div>
+      <div class="m-quick-list">${itemsHtml}</div>
+      <a class="m-quick-all" href="${allHref}"><span data-lucide="arrow-left" style="width:14px;height:14px;"></span> ${allLabel}</a>
+    </div>
+  `;
+  document.body.appendChild(sheet);
+  if (window.lucide) lucide.createIcons();
+  sheet.querySelectorAll('a[href]').forEach(a => a.addEventListener('click', () => setTimeout(() => sheet.remove(), 40)));
+}
+
+async function openMobileNotifsSheet() {
+  const { data: notifs } = await sb.from('notifications')
+    .select('id, title, body, link, is_read, created_at')
+    .eq('user_id', CURRENT_USER.id)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  const list = notifs || [];
+  const itemsHtml = list.length ? list.map(n => `
+    <a class="m-quick-item ${n.is_read ? '' : 'is-unread'}" href="${n.link || '#notifications'}">
+      <div class="m-quick-item-head"><span data-lucide="bell"></span> ${esc(n.title || 'إشعار')}</div>
+      ${n.body ? `<div class="m-quick-item-body">${esc(n.body)}</div>` : ''}
+      <div class="m-quick-item-time">${fmtDate(n.created_at)}</div>
+    </a>
+  `).join('') : `<div class="m-quick-empty"><span data-lucide="bell-off" style="width:36px;height:36px;display:inline-block;margin-bottom:8px;"></span><div>لا توجد إشعارات جديدة</div></div>`;
+  openMobileQuickSheet({ title: 'الإشعارات', icon: 'bell', itemsHtml, allHref: '#notifications', allLabel: 'عرض كل الإشعارات' });
+  // اجعلها مقروءة بعد الفتح (تحديث خلفي)
+  const unreadIds = list.filter(n => !n.is_read).map(n => n.id);
+  if (unreadIds.length) {
+    sb.from('notifications').update({ is_read: true }).in('id', unreadIds).then(() => {
+      updateMobileAlertBadges();
+    });
+  }
+}
+
+async function openMobileMessagesSheet() {
+  let itemsHtml = '';
+  try {
+    // اجلب محادثات المستخدم وآخر رسالة في كل منها
+    const { data: memberships } = await sb.from('conversation_members').select('conversation_id').eq('user_id', CURRENT_USER.id);
+    const convIds = (memberships || []).map(c => c.conversation_id);
+    if (convIds.length) {
+      const [{ data: convs }, { data: msgs }, { data: reads }] = await Promise.all([
+        sb.from('conversations').select('id, title, conversation_type, meeting_id, department_id').in('id', convIds),
+        sb.from('messages').select('id, conversation_id, content, sender_id, created_at, users(full_name)').in('conversation_id', convIds).order('created_at', { ascending: false }).limit(50),
+        sb.from('message_reads').select('message_id').eq('user_id', CURRENT_USER.id)
+      ]);
+      const readSet = new Set((reads || []).map(r => r.message_id));
+      // آخر رسالة لكل محادثة
+      const lastByConv = {};
+      (msgs || []).forEach(m => { if (!lastByConv[m.conversation_id]) lastByConv[m.conversation_id] = m; });
+      // ابنِ قائمة بترتيب زمني تنازلي
+      const items = (convs || []).map(c => {
+        const last = lastByConv[c.id];
+        return { conv: c, last };
+      }).filter(x => x.last).sort((a,b) => new Date(b.last.created_at) - new Date(a.last.created_at)).slice(0, 20);
+      if (items.length) {
+        itemsHtml = items.map(({ conv, last }) => {
+          const isUnread = last.sender_id !== CURRENT_USER.id && !readSet.has(last.id);
+          const sender = last.users?.full_name || '';
+          const title = conv.title || (conv.conversation_type === 'direct' ? sender : 'محادثة');
+          return `
+            <a class="m-quick-item ${isUnread ? 'is-unread' : ''}" href="#conversations">
+              <div class="m-quick-item-head"><span data-lucide="message-circle"></span> ${esc(title)}</div>
+              <div class="m-quick-item-body">${sender ? esc(sender)+': ' : ''}${esc((last.content || '').slice(0, 80))}</div>
+              <div class="m-quick-item-time">${fmtDate(last.created_at)}</div>
+            </a>
+          `;
+        }).join('');
+      }
+    }
+  } catch(e) {}
+  if (!itemsHtml) {
+    itemsHtml = `<div class="m-quick-empty"><span data-lucide="message-circle" style="width:36px;height:36px;display:inline-block;margin-bottom:8px;"></span><div>لا توجد رسائل جديدة</div></div>`;
+  }
+  openMobileQuickSheet({ title: 'الرسائل', icon: 'message-circle', itemsHtml, allHref: '#conversations', allLabel: 'عرض كل المحادثات' });
+}
+
+/* تحديث شارات + توهج الأزرار في الأعلى */
+async function updateMobileAlertBadges() {
+  if (!CURRENT_USER || !document.querySelector('.m-appbar')) return;
+  try {
+    const [{ data: unreadNotifs }, { data: memberships }] = await Promise.all([
+      sb.from('notifications').select('id').eq('user_id', CURRENT_USER.id).eq('is_read', false),
+      sb.from('conversation_members').select('conversation_id').eq('user_id', CURRENT_USER.id)
+    ]);
+    const notifCount = (unreadNotifs || []).length;
+    let msgCount = 0;
+    const convIds = (memberships || []).map(c => c.conversation_id);
+    if (convIds.length) {
+      const [{ data: msgs }, { data: reads }] = await Promise.all([
+        sb.from('messages').select('id').in('conversation_id', convIds).neq('sender_id', CURRENT_USER.id),
+        sb.from('message_reads').select('message_id').eq('user_id', CURRENT_USER.id)
+      ]);
+      const readSet = new Set((reads || []).map(r => r.message_id));
+      msgCount = (msgs || []).filter(m => !readSet.has(m.id)).length;
+    }
+    // تحديث زر الإشعارات
+    const notifBtn = document.getElementById('mBtnNotif');
+    const notifBadge = document.getElementById('mNotifBadge');
+    if (notifBadge) {
+      if (notifCount > 0) { notifBadge.textContent = notifCount > 99 ? '99+' : notifCount; notifBadge.style.display = 'flex'; }
+      else notifBadge.style.display = 'none';
+    }
+    if (notifBtn) notifBtn.classList.toggle('has-alert', notifCount > 0);
+    // تحديث زر الرسائل
+    const msgBtn = document.getElementById('mBtnMessages');
+    const msgBadge = document.getElementById('mMsgBadge');
+    if (msgBadge) {
+      if (msgCount > 0) { msgBadge.textContent = msgCount > 99 ? '99+' : msgCount; msgBadge.style.display = 'flex'; }
+      else msgBadge.style.display = 'none';
+    }
+    if (msgBtn) msgBtn.classList.toggle('has-alert', msgCount > 0);
+  } catch(e) {}
 }
 
 function openMobileMoreSheet() {
@@ -20117,7 +20309,7 @@ async function renderMobileHome(body) {
   const meetsThisWeek = meetsWeekRes.count || 0;
   const openNonConf = (qualityRes.data || []).reduce((s,v) => s + Number(v.non_conform_count || 0), 0);
 
-  // Update badges
+  // Update badges + توهج الأزرار عند وجود إشعارات/رسائل
   ['mNotifBadge','mBottomNotifBadge'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
@@ -20125,6 +20317,7 @@ async function renderMobileHome(body) {
       else el.style.display = 'none';
     }
   });
+  updateMobileAlertBadges();
 
   // ═══ البلاطات الفاخرة (Premium Section Tiles) + Drag-to-reorder ═══
   const tile = (opts) => `
