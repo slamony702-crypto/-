@@ -19527,16 +19527,14 @@ function openMobileMoreSheet() {
             { key:'quality', hash:'#quality', icon:'shield-check', label:'الجودة' },
             { key:'conversations', hash:'#conversations', icon:'message-circle', label:'التواصل الداخلي' },
             { key:'cafe', hash:'#cafe', icon:'coffee', label:'ركن الكافيه' },
-            { key:'reports', hash:'#reports', icon:'bar-chart-3', label:'التقارير' }
+            { key:'reports', hash:'#reports', icon:'bar-chart-3', label:'التقارير' },
+            { key:'users', hash:'#users', icon:'users', label:'المستخدمون' },
+            { key:'my_profile', hash:'#my_profile', icon:'user', label:'ملفي الشخصي' },
+            { key:'settings', hash:'#settings', icon:'settings', label:'الإعدادات' }
           ];
           // فقط اللي مش موجود في الرئيسية
           const hidden = swappable.filter(s => !homeKeys.includes(s.key));
-          const fixed = [
-            { hash:'#users', icon:'users', label:'المستخدمون' },
-            { hash:'#my_profile', icon:'user', label:'ملفي الشخصي' },
-            { hash:'#settings', icon:'settings', label:'الإعدادات' }
-          ];
-          return [...hidden, ...fixed].map(s =>
+          return hidden.map(s =>
             `<a class="m-more-item" href="${s.hash}"><span data-lucide="${s.icon}" style="width:18px;height:18px;"></span> ${s.label}</a>`
           ).join('');
         })()}
@@ -19610,7 +19608,9 @@ function openMobileCustomizeSheet() {
     meetings: ['الاجتماعات','calendar'], tasks: ['المهام','check-square'],
     decisions: ['القرارات','gavel'], maintenance: ['الصيانة','wrench'],
     quality: ['الجودة','shield-check'], conversations: ['التواصل','message-circle'],
-    cafe: ['ركن الكافيه','coffee'], reports: ['التقارير','bar-chart-3']
+    cafe: ['ركن الكافيه','coffee'], reports: ['التقارير','bar-chart-3'],
+    users: ['المستخدمون','users'], my_profile: ['ملفي الشخصي','user'],
+    settings: ['الإعدادات','settings']
   };
   const visible = window._mHomeSectionKeys || all;
   const sheet = document.createElement('div');
@@ -19856,15 +19856,23 @@ async function renderMobileHome(body) {
     { key:'cafe',      href:'#cafe',      tint:'t-aqua-2',      icon:'coffee',
       title:'ركن الكافيه',  sub:'اطلب مشروبك واستمتع', badge:null },
     { key:'reports',   href:'#reports',   tint:'t-peach-2',     icon:'bar-chart-3',
-      title:'التقارير',     sub:'إحصائيات وأداء الفريق', badge:null }
+      title:'التقارير',     sub:'إحصائيات وأداء الفريق', badge:null },
+    { key:'users',     href:'#users',     tint:'t-lavender',    icon:'users',
+      title:'المستخدمون',   sub:'الفريق والصلاحيات', badge:null },
+    { key:'my_profile',href:'#my_profile',tint:'t-mint',        icon:'user',
+      title:'ملفي الشخصي',  sub:'بياناتي وأدائي', badge:null },
+    { key:'settings',  href:'#settings',  tint:'t-aqua',        icon:'settings',
+      title:'الإعدادات',    sub:'تفضيلات النظام', badge:null }
   ];
   // ترتيب + الرؤية المحفوظة (كلاهما في localStorage)
   const savedOrder = (() => { try { return JSON.parse(localStorage.getItem('mHomeTilesOrder') || '[]'); } catch { return []; } })();
   const savedVisible = (() => {
     try {
       const v = JSON.parse(localStorage.getItem('mHomeTilesVisible') || 'null');
-      return Array.isArray(v) ? v : defaultTiles.map(t => t.key); // افتراضي: كلها ظاهرة
-    } catch { return defaultTiles.map(t => t.key); }
+      if (Array.isArray(v)) return v;
+    } catch {}
+    // افتراضي: 8 الأقسام الأصلية على الرئيسية، والباقي (users/my_profile/settings) في More
+    return ['meetings','tasks','decisions','maintenance','quality','conversations','cafe','reports'];
   })();
   const byKey = Object.fromEntries(defaultTiles.map(t => [t.key, t]));
   const visibleTiles = [
