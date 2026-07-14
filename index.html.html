@@ -14921,8 +14921,37 @@ async function pageDashboard(body) {
   let deferredInstallPrompt = null;
 
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('service-worker.js').catch(() => {});
     let updateBannerShown = false;
+    // تسجيل SW + مراقبة قوية للتحديثات
+    navigator.serviceWorker.register('service-worker.js').then((reg) => {
+      // (1) لو فيه SW ينتظر → أظهر البانر فوراً
+      if (reg.waiting && navigator.serviceWorker.controller) {
+        setTimeout(() => showUpdateBanner(), 300);
+      }
+      // (2) راقب أي SW جديد يبدأ التثبيت
+      reg.addEventListener('updatefound', () => {
+        const newSW = reg.installing;
+        if (!newSW) return;
+        newSW.addEventListener('statechange', () => {
+          if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+            setTimeout(() => showUpdateBanner(), 300);
+          }
+        });
+      });
+      // (3) اسأل المتصفح كل دقيقة لو فيه إصدار جديد
+      setInterval(() => { try { reg.update(); } catch(e){} }, 60 * 1000);
+      // (4) اسأل عند رجوع المستخدم للتبويب
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') { try { reg.update(); } catch(e){} }
+      });
+    }).catch(() => {});
+    // (5) لو تغيّر الـcontroller (نشاط SW جديد) → أظهر البانر
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return;
+      refreshing = true;
+      setTimeout(() => showUpdateBanner(), 200);
+    });
 
     // إشعار متصفح/PWA — لو المستخدم قافل التطبيق ونزل تحديث
     function tryPushNotification(title, body) {
