@@ -3378,9 +3378,10 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
     -webkit-backdrop-filter: blur(18px) saturate(160%);
     border-bottom: 1px solid rgba(255,255,255,0.5);
   }
-  /* ندي مساحة فوق للـpage لكي الـfixed appbar ما يغطيهاش */
+  /* ندي مساحة فوق للـpage لكي الـfixed appbar ما يغطيهاش + مساحة تحت للـfloating bottom nav */
   body.mobile-app-ready .page-body {
     padding-top: calc(env(safe-area-inset-top, 0px) + 76px) !important;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 96px) !important;
   }
   .m-appbar-brand { display: flex; align-items: center; gap: 10px; }
   .m-appbar-brand img { height: 34px; width: auto; }
@@ -3388,12 +3389,17 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
   .m-appbar-actions { display: flex; align-items: center; gap: 8px; }
   .m-appbar-btn {
     width: 40px; height: 40px; border-radius: 12px;
-    background: rgba(255,255,255,0.6);
+    background: rgba(255,255,255,0.75);
     backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.7);
+    border: 1.5px solid transparent;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.75), rgba(255,255,255,0.75)),
+      linear-gradient(135deg, #10B981 0%, #34D399 40%, #8B5CF6 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
     color: #12372F; display: flex; align-items: center; justify-content: center;
     cursor: pointer; position: relative;
-    transition: transform .15s ease, background .15s;
+    transition: transform .15s ease;
   }
   .m-appbar-btn:active { transform: scale(0.95); }
   .m-appbar-btn .m-badge {
@@ -3697,16 +3703,22 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
   }
   .m-chip.active { background: linear-gradient(135deg, #12372F, #245B4B); color: #FFFDF8; border-color: transparent; box-shadow: 0 4px 12px rgba(18,55,47,0.25); }
 
-  /* Bottom Navigation */
+  /* Bottom Navigation — Floating Pill with rounded corners */
   .m-bottomnav {
-    position: fixed; inset: auto 0 0 0; z-index: 50;
+    position: fixed; left: 12px; right: 12px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    z-index: 50;
     display: flex; align-items: stretch; justify-content: space-around;
-    padding: 8px 4px calc(8px + env(safe-area-inset-bottom, 0px));
-    background: rgba(255,255,255,0.85);
+    padding: 8px 6px;
+    background: rgba(255,255,255,0.88);
     backdrop-filter: blur(22px) saturate(180%);
     -webkit-backdrop-filter: blur(22px) saturate(180%);
-    border-top: 1px solid rgba(255,255,255,0.7);
-    box-shadow: 0 -8px 24px rgba(18,55,47,0.08);
+    border: 1px solid rgba(255,255,255,0.75);
+    border-radius: 26px;
+    box-shadow:
+      0 12px 32px rgba(18,55,47,0.14),
+      0 4px 12px rgba(139,92,246,0.10),
+      inset 0 1px 0 rgba(255,255,255,0.85);
   }
   .m-bottomnav-item {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -3740,7 +3752,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
   }
 
   .m-fab {
-    position: fixed; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); left: 18px;
+    position: fixed; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); left: 22px;
     width: 60px; height: 60px; border-radius: 50%;
     background: linear-gradient(135deg, #8B7FF5 0%, #7569F2 60%, #5B4EE0 100%);
     color: #FFFFFF; border: none; cursor: pointer;
@@ -19378,9 +19390,6 @@ function mobileAppShellHtml() {
           <span data-lucide="bell" style="width:17px;height:17px;"></span>
           <span class="m-badge" id="mNotifBadge" style="display:none;">0</span>
         </button>
-        <button class="m-appbar-btn" id="mBtnMenu" title="القائمة" aria-label="القائمة">
-          <span data-lucide="menu" style="width:17px;height:17px;"></span>
-        </button>
       </div>
     </header>
     <nav class="m-bottomnav" role="navigation" aria-label="التنقل السفلي">
@@ -19843,7 +19852,6 @@ async function renderMobileHome(body) {
       <div class="m-welcome-avatar">${esc(initials)}</div>
       <div class="m-welcome-txt">
         <p class="m-welcome-hi">${esc(greeting)}، ${esc(firstName)}</p>
-        <p class="m-welcome-sub">اختر القسم الذي تريد العمل فيه</p>
       </div>
     </div>
     <div class="m-tiles-grid" id="mTilesGrid">
