@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="شؤون الغذاء">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192-v2.png">
+<link rel="apple-touch-icon" href="apple-touch-icon-v2.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://dfuqmmagtteemtpywody.supabase.co" crossorigin>
@@ -10065,8 +10065,8 @@ async function showBrowserPush(title, body, options = {}) {
     if (Notification.permission !== 'granted') return false;
     const opts = {
       body: body || '',
-      icon: 'icon-192.png',
-      badge: 'icon-192.png',
+      icon: 'icon-192-v2.png',
+      badge: 'icon-192-v2.png',
       tag: options.tag || ('notif-' + Date.now()),
       renotify: true,
       requireInteraction: options.urgent === true,
@@ -14705,7 +14705,7 @@ async function pageDashboard(body) {
         if (navigator.serviceWorker && navigator.serviceWorker.ready) {
           navigator.serviceWorker.ready.then(reg => {
             reg.showNotification(title, {
-              body, icon: '/icon-192.png', badge: '/icon-192.png',
+              body, icon: '/icon-192-v2.png', badge: '/icon-192-v2.png',
               tag: 'app-update', renotify: true, requireInteraction: false
             });
           }).catch(()=>{});
@@ -15485,7 +15485,7 @@ async function pageInstallApp(body) {
     <div class="install-page">
       <div class="install-hero">
         <div class="install-icon-wrap">
-          <img src="icon-512.png" alt="شؤون الغذاء" onerror="this.src='${LOGO_DATA_URI}'">
+          <img src="icon-512-v2.png" alt="شؤون الغذاء" onerror="this.src='${LOGO_DATA_URI}'">
         </div>
         <h2>تطبيق شؤون الغذاء</h2>
         <p>ثبّت التطبيق على جهازك للوصول السريع، بدون فتح المتصفح في كل مرة — يعمل مثل أي تطبيق عادي على شاشتك الرئيسية.</p>
