@@ -4,8 +4,8 @@
   "start_url": "./index.html.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#FDF3EF",
-  "theme_color": "#C1502C",
+  "background_color": "#F5F3FF",
+  "theme_color": "#8B5CF6",
   "dir": "rtl",
   "lang": "ar",
   "icons": [
