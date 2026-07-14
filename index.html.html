@@ -4245,7 +4245,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v39-2026-07-14-full-view-toggle';
+const APP_VERSION = 'v40-2026-07-14-hires-logo';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -6155,7 +6155,7 @@ function renderLogin() {
         <path d="M100 30 C60 55 45 105 60 150 C75 125 95 118 100 95 C105 118 125 125 140 150 C155 105 140 55 100 30 Z" fill="#245B4B" opacity="0.09"/>
       </svg>
       <div class="login-box">
-        <div class="login-logo-wrap"><img src="logo-new.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI"></div>
+        <div class="login-logo-wrap"><img src="logo-new-v3.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI"></div>
         <h1>مرحبًا بعودتك</h1>
         <p class="subtitle">سجّل الدخول للوصول إلى نظام متابعة الاجتماعات والمهام</p>
         <div class="login-error" id="loginError"><span data-lucide="alert-circle"></span><span id="loginErrorText"></span></div>
@@ -6251,7 +6251,7 @@ function renderSignupRequestPage() {
         <path d="M100 30 C60 55 45 105 60 150 C75 125 95 118 100 95 C105 118 125 125 140 150 C155 105 140 55 100 30 Z" fill="#245B4B" opacity="0.10"/>
       </svg>
       <div class="login-box" id="signupBox">
-        <div class="login-logo-wrap"><img src="logo-new.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI"></div>
+        <div class="login-logo-wrap"><img src="logo-new-v3.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI"></div>
         <h1>طلب انضمام جديد</h1>
         <p class="subtitle">عبّي بياناتك وهنراجعها ونتواصل معاك</p>
         <div class="login-error" id="srError"><span data-lucide="alert-circle"></span><span id="srErrorText"></span></div>
@@ -6414,7 +6414,7 @@ function renderSetNewPasswordPage() {
     <div class="login-page">
       <div class="login-glow"></div>
       <div class="login-box">
-        <div class="login-logo-wrap"><img src="logo-new.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI"></div>
+        <div class="login-logo-wrap"><img src="logo-new-v3.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI"></div>
         <h1>تعيين كلمة مرور جديدة</h1>
         <p class="subtitle">أدخل كلمة المرور الجديدة لحسابك</p>
         <div class="login-error" id="npError"><span data-lucide="alert-circle"></span><span id="npErrorText"></span></div>
@@ -10742,7 +10742,7 @@ async function renderAppCore() {
       <aside class="sidebar ${collapsed ? 'collapsed' : ''}" id="appSidebar">
         <button class="sidebar-toggle" id="sidebarToggleBtn" title="طي/فتح القائمة">${collapsed ? '›' : '‹'}</button>
         <div class="brand" style="border-radius:10px; display:flex; align-items:center; justify-content:center;">
-          <img src="logo-new.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI" class="brand-text">
+          <img src="logo-new-v3.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI" class="brand-text">
         </div>
         <nav>${menuHtml}</nav>
         <div class="sidebar-footer">
@@ -19801,7 +19801,7 @@ function mobileAppShellHtml() {
   return `
     <header class="m-appbar">
       <div class="m-appbar-brand">
-        <img src="logo-new.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI" onerror="this.style.display='none'">
+        <img src="logo-new-v3.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI" onerror="this.style.display='none'">
         <span class="m-appbar-title">شؤون الغذاء</span>
       </div>
       <div class="m-appbar-actions">
