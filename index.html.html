@@ -4452,7 +4452,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v67-2026-07-15-card-border-fix';
+const APP_VERSION = 'v68-2026-07-15-task-assign-mic-fix';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -5530,10 +5530,12 @@ function wireOneVoiceInput(el) {
       el.dispatchEvent(new Event('change', { bubbles: true }));
       el.focus();
     };
-    recognition.onerror = () => { toast('تعذّر التعرف على الصوت، حاول مرة أخرى', 'error'); };
+    recognition.onerror = (e) => {
+      toast(e && e.error === 'not-allowed' ? 'يجب السماح باستخدام المايكروفون من إعدادات المتصفح' : 'تعذّر التعرف على الصوت، حاول مرة أخرى', 'error');
+    };
     recognition.onend = () => { recognizing = false; btn.classList.remove('recording'); };
     try { recognition.start(); recognizing = true; btn.classList.add('recording'); }
-    catch (e) { recognizing = false; }
+    catch (e) { recognizing = false; toast('تعذّر تشغيل المايكروفون، حاول مرة أخرى', 'error'); }
   });
 }
 function attachVoiceButtons(root) {
@@ -6089,10 +6091,12 @@ function wireGlobalVoiceButton(onTranscribed) {
       input.value = e.results[0][0].transcript;
       if (onTranscribed) onTranscribed();
     };
-    recognition.onerror = () => toast('تعذّر التعرف على الصوت، حاول مرة أخرى', 'error');
+    recognition.onerror = (e) => {
+      toast(e && e.error === 'not-allowed' ? 'يجب السماح باستخدام المايكروفون من إعدادات المتصفح' : 'تعذّر التعرف على الصوت، حاول مرة أخرى', 'error');
+    };
     recognition.onend = () => { recognizing = false; btn.classList.remove('recording'); };
     try { recognition.start(); recognizing = true; btn.classList.add('recording'); }
-    catch (e) { recognizing = false; }
+    catch (e) { recognizing = false; toast('تعذّر تشغيل المايكروفون، حاول مرة أخرى', 'error'); }
   });
 }
 
@@ -8348,19 +8352,27 @@ async function pageMeetingDetail(body, meetingId, urlQuery) {
     document.getElementById('newTaskForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const errBox = document.getElementById('newTaskError');
+      errBox.classList.remove('show');
       try {
-        const { error: taskErr } = await sb.from('action_items').insert({
+        const assigneeId = Number(document.getElementById('ntAssignee').value);
+        const { data: created, error: taskErr } = await sb.from('action_items').insert({
           title: document.getElementById('ntTitle').value,
           description: document.getElementById('ntDesc').value || null,
           meeting_id: meetingId,
           decision_id: document.getElementById('ntDecision').value ? Number(document.getElementById('ntDecision').value) : null,
-          assigned_to: Number(document.getElementById('ntAssignee').value),
+          assigned_to: assigneeId,
           department_id: m.department_id,
           due_date: document.getElementById('ntDueDate').value || new Date(Date.now()+7*86400000).toISOString().slice(0,10),
           priority: document.getElementById('ntPriority').value,
           status: 'not_started'
-        });
+        }).select().single();
         if (taskErr) throw taskErr;
+        await sb.from('notifications').insert({
+          user_id: assigneeId, title: 'تم إسناد مهمة جديدة لك',
+          body: `${created.title} — الموعد النهائي: ${created.due_date}`,
+          link: '#tasks'
+        });
+        toast('تم إسناد المهمة بنجاح', 'success');
         location.hash = '#meeting_detail/' + meetingId;
         renderApp();
       } catch (err) {
@@ -10377,7 +10389,7 @@ window.convertDecisionToTask = async function(decisionId) {
   const d = DecisionsState.all.find(x => x.id === decisionId);
   if (!d) return;
   try {
-    const { error } = await sb.from('action_items').insert({
+    const { data: created, error } = await sb.from('action_items').insert({
       title: d.decision_text.slice(0, 150),
       meeting_id: d.meeting_id || null,
       decision_id: decisionId,
@@ -10387,9 +10399,16 @@ window.convertDecisionToTask = async function(decisionId) {
       status: 'not_started',
       priority: 'medium',
       progress_percent: 0
-    });
+    }).select().single();
     if (error) throw error;
     await sb.from('decision_activity_log').insert({ decision_id: decisionId, action_text: 'تم تحويل القرار إلى مهمة', created_by: CURRENT_USER.id });
+    if (created.assigned_to) {
+      await sb.from('notifications').insert({
+        user_id: created.assigned_to, title: 'تم إسناد مهمة جديدة لك',
+        body: `${created.title} — الموعد النهائي: ${created.due_date}`,
+        link: '#tasks'
+      });
+    }
     toast('تم تحويل القرار إلى مهمة بنجاح', 'success');
     renderApp();
   } catch (err) {
@@ -20704,9 +20723,13 @@ function ensureMobileShell() {
             if (!handled) location.hash = '#search?q=' + encodeURIComponent(t);
           };
           rec.onend = () => sMic.classList.remove('is-listening');
-          rec.onerror = () => sMic.classList.remove('is-listening');
+          rec.onerror = (ev) => {
+            sMic.classList.remove('is-listening');
+            const msg = ev && ev.error === 'not-allowed' ? 'يجب السماح باستخدام المايكروفون من إعدادات المتصفح' : 'تعذّر التعرف على الصوت، حاول مرة أخرى';
+            toast(msg, 'error');
+          };
           rec.start();
-        } catch(e) { sMic.classList.remove('is-listening'); openMobileSearchSheet(); }
+        } catch(e) { sMic.classList.remove('is-listening'); toast('تعذّر تشغيل المايكروفون، حاول مرة أخرى', 'error'); openMobileSearchSheet(); }
       });
     }
     document.getElementById('mBtnMenu')?.addEventListener('click', openMobileMoreSheet);
