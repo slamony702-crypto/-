@@ -4113,6 +4113,26 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
     width: 44px; height: 4px; border-radius: 4px;
     background: #CBD5E1; margin: 8px auto 14px;
   }
+  /* ═══ شيت اختيار مخصص (بديل لقائمة select الأصلية على الموبايل) ═══ */
+  .m-select-sheet-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 0 2px; }
+  .m-select-sheet-title { font-size: 15px; font-weight: 800; color: #12372F; }
+  .m-select-close-btn {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #fff; border: 1.5px solid transparent; cursor: pointer; color: #12372F;
+    background-image: linear-gradient(#fff,#fff), linear-gradient(135deg, #10B981 0%, #34D399 45%, #8B5CF6 100%);
+    background-origin: border-box; background-clip: padding-box, border-box;
+    transition: transform .15s ease;
+  }
+  .m-select-close-btn:active { transform: scale(.88); }
+  .m-select-option { display: flex; align-items: center; gap: 12px; padding: 14px 4px; border-bottom: 1px solid rgba(0,0,0,0.06); cursor: pointer; font-size: 14.5px; color: #17372D; }
+  .m-select-option:last-child { border-bottom: none; }
+  .m-select-radio { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #CBD5E1; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: border-color .15s ease; }
+  .m-select-option.selected .m-select-radio { border-color: #10B981; }
+  .m-select-radio-dot { width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(135deg, #10B981, #8B5CF6); opacity: 0; transform: scale(.5); transition: all .15s ease; }
+  .m-select-option.selected .m-select-radio-dot { opacity: 1; transform: scale(1); }
+  .m-fake-select { width: 100%; text-align: right; font-family: inherit; cursor: pointer; }
+  .m-fake-select.fs-placeholder { color: #9CA3AF; }
   .m-more-user {
     display: flex; align-items: center; gap: 12px;
     padding: 14px; margin-bottom: 14px;
@@ -4407,7 +4427,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v60-2026-07-15-fault-taxonomy-phone-perms';
+const APP_VERSION = 'v61-2026-07-15-custom-select-sheet';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -17597,6 +17617,75 @@ function stripSubFaultTag(description) {
   return (description || '').replace(/^\[عطل:[^\]]*\]\s*/, '');
 }
 
+// ═══════════════════════════════════════════════════════════
+// شيت اختيار مخصص على الموبايل — بديل لقائمة select الأصلية اللي بتفتح
+// منتقي نظام التشغيل (شكل غير متناسق مع تصميم المنصة). نبني UI موحّد بدل
+// كل select على حدة، ونربط قيمته بعنصر select الحقيقي المخفي عشان الفورم
+// والـ FormData يفضلوا شغالين زي ما هما بالظبط.
+// ═══════════════════════════════════════════════════════════
+function openCustomSelectSheet(title, options, selectedValue, onSelect) {
+  document.getElementById('mCustomSelectSheet')?.remove();
+  const sheet = document.createElement('div');
+  sheet.id = 'mCustomSelectSheet';
+  sheet.className = 'm-more-overlay';
+  sheet.innerHTML = `
+    <div class="m-more-backdrop" onclick="this.parentElement.remove()"></div>
+    <div class="m-more-sheet" style="max-height:75vh;">
+      <div class="m-more-handle"></div>
+      <div class="m-select-sheet-header">
+        <span class="m-select-sheet-title">${esc(title)}</span>
+        <button type="button" class="m-select-close-btn" id="mCustomSelectCloseBtn" aria-label="إغلاق"><span data-lucide="x" style="width:15px;height:15px;"></span></button>
+      </div>
+      <div>${options.map((o, i) => `
+        <div class="m-select-option ${o.value === selectedValue ? 'selected' : ''}" data-idx="${i}">
+          <span class="m-select-radio"><span class="m-select-radio-dot"></span></span>
+          <span>${esc(o.label)}</span>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  document.body.appendChild(sheet);
+  if (window.lucide) lucide.createIcons();
+  document.getElementById('mCustomSelectCloseBtn').addEventListener('click', () => sheet.remove());
+  sheet.querySelectorAll('.m-select-option').forEach(el => {
+    el.addEventListener('click', () => {
+      const opt = options[Number(el.dataset.idx)];
+      sheet.remove();
+      onSelect(opt.value);
+    });
+  });
+}
+// يحوّل select حقيقي لزرار مخصص على الموبايل فقط (الديسكتوب يفضل بالـ select
+// الأصلي بدون تغيير). يخفي الـ select الأصلي (يبقى في الفورم لأجل FormData)
+// ويحدّثه + يطلق change عند الاختيار عشان أي كود موجود يعتمد عليه يفضل شغال.
+function enhanceSelectForMobile(selectEl, title) {
+  if (!selectEl || !isMobileView() || selectEl.dataset.mEnhanced) return;
+  selectEl.dataset.mEnhanced = '1';
+  selectEl.style.display = 'none';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'form-select m-fake-select';
+  selectEl.parentNode.insertBefore(btn, selectEl.nextSibling);
+  function refreshLabel() {
+    const opt = selectEl.options[selectEl.selectedIndex];
+    const hasValue = opt && opt.value;
+    btn.textContent = hasValue ? opt.textContent : (selectEl.options[0]?.textContent || '');
+    btn.classList.toggle('fs-placeholder', !hasValue);
+  }
+  refreshLabel();
+  btn.addEventListener('click', () => {
+    const opts = [...selectEl.options].map(o => ({ value: o.value, label: o.textContent }));
+    openCustomSelectSheet(title, opts, selectEl.value, (val) => {
+      selectEl.value = val;
+      selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+      selectEl.dispatchEvent(new Event('input', { bubbles: true }));
+      refreshLabel();
+    });
+  });
+  // لو اتغيّرت قيمة select من كود تاني (زي إعادة تعبئة الخيارات)، حدّث الزرار
+  selectEl.addEventListener('change', refreshLabel);
+  selectEl._refreshFakeLabel = refreshLabel;
+}
+
 const MAINT_SEVERITY_COLOR = {
   // مقياس درجة الخطورة (الأساسي): منخفض/متوسط/عالي/حرج
   low: '#12372F', medium: '#245B4B', high: '#F2994A', critical: '#D32F2F',
@@ -18155,12 +18244,17 @@ async function pageMaintenanceNew(body, param) {
   const draftSubFault = draft ? parseSubFault(draft.description) : null;
   function syncSubFaultOptions(preselect) {
     const cat = MAINTENANCE_FAULTS[areaSelect.value];
-    if (!cat) { subFaultSelect.innerHTML = '<option value="">اختر نوع العطل الرئيسي أولًا</option>'; return; }
-    subFaultSelect.innerHTML = '<option value="">اختر العطل الفرعي</option>' +
-      cat.faults.map(f => `<option value="${esc(f)}" ${preselect === f ? 'selected' : ''}>${esc(f)}</option>`).join('');
+    if (!cat) { subFaultSelect.innerHTML = '<option value="">اختر نوع العطل الرئيسي أولًا</option>'; }
+    else {
+      subFaultSelect.innerHTML = '<option value="">اختر العطل الفرعي</option>' +
+        cat.faults.map(f => `<option value="${esc(f)}" ${preselect === f ? 'selected' : ''}>${esc(f)}</option>`).join('');
+    }
+    subFaultSelect._refreshFakeLabel?.();
   }
   areaSelect.addEventListener('change', () => syncSubFaultOptions());
   syncSubFaultOptions(draftSubFault);
+  enhanceSelectForMobile(areaSelect, 'نوع العطل الرئيسي');
+  enhanceSelectForMobile(subFaultSelect, 'العطل الفرعي');
 
   // بناء الحمولة
   function buildPayload(isDraft) {
@@ -18205,6 +18299,10 @@ async function pageMaintenanceNew(body, param) {
       if (!payload.description && !payload.issue_title) {
         toast('اكتب وصف المشكلة أو عنوانها على الأقل', 'error'); return;
       }
+      // تحقّق صريح (بدل الاعتماد فقط على required في select — لا يعمل تلقائيًا
+      // لما نخفي الـ select الأصلي على الموبايل ونستبدله بزرار مخصص)
+      if (!areaSelect.value) { toast('يرجى اختيار نوع العطل الرئيسي', 'error'); return; }
+      if (!subFaultSelect.value) { toast('يرجى اختيار العطل الفرعي', 'error'); return; }
     } else if (!payload.branch_id && !payload.issue_title && !payload.description) {
       toast('أدخل الفرع أو نص المشكلة على الأقل للحفظ كمسودة', 'warning'); return;
     }
