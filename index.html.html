@@ -337,6 +337,29 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 .login-signup-cta a:hover { text-decoration: underline; }
 .login-signup-cta a { color: #123F32; font-weight: 700; text-decoration: none; }
 .login-signup-cta a:hover { color: #245B4B; text-decoration: underline; }
+
+/* ============ شاشة انتظار قبول طلب الانضمام ============ */
+.pnd-clock { font-size: 44px; font-weight: 800; color: #123F32; letter-spacing: 1px; line-height: 1.1; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.pnd-dates { font-size: 12.5px; color: var(--neutral-500); margin-top: 6px; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.pnd-dates-sep { color: #8B5CF6; }
+.pnd-prayers { display: flex; gap: 6px; justify-content: center; margin-top: 14px; }
+.pnd-prayer {
+  flex: 1; max-width: 68px; background: rgba(36,91,75,0.06); border-radius: 12px; padding: 8px 4px;
+  border: 1.5px solid transparent;
+  background-image: linear-gradient(#F6FBF8, #F6FBF8), linear-gradient(135deg, #10B981 0%, #34D399 45%, #8B5CF6 100%);
+  background-origin: border-box; background-clip: padding-box, border-box;
+}
+.pnd-prayer .pp-name { display: block; font-size: 10.5px; color: var(--neutral-500); font-weight: 700; }
+.pnd-prayer .pp-time { display: block; font-size: 13px; color: #123F32; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.pnd-msg-card {
+  margin-top: 18px; text-align: right; border-radius: 16px; padding: 16px;
+  border: 1.5px solid transparent;
+  background-image: linear-gradient(#F6FBF8, #F6FBF8), linear-gradient(135deg, #10B981 0%, #34D399 45%, #8B5CF6 100%);
+  background-origin: border-box; background-clip: padding-box, border-box;
+}
+.pnd-msg-icon { width: 42px; height: 42px; border-radius: 50%; background: rgba(139,92,246,0.12); color: #8B5CF6; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+.pnd-msg-title { font-size: 15px; font-weight: 800; color: #123F32; margin-bottom: 6px; }
+.pnd-msg-body { font-size: 12.5px; color: var(--neutral-600, #475569); line-height: 1.8; }
 @media (max-width: 900px) { .login-leaf { display: none; } }
 @media (max-width: 640px) {
   .login-box { max-width: 100%; }
@@ -4452,7 +4475,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v68-2026-07-15-task-assign-mic-fix';
+const APP_VERSION = 'v69-2026-07-15-self-signup-pending';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -6497,22 +6520,7 @@ function renderLogin() {
     submitBtn.innerHTML = '<span class="login-spinner"></span><span>جارٍ تسجيل الدخول...</span>';
     try {
       const user = await authLogin(username, password);
-      CURRENT_USER = {
-        id: user.id, username: user.username, full_name: user.full_name,
-        role: user.role, department_id: user.department_id,
-        department_name: user.departments ? user.departments.name : null,
-        avatar_url: user.avatar_url || null
-      };
-      localStorage.setItem('food_affairs_user', JSON.stringify(CURRENT_USER));
-      await loadPermissions();
-      checkTaskReminders();
-      checkMeetingReminders();
-      startHeartbeat();
-      subscribeToUserNotifications();
-      // اطلب إذن الإشعارات بعد ثانيتين من الدخول (تجربة أنعم)
-      setTimeout(() => { if ('Notification' in window && Notification.permission === 'default') requestNotificationPermission(); }, 2000);
-      location.hash = '#dashboard';
-      renderApp();
+      await finishLoginAndEnterApp(user);
     } catch (err) {
       errText.textContent = err.message || 'حدث خطأ أثناء تسجيل الدخول';
       errBox.classList.add('show');
@@ -6562,6 +6570,16 @@ function renderSignupRequestPage() {
             <span class="login-input-icon" data-lucide="mail-check"></span></div>
           </div>
           <div class="login-field">
+            <label for="srPassword">كلمة المرور *</label>
+            <div class="login-input-wrap"><input type="password" id="srPassword" placeholder="اختر كلمة مرور (6 أحرف على الأقل)" required minlength="6" autocomplete="new-password">
+            <span class="login-input-icon" data-lucide="lock"></span></div>
+          </div>
+          <div class="login-field">
+            <label for="srPasswordConfirm">تأكيد كلمة المرور *</label>
+            <div class="login-input-wrap"><input type="password" id="srPasswordConfirm" placeholder="أعد كتابة كلمة المرور" required autocomplete="new-password">
+            <span class="login-input-icon" data-lucide="lock-keyhole"></span></div>
+          </div>
+          <div class="login-field">
             <label for="srJobTitle">المسمى الوظيفي *</label>
             <div class="login-input-wrap"><input type="text" id="srJobTitle" placeholder="مثال: مشرف فرع" required>
             <span class="login-input-icon" data-lucide="briefcase"></span></div>
@@ -6606,20 +6624,41 @@ function renderSignupRequestPage() {
       errBox.classList.add('show');
       return;
     }
+    const pw = document.getElementById('srPassword').value;
+    const pwConfirm = document.getElementById('srPasswordConfirm').value;
+    if (pw.length < 6) {
+      errText.textContent = 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';
+      errBox.classList.add('show');
+      return;
+    }
+    if (pw !== pwConfirm) {
+      errText.textContent = 'كلمة المرور وتأكيدها غير متطابقين، يرجى المراجعة';
+      errBox.classList.add('show');
+      return;
+    }
+    const notesRaw = document.getElementById('srNotes').value.trim();
+    // كلمة المرور المختارة تُخزَّن مشفَّرة (base64) داخل الملاحظات كوسم — لا يوجد عمود مخصص لها،
+    // وعند القبول يُستخرج الوسم ويُستخدم ككلمة مرور الحساب مباشرة (انظر parseSignupPassword)
+    const pwTag = '[PW:' + btoa(unescape(encodeURIComponent(pw))) + ']';
     const payload = {
       full_name: document.getElementById('srFullName').value.trim(),
       mobile_number: mobile,
       email,
       job_title: document.getElementById('srJobTitle').value.trim(),
       region: document.getElementById('srRegion').value.trim(),
-      notes: document.getElementById('srNotes').value.trim() || null
+      notes: (notesRaw ? notesRaw + ' ' : '') + pwTag
     };
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<span class="login-spinner"></span><span>جارٍ الإرسال...</span>';
     try {
       const { error } = await sb.from('signup_requests').insert(payload);
       if (error) throw error;
-      renderSignupRequestSuccess();
+      // حفظ بيانات الدخول محليًا: التطبيق هيجرّب الدخول تلقائيًا كل ما يفتح،
+      // وأول ما الإدارة تقبل الطلب هيدخل من نفسه بدون أي خطوة إضافية
+      localStorage.setItem('fa_pending_signup', JSON.stringify({
+        full_name: payload.full_name, email, password: pw, submitted_at: new Date().toISOString()
+      }));
+      renderPendingApprovalScreen();
     } catch (err) {
       errText.textContent = 'تعذّر إرسال الطلب، حاول مرة أخرى (' + (err.message || '') + ')';
       errBox.classList.add('show');
@@ -6694,6 +6733,108 @@ function openForgotPasswordModal() {
   });
 }
 
+// ============ شاشة انتظار قبول طلب الانضمام ============
+// الموظف الجديد بعد التسجيل يدخل هنا فورًا: ساعة حية + التاريخ الهجري والميلادي
+// + مواقيت الصلاة + رسالة أن طلبه قيد المراجعة. التطبيق يجرّب الدخول تلقائيًا
+// كل ما يُفتح، وأول ما الإدارة تقبل الطلب يدخل للنظام كاملًا من نفسه.
+function getPendingSignup() {
+  try {
+    const raw = localStorage.getItem('fa_pending_signup');
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+async function tryPendingSignupLogin() {
+  const pending = getPendingSignup();
+  if (!pending || !pending.email || !pending.password) return false;
+  try {
+    const user = await authLogin(pending.email, pending.password);
+    await finishLoginAndEnterApp(user);
+    toast('🎉 تم قبول طلب انضمامك — أهلًا بك في شؤون الغذاء!', 'success');
+    return true;
+  } catch (e) { return false; }
+}
+
+function renderPendingApprovalScreen() {
+  const pending = getPendingSignup() || {};
+  const firstName = (pending.full_name || '').trim().split(/\s+/)[0] || 'بك';
+  root.innerHTML = `
+    <div class="login-page">
+      <div class="login-glow"></div>
+      <div class="login-box" style="max-width:430px;">
+        <div class="login-logo-wrap">
+          <img src="logo-wordmark-v2.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI">
+          <span class="login-logo-tagline">لتطوير وإدارة المطاعم</span>
+        </div>
+        <div style="text-align:center;">
+          <div class="pnd-clock" id="pndClock">--:--</div>
+          <div class="pnd-dates"><span id="pndDateHijri"></span><span class="pnd-dates-sep">•</span><span id="pndDateGreg"></span></div>
+          <div class="pnd-prayers hidden" id="pndPrayers"></div>
+          <div class="pnd-msg-card">
+            <div class="pnd-msg-icon"><span data-lucide="hourglass" style="width:22px;height:22px;"></span></div>
+            <div class="pnd-msg-title">أهلًا ${esc(firstName)} 🌿 طلبك بين أيدٍ أمينة</div>
+            <div class="pnd-msg-body">يقوم قسم الموارد البشرية بمراجعة طلب انضمامك الآن، وسيتم تفعيل حسابك خلال <b>يوم عمل كحد أقصى</b>. لحظة القبول سيفتح النظام أمامك تلقائيًا — لا تحتاج لفعل أي شيء.</div>
+          </div>
+          <button type="button" class="login-submit-btn" id="pndCheckBtn" style="margin-top:16px;">
+            <span data-lucide="refresh-cw"></span><span>تحقق من حالة الطلب الآن</span>
+          </button>
+          <p class="login-signup-cta" style="margin-top:14px;"><a href="javascript:void(0)" id="pndSwitchLink">الدخول بحساب آخر</a></p>
+        </div>
+      </div>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  // الساعة الحية + التاريخان
+  const clockEl = document.getElementById('pndClock');
+  function tickClock() {
+    if (!document.getElementById('pndClock')) return; // خرجنا من الشاشة — أوقف التحديث
+    const now = new Date();
+    clockEl.textContent = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setTimeout(tickClock, 1000);
+  }
+  tickClock();
+  try {
+    const now = new Date();
+    document.getElementById('pndDateHijri').textContent = new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now);
+    document.getElementById('pndDateGreg').textContent = new Intl.DateTimeFormat('ar-SA-u-ca-gregory', { day: 'numeric', month: 'long', year: 'numeric' }).format(now);
+  } catch (e) {}
+
+  // مواقيت الصلاة (أم القرى) — لو الشبكة فشلت نخفي القسم بدل ما نعرض خطأ
+  (async () => {
+    try {
+      const d = new Date();
+      const ds = `${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${d.getFullYear()}`;
+      const res = await fetch(`https://api.aladhan.com/v1/timingsByCity/${ds}?city=Riyadh&country=SA&method=4`);
+      const json = await res.json();
+      const t = json && json.data && json.data.timings;
+      if (!t) return;
+      const names = [['Fajr','الفجر'],['Dhuhr','الظهر'],['Asr','العصر'],['Maghrib','المغرب'],['Isha','العشاء']];
+      const box = document.getElementById('pndPrayers');
+      if (!box) return;
+      box.innerHTML = names.map(([k, label]) => `<div class="pnd-prayer"><span class="pp-name">${label}</span><span class="pp-time">${esc((t[k]||'').slice(0,5))}</span></div>`).join('');
+      box.classList.remove('hidden');
+    } catch (e) {}
+  })();
+
+  document.getElementById('pndCheckBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('pndCheckBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="login-spinner"></span><span>جارٍ التحقق...</span>';
+    const ok = await tryPendingSignupLogin();
+    if (!ok && document.getElementById('pndCheckBtn')) {
+      toast('طلبك ما زال قيد المراجعة — سيتم تفعيله خلال يوم عمل كحد أقصى', 'warning');
+      btn.disabled = false;
+      btn.innerHTML = '<span data-lucide="refresh-cw"></span><span>تحقق من حالة الطلب الآن</span>';
+      if (window.lucide) lucide.createIcons();
+    }
+  });
+  document.getElementById('pndSwitchLink').addEventListener('click', () => {
+    localStorage.removeItem('fa_pending_signup');
+    renderLogin();
+  });
+}
+
 function renderSetNewPasswordPage() {
   root.innerHTML = `
     <div class="login-page">
@@ -6762,6 +6903,19 @@ function renderSetNewPasswordPage() {
   });
 }
 
+// ============ وسم كلمة المرور المختارة في طلب الانضمام ============
+// كلمة المرور التي يختارها الموظف عند التسجيل تُخزَّن base64 داخل حقل الملاحظات
+// بصيغة [PW:xxxx] (لا يوجد عمود مخصص لها في الجدول). عند القبول تُستخرج وتُستخدم
+// ككلمة مرور الحساب، وتُحذف من الملاحظات المعروضة والمحفوظة.
+function parseSignupPassword(notes) {
+  const m = (notes || '').match(/\[PW:([A-Za-z0-9+/=]+)\]/);
+  if (!m) return null;
+  try { return decodeURIComponent(escape(atob(m[1]))); } catch (e) { return null; }
+}
+function stripSignupPasswordTag(notes) {
+  return (notes || '').replace(/\s*\[PW:[A-Za-z0-9+/=]+\]\s*/g, ' ').trim();
+}
+
 // ============ Supabase Auth: تسجيل دخول + ترحيل تلقائي ============
 function deriveAuthEmail(username) {
   const norm = String(username || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -6796,11 +6950,21 @@ async function authLogin(username, password) {
   }
 
   // 2) تحقّق من بيانات الدخول عبر دالة آمنة (RPC) بدل قراءة الجدول مباشرة (محمي بـ RLS لغير المسجّلين)
+  // لو المُدخل كان إيميلًا، جرّب الجزء المحلي كما هو ثم نسخته المنظَّفة (بدون نقاط/رموز) —
+  // لأن اسم المستخدم المولَّد عند القبول يمر بنفس التنظيف (genUsernameBase)
+  const usernameCandidates = [username];
+  if (rawInput.includes('@')) {
+    const normalized = username.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (normalized && normalized !== username) usernameCandidates.push(normalized);
+  }
   let verifyRows = null;
-  try {
-    const rpcRes = await sb.rpc('verify_login', { p_username: username, p_password: password });
-    verifyRows = rpcRes && rpcRes.data;
-  } catch (e) { verifyRows = null; }
+  for (const candidate of usernameCandidates) {
+    try {
+      const rpcRes = await sb.rpc('verify_login', { p_username: candidate, p_password: password });
+      verifyRows = rpcRes && rpcRes.data;
+    } catch (e) { verifyRows = null; }
+    if (verifyRows && verifyRows[0]) { username = candidate; break; }
+  }
   const minimal = verifyRows && verifyRows[0];
   if (!minimal || !minimal.is_active) {
     throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة');
@@ -6825,17 +6989,51 @@ async function authLogin(username, password) {
   });
   if (signUpErr) {
     // بعد تفعيل قفل قاعدة البيانات (RLS)، جلسة بدون Auth حقيقية لن تقدر تقرأ أي بيانات.
-    // لو الحساب مسجّل بالفعل في Auth بكلمة سر مختلفة (غالبًا اتغيّرت لاحقًا)، وضّح المشكلة بدل الدخول الصامت المكسور.
+    // لو الحساب مسجّل بالفعل في Auth لكن غير مفعَّل (لم يضغط رابط التأكيد) أو كلمة السر مختلفة،
+    // أعد إرسال رابط التفعيل تلقائيًا ووضّح المشكلة بدل الدخول الصامت المكسور.
     if (/already registered|already exists/i.test(signUpErr.message || '')) {
-      throw new Error('كلمة المرور غير محدّثة في نظام الدخول. تواصل مع مدير النظام لإعادة ضبط كلمة المرور من لوحة Supabase (Authentication → Users).');
+      if (realEmail) { try { await sb.auth.resend({ type: 'signup', email: realEmail }); } catch (e) {} }
+      throw new Error(realEmail
+        ? 'حسابك موجود لكن لم يُفعَّل بعد. أرسلنا رابط تفعيل جديدًا إلى بريدك (' + realEmail + ') — افتح الرابط (راجع مجلد السبام) ثم أعد المحاولة. لو استمرت المشكلة تواصل مع مدير النظام.'
+        : 'كلمة المرور غير محدّثة في نظام الدخول. تواصل مع مدير النظام.');
     }
     throw new Error('تعذّر تسجيل الدخول حاليًا (' + signUpErr.message + '). تواصل مع مدير النظام.');
+  }
+  // لو Supabase مفعَّل فيه "تأكيد الإيميل"، signUp ينشئ الحساب لكن بدون جلسة —
+  // وبدون جلسة قاعدة البيانات هترفض كل القراءات وهيبان التطبيق "مش شغال".
+  // نوضّح الموقف بدل الفشل الصامت.
+  if (signUpData && signUpData.user && !signUpData.session) {
+    throw new Error(realEmail
+      ? 'تم إنشاء حسابك ويحتاج تفعيلًا: أرسلنا رابط تفعيل إلى بريدك (' + realEmail + ') — افتح الرابط (راجع مجلد السبام) ثم سجّل الدخول مرة أخرى.'
+      : 'تعذّر تفعيل حسابك تلقائيًا. تواصل مع مدير النظام.');
   }
   if (signUpData && signUpData.user) {
     await sb.from('users').update({ auth_id: signUpData.user.id }).eq('id', minimal.id);
   }
   const { data: full } = await sb.from('users').select('*, departments(name)').eq('id', minimal.id).maybeSingle();
+  if (!full) throw new Error('تعذّر تحميل ملفك الشخصي بعد الدخول. أعد المحاولة أو تواصل مع مدير النظام.');
   return full;
+}
+
+// إنهاء الدخول بنجاح: يُستخدم من فورم تسجيل الدخول ومن شاشة انتظار قبول الانضمام
+async function finishLoginAndEnterApp(user) {
+  CURRENT_USER = {
+    id: user.id, username: user.username, full_name: user.full_name,
+    role: user.role, department_id: user.department_id,
+    department_name: user.departments ? user.departments.name : null,
+    avatar_url: user.avatar_url || null
+  };
+  localStorage.setItem('food_affairs_user', JSON.stringify(CURRENT_USER));
+  localStorage.removeItem('fa_pending_signup');
+  await loadPermissions();
+  checkTaskReminders();
+  checkMeetingReminders();
+  startHeartbeat();
+  subscribeToUserNotifications();
+  // اطلب إذن الإشعارات بعد ثانيتين من الدخول (تجربة أنعم)
+  setTimeout(() => { if ('Notification' in window && Notification.permission === 'default') requestNotificationPermission(); }, 2000);
+  location.hash = '#dashboard';
+  renderApp();
 }
 
 async function logout() {
@@ -13745,7 +13943,7 @@ function renderUsersTabContent() {
         <div class="mform-grid">
           <div class="mform-field"><label>الاسم الكامل *</label><input type="text" class="meeting-input" id="auFullName" value="${esc(pf?.full_name||'')}" required></div>
           <div class="mform-field"><label>اسم المستخدم *</label><input type="text" class="meeting-input" id="auUsername" required></div>
-          <div class="mform-field"><label>كلمة المرور *</label><input type="text" class="meeting-input" id="auPassword" required></div>
+          <div class="mform-field"><label>كلمة المرور *</label><input type="text" class="meeting-input" id="auPassword" value="${esc((pf && parseSignupPassword(pf.notes)) || '')}" required></div>
           <div class="mform-field"><label>البريد الإلكتروني</label><input type="email" class="meeting-input" id="auEmail" value="${esc(pf?.email||'')}"></div>
           <div class="mform-field"><label>رقم الجوال</label><input type="text" class="meeting-input" id="auMobile" placeholder="05xxxxxxxx" value="${esc(pf?.mobile_number||'')}"></div>
           <div class="mform-field"><label>الجنسية</label><input type="text" class="meeting-input" id="auNationality"></div>
@@ -13827,7 +14025,7 @@ function renderUsersTabContent() {
                   <td>${smallInput('email-'+r.id, r.email, 'email')}</td>
                   <td><input type="text" class="meeting-input" data-sr-field="job-${r.id}" list="srJobTitlesList" value="${esc(r.job_title||'')}" style="min-width:130px;font-size:12px;padding:6px 8px;"></td>
                   <td>${smallInput('region-'+r.id, r.region)}</td>
-                  <td>${smallInput('notes-'+r.id, r.notes||'')}</td>
+                  <td>${smallInput('notes-'+r.id, stripSignupPasswordTag(r.notes||''))}</td>
                   <td>
                     <select class="meeting-select" data-sr-dept="${r.id}" style="min-width:150px;">
                       <option value="">كما أرسلها (بدون قسم محدد)</option>
@@ -13951,7 +14149,10 @@ function renderUsersTabContent() {
             }
           }
           const username = await uniqueUsername(genUsernameBase(req));
-          const password = genPassword();
+          // لو الموظف اختار كلمة مروره بنفسه عند التسجيل، استخدمها — وإلا ولّد واحدة
+          const chosenPassword = parseSignupPassword(origReq.notes);
+          const password = chosenPassword || genPassword();
+          req.notes = stripSignupPasswordTag(req.notes) || null;
           const { data: newUser, error } = await sb.from('users').insert({
             full_name: req.full_name, username, password_plain: password,
             email: req.email, mobile_number: req.mobile_number,
@@ -13978,7 +14179,7 @@ function renderUsersTabContent() {
               link: '#dashboard'
             }).catch(() => {});
           }
-          showApprovalConfirmModal(req, username, password);
+          showApprovalConfirmModal(req, username, password, !!chosenPassword);
         } catch (err) {
           toast('حدث خطأ أثناء إنشاء الحساب: ' + err.message, 'error');
           btn.disabled = false;
@@ -14059,9 +14260,12 @@ function renderUsersTabContent() {
 }
 
 // بعد قبول طلب انضمام: بيانات الدخول + رسالة تأكيد جاهزة للإرسال واتساب
-function showApprovalConfirmModal(req, username, password) {
+function showApprovalConfirmModal(req, username, password, selfChosenPassword) {
   const appUrl = location.origin + location.pathname;
-  const msg = `مرحبًا ${req.full_name} 👋\nتم قبول طلب انضمامك لنظام شؤون الغذاء.\n\nبيانات الدخول:\nاسم المستخدم: ${username}\nكلمة المرور: ${password}\n\nرابط الدخول: ${appUrl}`;
+  // لو الموظف اختار كلمة مروره بنفسه عند التسجيل، لا داعي لإرسالها له — هيدخل تلقائيًا أول ما يفتح التطبيق
+  const msg = selfChosenPassword
+    ? `مرحبًا ${req.full_name} 👋\nتم قبول طلب انضمامك لنظام شؤون الغذاء 🎉\nافتح التطبيق الآن وسيتم دخولك تلقائيًا بكلمة المرور التي اخترتها عند التسجيل.\n\nرابط الدخول: ${appUrl}`
+    : `مرحبًا ${req.full_name} 👋\nتم قبول طلب انضمامك لنظام شؤون الغذاء.\n\nبيانات الدخول:\nاسم المستخدم: ${username}\nكلمة المرور: ${password}\n\nرابط الدخول: ${appUrl}`;
   const waPhone = (req.mobile_number || '').replace(/[^0-9]/g, '').replace(/^0/, '966');
   document.getElementById('root').insertAdjacentHTML('beforeend', `
     <div class="modal-overlay" id="srConfirmOverlay">
@@ -14071,7 +14275,7 @@ function showApprovalConfirmModal(req, username, password) {
           <button class="modal-close-x" id="srConfirmCloseX"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
         </div>
         <div class="panel-body">
-          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:10px;">أرسل هذه الرسالة إلى <strong>${esc(req.full_name)}</strong> ليطّلع على بيانات الدخول الخاصة به:</p>
+          ${selfChosenPassword ? `<p style="font-size:12.5px;color:#12372F;background:rgba(16,185,129,0.08);border-radius:10px;padding:9px 12px;margin-bottom:10px;"><b>الموظف سجّل بكلمة مرور من اختياره</b> — سيدخل للنظام تلقائيًا أول ما يفتح التطبيق، بدون أي خطوة منك. الرسالة التالية اختيارية لإبلاغه بالقبول فقط:</p>` : `<p style="font-size:12.5px;color:var(--text-muted);margin-bottom:10px;">أرسل هذه الرسالة إلى <strong>${esc(req.full_name)}</strong> ليطّلع على بيانات الدخول الخاصة به:</p>`}
           <textarea class="meeting-input" id="srConfirmMsg" rows="7" style="width:100%;font-size:12.5px;" readonly>${esc(msg)}</textarea>
           <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
             <button class="meeting-action-btn mab-primary" id="srCopyMsgBtn"><span data-lucide="copy" style="width:14px;height:14px;"></span> نسخ الرسالة</button>
@@ -14702,6 +14906,11 @@ async function bootApp() {
         try { startHeartbeat(); } catch (e) { fwReport('startHeartbeat', e); }
         try { subscribeToUserNotifications(); } catch (e) { fwReport('subscribeToUserNotifications', e); }
       }, 1000);
+    } else if (getPendingSignup()) {
+      // موظف جديد قدّم طلب انضمام ولسه معتمدش: جرّب الدخول تلقائيًا (يمكن اتقبل)،
+      // ولو لسه قيد المراجعة اعرض شاشة الانتظار (ساعة + مواقيت الصلاة + رسالة)
+      const entered = await tryPendingSignupLogin();
+      if (!entered) renderPendingApprovalScreen();
     } else {
       renderLogin();
     }
