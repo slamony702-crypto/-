@@ -3196,7 +3196,24 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 .mt-step-txt .t { font-size: 12.5px; font-weight: 700; color: #0F172A; white-space: nowrap; }
 .mt-step-txt .s { font-size: 10px; color: #64748B; white-space: nowrap; }
 .mt-step-line { width: 30px; height: 2px; background: #E2E8F0; margin: 0 8px; flex-shrink: 0; }
-@media (max-width: 768px) { .mt-step-txt .s { display: none; } .mt-step-line { width: 14px; margin: 0 5px; } .mt-step-txt .t { font-size: 11.5px; } }
+/* نسخة مضغوطة للموبايل — بديل عن الصف الأفقي القابل للتمرير اللي كان بيبان
+   مقطوع/مزدحم على شاشة ضيقة. شريط تقدّم بسيط + اسم الخطوة الحالية بس */
+.mt-stepper-mobile { display: none; }
+@media (max-width: 768px) {
+  .mt-stepper { display: none; }
+  .mt-stepper-mobile {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface); border-radius: 14px; padding: 12px 14px;
+    margin-bottom: 16px;
+    border: 1.5px solid transparent;
+    background-image: linear-gradient(var(--surface), var(--surface)), linear-gradient(135deg, #10B981 0%, #34D399 45%, #8B5CF6 100%);
+    background-origin: border-box; background-clip: padding-box, border-box;
+  }
+  .msm-dots { display: flex; gap: 5px; flex: 1; }
+  .msm-dot { flex: 1; height: 6px; border-radius: 3px; background: #E2E8F0; transition: background .2s ease; }
+  .msm-dot.done, .msm-dot.active { background: linear-gradient(135deg, #10B981, #8B5CF6); }
+  .msm-label { font-size: 12px; font-weight: 700; color: #12372F; white-space: nowrap; flex-shrink: 0; }
+}
 
 .mt-chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .mt-chip { flex: 1; min-width: 72px; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 11px 8px; border-radius: 12px; border: 1.5px solid #E2E8F0; background: #fff; font-size: 12.5px; font-weight: 700; color: #64748B; cursor: pointer; transition: all .15s ease; font-family: inherit; }
@@ -4427,7 +4444,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v65-2026-07-15-merge-maint-type-field';
+const APP_VERSION = 'v66-2026-07-15-stepper-mobile-ui';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -18011,6 +18028,15 @@ async function pageMaintenanceNew(body, param) {
 
   const noBranches = !branches || !branches.length;
 
+  const MT_NEW_STEPS = [
+    ['جديد', 'إنشاء الطلب'],
+    ['قيد المراجعة', 'مراجعة الطلب'],
+    ['معتمد', 'اعتماد الطلب'],
+    ['قيد التنفيذ', 'جاري الصيانة'],
+    ['تم الإصلاح', 'اكتمال الصيانة'],
+    ['مغلق', 'إغلاق الطلب']
+  ];
+
   body.innerHTML = `
     <a href="#maintenance" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لطلبات الصيانة</a>
 
@@ -18023,13 +18049,17 @@ async function pageMaintenanceNew(body, param) {
     </div>
 
     <div class="mt-stepper">
-      ${[['جديد','إنشاء الطلب'],['قيد المراجعة','مراجعة الطلب'],['معتمد','اعتماد الطلب'],['قيد التنفيذ','جاري الصيانة'],['تم الإصلاح','اكتمال الصيانة'],['مغلق','إغلاق الطلب']].map((s, i) => `
+      ${MT_NEW_STEPS.map((s, i) => `
         ${i>0 ? '<span class="mt-step-line"></span>' : ''}
         <div class="mt-step ${i===0?'active':''}">
           <span class="mt-step-num">${i+1}</span>
           <span class="mt-step-txt"><span class="t">${s[0]}</span><span class="s">${s[1]}</span></span>
         </div>
       `).join('')}
+    </div>
+    <div class="mt-stepper-mobile">
+      <div class="msm-dots">${MT_NEW_STEPS.map((s, i) => `<span class="msm-dot ${i===0?'active':''}"></span>`).join('')}</div>
+      <span class="msm-label">1 من ${MT_NEW_STEPS.length} — ${esc(MT_NEW_STEPS[0][0])}</span>
     </div>
 
     ${noBranches ? `
