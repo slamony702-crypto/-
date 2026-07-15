@@ -4475,7 +4475,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v70-2026-07-15-silent-write-fixes';
+const APP_VERSION = 'v71-2026-07-15-quick-task-dept';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -12519,21 +12519,23 @@ window.openQuickAddTaskModal = async function(prefillUserId, prefillUserName, pr
     const title = (fd.get('title') || '').trim() || 'مهمة بدون عنوان';
     const dueDate = fd.get('due_date') || new Date(Date.now()+7*86400000).toISOString().slice(0,10);
     try {
-      const { data: created, error } = await sb.from('action_items').insert({
+      // الإسناد السريع يُحفظ في "مهام وتكليفات" (department_tasks) — مش "مخرجات الاجتماعات" —
+      // لأنه تكليف مباشر بين شخصين وليس مهمة ناتجة عن اجتماع. كان بيُحفظ في action_items
+      // فكانت المهمة "تختفي" عن صفحة مهام وتكليفات اللي بيدور فيها المُسنِد
+      const { data: created, error } = await sb.from('department_tasks').insert({
         title, description: fd.get('description') || null,
-        assigned_to: assigneeId, department_id: assignee ? assignee.department_id : CURRENT_USER.department_id,
-        due_date: dueDate, priority: fd.get('priority') || 'medium', status: 'not_started', progress_percent: 0,
-        meeting_id: null
+        assigned_by: CURRENT_USER.id, assigned_to: assigneeId,
+        due_datetime: dueDate + 'T23:59', priority: fd.get('priority') || 'medium'
       }).select().single();
       if (error) throw error;
       await sb.from('notifications').insert({
         user_id: assigneeId, title: 'تم إسناد مهمة جديدة لك',
-        body: `${created.title} — الموعد النهائي: ${created.due_date}`,
-        link: '#tasks'
+        body: `${created.title} — من ${CURRENT_USER.full_name} — الموعد النهائي: ${fmtDateAr(created.due_datetime)}`,
+        link: '#department_tasks'
       });
-      toast('تم إسناد المهمة بنجاح', 'success');
+      toast('تم إسناد المهمة بنجاح — تلاقيها في مهام وتكليفات', 'success');
       close();
-      if (location.hash.startsWith('#tasks')) renderApp();
+      if (location.hash.startsWith('#department_tasks') || location.hash.startsWith('#tasks')) renderApp();
     } catch (err) {
       errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
     }
