@@ -1527,6 +1527,125 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
   .mod-stat-val { font-size: 22px; }
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   HR MODULE — Dashboard / Employees / Detail styles
+═══════════════════════════════════════════════════════════════════ */
+.hr-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.hr-toolbar .search-wrap { flex: 1; min-width: 220px; }
+.hr-toolbar .filter-select-wrap { min-width: 140px; }
+
+/* Cards for the dashboard bottom row (activities + department breakdown) */
+.hr-dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 4px; }
+@media (max-width: 900px) { .hr-dash-grid { grid-template-columns: 1fr; } }
+
+.hr-dept-bars { display: flex; flex-direction: column; gap: 10px; }
+.hr-dept-bar-row { display: grid; grid-template-columns: 1fr 42px; gap: 10px; align-items: center; }
+.hr-dept-bar-name { font-size: 12.5px; font-weight: 700; color: #0F172A; }
+.hr-dept-bar-track { height: 8px; background: rgba(148,163,184,0.15); border-radius: 4px; overflow: hidden; margin-top: 4px; }
+.hr-dept-bar-fill { height: 100%; background: linear-gradient(135deg, #10B981 0%, #34D399 45%, #8B5CF6 100%); border-radius: 4px; transition: width .3s ease; }
+.hr-dept-bar-count { font-size: 13px; font-weight: 800; color: #123F32; text-align: left; font-variant-numeric: tabular-nums; }
+
+.hr-activity-list { display: flex; flex-direction: column; gap: 10px; }
+.hr-activity-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 10px; background: rgba(16,185,129,0.04); border: 1px solid rgba(16,185,129,0.10); }
+.hr-activity-icon { width: 30px; height: 30px; border-radius: 8px; background: rgba(139,92,246,0.10); color: #6D28D9; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.hr-activity-icon.a-leave { background: rgba(245,158,11,0.10); color: #B45309; }
+.hr-activity-icon.a-hire  { background: rgba(16,185,129,0.10); color: #047857; }
+.hr-activity-body { flex: 1; min-width: 0; font-size: 12.5px; color: #0F172A; line-height: 1.6; }
+.hr-activity-body b { font-weight: 700; }
+.hr-activity-time { font-size: 10.5px; color: var(--text-muted); margin-top: 2px; }
+
+/* Employees table (desktop) */
+.hr-emp-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.hr-emp-table th { text-align: right; font-size: 11.5px; font-weight: 700; color: var(--text-muted); padding: 10px 12px; border-bottom: 1.5px solid var(--border); background: rgba(148,163,184,0.06); }
+.hr-emp-table td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+.hr-emp-table tr:hover td { background: rgba(16,185,129,0.03); }
+.hr-emp-row { cursor: pointer; }
+.hr-emp-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #DFF5E9, #C5EDD4); color: #123F32; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12.5px; flex-shrink: 0; overflow: hidden; }
+.hr-emp-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.hr-emp-name-cell { display: flex; align-items: center; gap: 10px; }
+.hr-emp-name { font-weight: 700; color: #0F172A; }
+.hr-emp-username { font-size: 11px; color: var(--text-muted); }
+.hr-emp-actions { display: flex; gap: 6px; }
+.hr-emp-actions button { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: #64748B; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all .15s ease; }
+.hr-emp-actions button:hover { background: rgba(16,185,129,0.08); color: #047857; border-color: #10B981; }
+.hr-emp-actions button.danger:hover { background: rgba(220,38,38,0.08); color: #B91C1C; border-color: #EF4444; }
+
+/* Employee mobile cards */
+.hr-emp-cards { display: none; flex-direction: column; gap: 10px; }
+.hr-emp-card {
+  background: var(--surface); border-radius: 14px; padding: 14px;
+  border: 1.5px solid transparent;
+  background-image: linear-gradient(var(--surface), var(--surface)), linear-gradient(135deg, #10B981 0%, #34D399 45%, #8B5CF6 100%);
+  background-origin: border-box; background-clip: padding-box, border-box;
+}
+.hr-emp-card-top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.hr-emp-card-body { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-muted); }
+.hr-emp-card-body .row { display: flex; justify-content: space-between; }
+.hr-emp-card-body .row .k { color: var(--text-muted); }
+.hr-emp-card-body .row .v { color: #0F172A; font-weight: 600; }
+
+/* Status pill */
+.hr-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700; }
+.hr-pill-active   { background: rgba(16,185,129,0.12); color: #047857; }
+.hr-pill-inactive { background: rgba(148,163,184,0.15); color: #64748B; }
+
+/* Employee detail hero */
+.hr-emp-hero {
+  border-radius: 20px; padding: 22px 24px; margin-bottom: 20px; color: #fff;
+  background: linear-gradient(135deg, #123F32 0%, #245B4B 55%, #6D28D9 130%);
+  box-shadow: 0 12px 30px rgba(18,55,47,0.20); position: relative; overflow: hidden;
+}
+.hr-emp-hero::after { content: ''; position: absolute; bottom: -80px; left: -60px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle at center, rgba(139,92,246,0.35), transparent 70%); pointer-events: none; }
+.hr-emp-hero-content { display: flex; align-items: center; gap: 16px; position: relative; z-index: 1; flex-wrap: wrap; }
+.hr-emp-hero-avatar { width: 72px; height: 72px; border-radius: 50%; background: rgba(255,255,255,0.15); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 24px; border: 2px solid rgba(255,255,255,0.28); flex-shrink: 0; overflow: hidden; }
+.hr-emp-hero-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.hr-emp-hero-info { flex: 1; min-width: 200px; }
+.hr-emp-hero-name { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.3px; }
+.hr-emp-hero-meta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; font-size: 12.5px; opacity: 0.92; }
+.hr-emp-hero-meta span { display: inline-flex; align-items: center; gap: 5px; }
+.hr-emp-hero-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.hr-emp-hero-btn { padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.12); color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; backdrop-filter: blur(6px); text-decoration: none; }
+.hr-emp-hero-btn:hover { background: rgba(255,255,255,0.20); }
+
+/* Tabs */
+.hr-tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--border); margin-bottom: 16px; overflow-x: auto; padding-bottom: 0; }
+.hr-tab-btn { border: none; background: none; padding: 10px 16px; font-size: 13px; font-weight: 700; color: var(--text-muted); cursor: pointer; position: relative; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.hr-tab-btn::after { content: ''; position: absolute; bottom: -2px; left: 12px; right: 12px; height: 3px; border-radius: 3px 3px 0 0; background: transparent; transition: background .18s ease; }
+.hr-tab-btn.active { color: #123F32; }
+.hr-tab-btn.active::after { background: linear-gradient(90deg, #10B981, #8B5CF6); }
+.hr-tab-btn:hover:not(.active) { color: #0F172A; }
+
+/* Info grid */
+.hr-info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.hr-info-item { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+.hr-info-label { font-size: 10.5px; color: var(--text-muted); font-weight: 700; margin-bottom: 3px; }
+.hr-info-value { font-size: 13.5px; color: #0F172A; font-weight: 600; word-break: break-word; }
+.hr-info-value.mono { font-variant-numeric: tabular-nums; direction: ltr; text-align: right; }
+.hr-info-value.empty { color: #94A3B8; font-weight: 400; }
+
+/* Form modal grid */
+.hr-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.hr-form-grid .full { grid-column: 1 / -1; }
+@media (max-width: 640px) { .hr-form-grid { grid-template-columns: 1fr; } }
+
+.hr-section-heading { display: flex; align-items: center; gap: 10px; margin: 20px 0 12px; font-size: 14px; font-weight: 800; color: #123F32; padding-bottom: 8px; border-bottom: 1.5px dashed var(--border); }
+.hr-section-heading::before { content: ''; width: 4px; height: 16px; background: linear-gradient(135deg, #10B981, #8B5CF6); border-radius: 2px; }
+.hr-section-heading .icon { color: #6D28D9; display: inline-flex; }
+
+/* Simple empty state used across HR pages */
+.hr-empty { text-align: center; padding: 40px 20px; color: var(--text-muted); }
+.hr-empty [data-lucide] { width: 40px; height: 40px; color: #B4C0CE; margin: 0 auto 10px; display: block; }
+.hr-empty-title { font-size: 14px; font-weight: 700; color: #0F172A; margin-bottom: 4px; }
+.hr-empty-sub { font-size: 12px; }
+
+@media (max-width: 720px) {
+  .hr-emp-table-wrap { display: none; }
+  .hr-emp-cards { display: flex; }
+}
+@media (min-width: 721px) {
+  .hr-emp-cards { display: none; }
+}
+
 .panel-header { position: relative; }
 .panel-header h3 { position: relative; padding-right: 12px; }
 .panel-header h3::before { content: ''; position: absolute; right: 0; top: 2px; bottom: 2px; width: 3px; background: var(--accent); border-radius: 2px; }
@@ -4590,7 +4709,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v77-2026-07-16-hr-data-layer';
+const APP_VERSION = 'v78-2026-07-16-hr-dashboard-employees';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -7604,7 +7723,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', accounting: 'الحسابات والمالية', operations: 'تشغيل المطاعم', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', accounting: 'الحسابات والمالية', operations: 'تشغيل المطاعم', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -12161,7 +12280,9 @@ async function route() {
     if (page === 'dashboard') await pageDashboard(body);
     else if (page === 'myday') await pageMyDay(body);
     else if (page === 'vision') await pageVision(body, param);
-    else if (page === 'hr') await pageComingSoonModule(body, 'hr');
+    else if (page === 'hr') await pageHrDashboard(body);
+    else if (page === 'hr_employees') await pageHrEmployees(body, query);
+    else if (page === 'hr_employee') await pageHrEmployeeDetail(body, param);
     else if (page === 'accounting') await pageComingSoonModule(body, 'accounting');
     else if (page === 'operations') await pageComingSoonModule(body, 'operations');
     else if (page === 'meetings') await pageMeetings(body, query);
@@ -15556,6 +15677,796 @@ function deptStyle(name) {
 
 let __visionPeriodRefDate = new Date();
 let __visionActiveTab = 'month';
+
+// ═══════════════════════════════════════════════════════════════════════
+// HR MODULE — Pages (v78 — Step 1.4a)
+// - pageHrDashboard: KPIs + توزيع الموظفين حسب القسم + آخر الأنشطة
+// - pageHrEmployees: قائمة الموظفين مع بحث وفلاتر وإضافة/تعديل
+// - pageHrEmployeeDetail: تبويبات (معلومات/حضور/إجازات/رواتب)
+// كل الصفحات تعتمد على window.HR (Data Access Layer) و RLS
+// يتحكم في أي بيانات يراها كل مستخدم.
+// ═══════════════════════════════════════════════════════════════════════
+
+// حالة صفحة الموظفين (search/filters بين إعادة الرندر)
+const HrEmployeesState = { search: '', department_id: '', is_active: 'active', page: 1, pageSize: 25 };
+
+// دور له صلاحية إدارة الموارد البشرية (يشمل company_manager كما اتفقنا)
+function isHrAdmin() {
+  return CURRENT_USER && ['admin', 'company_manager', 'hr_manager'].includes(CURRENT_USER.role);
+}
+function canManageEmployees() { return isHrAdmin(); }
+
+// أحرف بادئة للاسم — للـ avatar الدائرية
+function _hrInitials(name) {
+  return (name || '؟').trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '؟';
+}
+function _hrAvatarHtml(u, size = 32) {
+  if (u && u.avatar_url) {
+    return `<span class="hr-emp-avatar" style="width:${size}px;height:${size}px;"><img src="${esc(u.avatar_url)}" alt=""></span>`;
+  }
+  return `<span class="hr-emp-avatar" style="width:${size}px;height:${size}px;">${esc(_hrInitials(u ? u.full_name : ''))}</span>`;
+}
+
+// ─── لوحة تحكم الموارد البشرية ───────────────────────────────────
+async function pageHrDashboard(body) {
+  const canManage = canManageEmployees();
+  body.innerHTML = `
+    <div class="mod-hero">
+      <div class="mod-hero-top">
+        <div class="mod-hero-icon"><span data-lucide="users-round"></span></div>
+        <div>
+          <h2 class="mod-hero-title">الموارد البشرية</h2>
+          <p class="mod-hero-sub">لوحة متابعة الموظفين والحضور والإجازات والرواتب لحظيًا.</p>
+        </div>
+      </div>
+      <div class="mod-hero-badges">
+        <a href="#hr_employees" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;">
+          <span data-lucide="users" style="width:12px;height:12px;"></span> فتح قائمة الموظفين
+        </a>
+        ${canManage ? `<span class="mod-hero-badge hb-scope"><span data-lucide="shield-check" style="width:12px;height:12px;"></span> صلاحية إدارة كاملة</span>` : ''}
+      </div>
+    </div>
+
+    <div class="mod-stats" id="hrKpis">
+      ${[1,2,3,4].map(() => `<div class="mod-stat"><div class="skeleton skeleton-row" style="width:60%;height:24px;"></div><div class="skeleton skeleton-row" style="width:80%;margin-top:8px;"></div></div>`).join('')}
+    </div>
+
+    <div class="hr-dash-grid">
+      <div class="panel">
+        <div class="panel-header"><h3><span data-lucide="pie-chart" style="width:15px;height:15px;vertical-align:-2px;margin-left:5px;"></span> توزيع الموظفين حسب القسم</h3></div>
+        <div class="panel-body" id="hrDeptBreakdown">
+          <div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h3><span data-lucide="activity" style="width:15px;height:15px;vertical-align:-2px;margin-left:5px;"></span> آخر الأنشطة</h3></div>
+        <div class="panel-body" id="hrRecentActivity">
+          <div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div>
+        </div>
+      </div>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  // ─── 1) KPI cards ─────────────────────────────────────────
+  const summary = await HR.dashboard.summary();
+  const kpiBox = document.getElementById('hrKpis');
+  if (kpiBox) {
+    const money = n => (Number(n) || 0).toLocaleString('en-US');
+    kpiBox.innerHTML = `
+      <div class="mod-stat">
+        <div class="mod-stat-val">${summary.totalEmployees}</div>
+        <div class="mod-stat-lbl">إجمالي الموظفين النشطين</div>
+      </div>
+      <div class="mod-stat">
+        <div class="mod-stat-val">${summary.presentToday}</div>
+        <div class="mod-stat-lbl">حاضرون اليوم</div>
+      </div>
+      <div class="mod-stat">
+        <div class="mod-stat-val">${summary.pendingLeaves}</div>
+        <div class="mod-stat-lbl">طلبات إجازة معلقة</div>
+      </div>
+      <div class="mod-stat">
+        <div class="mod-stat-val" style="font-size:20px;">${money(summary.monthlyPayrollNet)} <span style="font-size:12px;font-weight:600;color:var(--text-muted);">ر.س</span></div>
+        <div class="mod-stat-lbl">صافي رواتب الشهر (المعتمدة)</div>
+      </div>
+    `;
+  }
+
+  // ─── 2) Departments breakdown ─────────────────────────────
+  const { data: depts } = await HR.dashboard.employeesByDepartment();
+  const deptBox = document.getElementById('hrDeptBreakdown');
+  if (deptBox) {
+    if (!depts.length) {
+      deptBox.innerHTML = `<div class="hr-empty"><span data-lucide="users-round"></span><p class="hr-empty-title">لا يوجد موظفون بعد</p><p class="hr-empty-sub">أضف أول موظف من قائمة الموظفين لتظهر الإحصائيات.</p></div>`;
+    } else {
+      const max = Math.max(...depts.map(d => d.count));
+      deptBox.innerHTML = `<div class="hr-dept-bars">${depts.map(d => `
+        <div class="hr-dept-bar-row">
+          <div>
+            <div class="hr-dept-bar-name">${esc(d.name)}</div>
+            <div class="hr-dept-bar-track"><div class="hr-dept-bar-fill" style="width:${Math.round(d.count / max * 100)}%;"></div></div>
+          </div>
+          <div class="hr-dept-bar-count">${d.count}</div>
+        </div>
+      `).join('')}</div>`;
+    }
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // ─── 3) Recent activities: أحدث موظفين مضافين + أحدث إجازات ─
+  const [{ data: newHires }, { data: recentLeaves }] = await Promise.all([
+    sb.from('users').select('id, full_name, joining_date, created_at, departments(name)').eq('is_active', true).order('created_at', { ascending: false }).limit(5),
+    HR.leaves.list({}).then(r => ({ data: (r.data || []).slice(0, 5) }))
+  ]);
+  const activityBox = document.getElementById('hrRecentActivity');
+  if (activityBox) {
+    const rows = [];
+    (newHires || []).slice(0, 3).forEach(u => {
+      rows.push({ kind: 'hire', when: u.created_at, html: `انضم <b>${esc(u.full_name)}</b>${u.departments ? ' إلى قسم ' + esc(u.departments.name) : ''}` });
+    });
+    (recentLeaves || []).slice(0, 3).forEach(l => {
+      const statusTxt = { pending: 'طلب إجازة', approved: 'تمت الموافقة على إجازة', rejected: 'رُفض طلب إجازة', cancelled: 'أُلغي طلب إجازة' }[l.status] || 'طلب إجازة';
+      rows.push({ kind: 'leave', when: l.created_at, html: `${statusTxt} من <b>${esc(l.users?.full_name || '—')}</b>${l.hr_leave_types ? ' (' + esc(l.hr_leave_types.name) + ')' : ''}` });
+    });
+    rows.sort((a, b) => new Date(b.when) - new Date(a.when));
+    if (!rows.length) {
+      activityBox.innerHTML = `<div class="hr-empty"><span data-lucide="activity"></span><p class="hr-empty-title">لا توجد أنشطة حديثة</p><p class="hr-empty-sub">ستظهر هنا آخر التوظيفات وطلبات الإجازة.</p></div>`;
+    } else {
+      activityBox.innerHTML = `<div class="hr-activity-list">${rows.map(r => `
+        <div class="hr-activity-row">
+          <div class="hr-activity-icon a-${r.kind}"><span data-lucide="${r.kind === 'hire' ? 'user-plus' : 'palm-tree'}" style="width:15px;height:15px;"></span></div>
+          <div class="hr-activity-body">
+            <div>${r.html}</div>
+            <div class="hr-activity-time">${fmtDateAr(r.when)}</div>
+          </div>
+        </div>
+      `).join('')}</div>`;
+    }
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+// ─── قائمة الموظفين ──────────────────────────────────────────────
+async function pageHrEmployees(body, urlQuery) {
+  if (urlQuery && urlQuery.search) HrEmployeesState.search = urlQuery.search;
+  const canManage = canManageEmployees();
+
+  body.innerHTML = `
+    <a href="#hr" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الموارد البشرية</a>
+
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="users" style="width:22px;height:22px;color:#123F32;"></span> الموظفون</h2>
+        <p>قائمة كل الموظفين النشطين مع بحث وفلاتر للقسم والحالة.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="hrAddEmpBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="user-plus" style="width:14px;height:14px;"></span> إضافة موظف</button>` : ''}
+    </div>
+
+    <div class="panel"><div class="panel-body">
+      <div class="hr-toolbar">
+        <div class="search-wrap"><input type="text" id="hrEmpSearch" placeholder="بحث بالاسم أو اسم المستخدم أو البريد..." value="${esc(HrEmployeesState.search)}"><span class="search-icon" data-lucide="search"></span></div>
+        <div class="filter-select-wrap"><span class="fsw-icon" data-lucide="building-2" style="width:15px;height:15px;"></span>
+          <select id="hrEmpDept"><option value="">كل الأقسام</option></select>
+        </div>
+        <div class="filter-select-wrap"><span class="fsw-icon" data-lucide="check-circle-2" style="width:15px;height:15px;"></span>
+          <select id="hrEmpStatus">
+            <option value="active" ${HrEmployeesState.is_active === 'active' ? 'selected' : ''}>النشطون</option>
+            <option value="inactive" ${HrEmployeesState.is_active === 'inactive' ? 'selected' : ''}>المعطَّلون</option>
+            <option value="">الكل</option>
+          </select>
+        </div>
+        <button type="button" class="reset-filters-btn" id="hrEmpReset"><span data-lucide="refresh-cw"></span> إعادة التصفية</button>
+      </div>
+      <div id="hrEmpTableBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
+    </div></div>
+
+    <div id="hrEmpModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  // Load departments for the filter dropdown
+  const { data: depts } = await sb.from('departments').select('id, name').order('name');
+  const deptSel = document.getElementById('hrEmpDept');
+  if (deptSel) {
+    deptSel.innerHTML = '<option value="">كل الأقسام</option>' + (depts || []).map(d => `<option value="${d.id}" ${String(d.id) === String(HrEmployeesState.department_id) ? 'selected' : ''}>${esc(d.name)}</option>`).join('');
+  }
+
+  // Wire toolbar
+  document.getElementById('hrEmpSearch').addEventListener('input', debounce(() => {
+    HrEmployeesState.search = document.getElementById('hrEmpSearch').value.trim();
+    HrEmployeesState.page = 1;
+    renderHrEmployeesTable();
+  }, 300));
+  document.getElementById('hrEmpDept').addEventListener('change', (e) => {
+    HrEmployeesState.department_id = e.target.value;
+    HrEmployeesState.page = 1;
+    renderHrEmployeesTable();
+  });
+  document.getElementById('hrEmpStatus').addEventListener('change', (e) => {
+    HrEmployeesState.is_active = e.target.value;
+    HrEmployeesState.page = 1;
+    renderHrEmployeesTable();
+  });
+  document.getElementById('hrEmpReset').addEventListener('click', () => {
+    HrEmployeesState.search = ''; HrEmployeesState.department_id = ''; HrEmployeesState.is_active = 'active'; HrEmployeesState.page = 1;
+    document.getElementById('hrEmpSearch').value = '';
+    document.getElementById('hrEmpDept').value = '';
+    document.getElementById('hrEmpStatus').value = 'active';
+    renderHrEmployeesTable();
+  });
+  if (canManage) {
+    document.getElementById('hrAddEmpBtn').addEventListener('click', () => openHrEmployeeModal(null));
+  }
+
+  await renderHrEmployeesTable();
+}
+
+async function renderHrEmployeesTable() {
+  const box = document.getElementById('hrEmpTableBody');
+  if (!box) return;
+  const filters = {
+    search: HrEmployeesState.search,
+    department_id: HrEmployeesState.department_id || null,
+    is_active: HrEmployeesState.is_active === 'active' ? true : HrEmployeesState.is_active === 'inactive' ? false : null,
+    page: HrEmployeesState.page,
+    pageSize: HrEmployeesState.pageSize
+  };
+  const { data: rows, count, error } = await HR.employees.list(filters);
+  if (error) {
+    box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`;
+    return;
+  }
+  const canManage = canManageEmployees();
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="user-x"></span><p class="hr-empty-title">لا يوجد موظفون مطابقون</p><p class="hr-empty-sub">${HrEmployeesState.search ? 'جرّب كلمة بحث أخرى أو أعد التصفية.' : 'ابدأ بإضافة أول موظف.'}</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+
+  // Desktop table + mobile cards (both rendered, CSS media query toggles)
+  const rowsHtml = rows.map(u => {
+    const prof = u.hr_employee_profile;
+    const empNo = prof?.employee_number || '—';
+    const active = u.is_active !== false && (u.status || 'active') === 'active';
+    return `
+      <tr class="hr-emp-row" data-emp-id="${u.id}">
+        <td>
+          <div class="hr-emp-name-cell">
+            ${_hrAvatarHtml(u, 32)}
+            <div>
+              <div class="hr-emp-name">${esc(u.full_name)}</div>
+              <div class="hr-emp-username">${esc(u.username || '')}</div>
+            </div>
+          </div>
+        </td>
+        <td class="mono-num">${esc(empNo)}</td>
+        <td>${esc(u.departments?.name || '—')}</td>
+        <td>${esc(u.position_title || '—')}</td>
+        <td>${esc(u.branches?.name || '—')}</td>
+        <td><span class="hr-pill hr-pill-${active ? 'active' : 'inactive'}">${active ? 'نشط' : 'معطَّل'}</span></td>
+        <td>
+          <div class="hr-emp-actions" onclick="event.stopPropagation();">
+            <button type="button" title="عرض الملف" data-hr-view="${u.id}"><span data-lucide="eye" style="width:14px;height:14px;"></span></button>
+            ${canManage ? `<button type="button" title="تعديل" data-hr-edit="${u.id}"><span data-lucide="pencil" style="width:14px;height:14px;"></span></button>` : ''}
+            ${canManage ? `<button type="button" class="danger" title="${active ? 'تعطيل' : 'تفعيل'}" data-hr-toggle="${u.id}" data-hr-active="${active}"><span data-lucide="${active ? 'user-x' : 'user-check'}" style="width:14px;height:14px;"></span></button>` : ''}
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+
+  const cardsHtml = rows.map(u => {
+    const prof = u.hr_employee_profile;
+    const active = u.is_active !== false && (u.status || 'active') === 'active';
+    return `
+      <div class="hr-emp-card" data-emp-id="${u.id}">
+        <div class="hr-emp-card-top">
+          ${_hrAvatarHtml(u, 44)}
+          <div style="flex:1;min-width:0;">
+            <div class="hr-emp-name" style="font-size:14px;">${esc(u.full_name)}</div>
+            <div class="hr-emp-username">${esc(u.position_title || '')}</div>
+          </div>
+          <span class="hr-pill hr-pill-${active ? 'active' : 'inactive'}">${active ? 'نشط' : 'معطَّل'}</span>
+        </div>
+        <div class="hr-emp-card-body">
+          <div class="row"><span class="k">القسم</span><span class="v">${esc(u.departments?.name || '—')}</span></div>
+          <div class="row"><span class="k">الفرع</span><span class="v">${esc(u.branches?.name || '—')}</span></div>
+          <div class="row"><span class="k">الرقم الوظيفي</span><span class="v mono-num">${esc(prof?.employee_number || '—')}</span></div>
+        </div>
+      </div>`;
+  }).join('');
+
+  const totalPages = Math.max(1, Math.ceil(count / HrEmployeesState.pageSize));
+  const pagination = totalPages > 1 ? `
+    <div style="display:flex;justify-content:center;gap:8px;margin-top:14px;align-items:center;font-size:13px;">
+      <button type="button" class="btn btn-outline btn-sm" ${HrEmployeesState.page <= 1 ? 'disabled' : ''} id="hrEmpPrev">السابق</button>
+      <span>صفحة ${HrEmployeesState.page} من ${totalPages} — ${count} موظف</span>
+      <button type="button" class="btn btn-outline btn-sm" ${HrEmployeesState.page >= totalPages ? 'disabled' : ''} id="hrEmpNext">التالي</button>
+    </div>` : `<div style="text-align:center;margin-top:10px;font-size:12px;color:var(--text-muted);">${count} موظف</div>`;
+
+  box.innerHTML = `
+    <div class="hr-emp-table-wrap" style="overflow-x:auto;">
+      <table class="hr-emp-table">
+        <thead>
+          <tr>
+            <th>الموظف</th>
+            <th>الرقم الوظيفي</th>
+            <th>القسم</th>
+            <th>المنصب</th>
+            <th>الفرع</th>
+            <th>الحالة</th>
+            <th style="width:110px;">إجراءات</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
+    <div class="hr-emp-cards">${cardsHtml}</div>
+    ${pagination}
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  // Wire row clicks + actions
+  box.querySelectorAll('.hr-emp-row, .hr-emp-card').forEach(el => {
+    el.addEventListener('click', () => { location.hash = '#hr_employee/' + el.dataset.empId; });
+  });
+  box.querySelectorAll('[data-hr-view]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); location.hash = '#hr_employee/' + b.dataset.hrView; }));
+  box.querySelectorAll('[data-hr-edit]').forEach(b => b.addEventListener('click', async (e) => { e.stopPropagation(); await openHrEmployeeModal(Number(b.dataset.hrEdit)); }));
+  box.querySelectorAll('[data-hr-toggle]').forEach(b => b.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const id = Number(b.dataset.hrToggle);
+    const wasActive = b.dataset.hrActive === 'true';
+    const label = wasActive ? 'تعطيل هذا الموظف؟ لن يتمكن من الدخول للنظام.' : 'إعادة تفعيل هذا الموظف؟';
+    if (!(await customConfirm(label))) return;
+    const { error } = wasActive ? await HR.employees.deactivate(id) : await HR.employees.reactivate(id);
+    if (error) { toast('تعذّر تحديث الحالة: ' + error.message, 'error'); return; }
+    toast(wasActive ? 'تم تعطيل الموظف' : 'تم تفعيل الموظف', 'success');
+    renderHrEmployeesTable();
+  }));
+  document.getElementById('hrEmpPrev')?.addEventListener('click', () => { HrEmployeesState.page--; renderHrEmployeesTable(); });
+  document.getElementById('hrEmpNext')?.addEventListener('click', () => { HrEmployeesState.page++; renderHrEmployeesTable(); });
+}
+
+// ─── صفحة تفاصيل موظف مع تبويبات ─────────────────────────────────
+const HrDetailTabs = { active: 'info' };
+
+async function pageHrEmployeeDetail(body, idParam) {
+  const userId = Number(idParam);
+  if (!userId) { body.innerHTML = '<p class="error-msg show">معرف الموظف غير صحيح</p>'; return; }
+  const { data: emp, error } = await HR.employees.get(userId);
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!emp) { body.innerHTML = '<p class="empty-state">الموظف غير موجود أو لا تملك صلاحية الوصول لملفه.</p>'; return; }
+
+  const prof = emp.hr_employee_profile || null;
+  const active = emp.is_active !== false && (emp.status || 'active') === 'active';
+  const canManage = canManageEmployees();
+  const isSelf = CURRENT_USER && emp.id === CURRENT_USER.id;
+  const canSeePayroll = isSelf || (CURRENT_USER && ['admin', 'company_manager', 'hr_manager', 'payroll_officer'].includes(CURRENT_USER.role));
+
+  const tabs = [
+    { key: 'info',       label: 'المعلومات الأساسية', icon: 'user' },
+    { key: 'attendance', label: 'الحضور',              icon: 'calendar-check' },
+    { key: 'leaves',     label: 'الإجازات',            icon: 'palm-tree' },
+  ];
+  if (canSeePayroll) tabs.push({ key: 'payroll', label: 'الرواتب', icon: 'banknote' });
+
+  body.innerHTML = `
+    <a href="#hr_employees" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لقائمة الموظفين</a>
+
+    <div class="hr-emp-hero">
+      <div class="hr-emp-hero-content">
+        <div class="hr-emp-hero-avatar">${emp.avatar_url ? `<img src="${esc(emp.avatar_url)}" alt="">` : esc(_hrInitials(emp.full_name))}</div>
+        <div class="hr-emp-hero-info">
+          <h2 class="hr-emp-hero-name">${esc(emp.full_name)}</h2>
+          <div class="hr-emp-hero-meta">
+            ${emp.position_title ? `<span><span data-lucide="briefcase" style="width:13px;height:13px;"></span> ${esc(emp.position_title)}</span>` : ''}
+            ${emp.departments ? `<span><span data-lucide="building-2" style="width:13px;height:13px;"></span> ${esc(emp.departments.name)}</span>` : ''}
+            ${emp.branches ? `<span><span data-lucide="map-pin" style="width:13px;height:13px;"></span> ${esc(emp.branches.name)}</span>` : ''}
+            <span><span data-lucide="${active ? 'check-circle-2' : 'x-circle'}" style="width:13px;height:13px;"></span> ${active ? 'نشط' : 'معطَّل'}</span>
+          </div>
+        </div>
+        <div class="hr-emp-hero-actions">
+          ${canManage ? `<button type="button" class="hr-emp-hero-btn" id="hrEmpEditBtn"><span data-lucide="pencil" style="width:13px;height:13px;"></span> تعديل</button>` : ''}
+          ${emp.mobile_number && isValidPhoneNumber(emp.mobile_number) ? `<a class="hr-emp-hero-btn" href="tel:${esc(normalizeWhatsAppPhone(emp.mobile_number))}"><span data-lucide="phone" style="width:13px;height:13px;"></span> اتصال</a>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="hr-tabs" id="hrDetailTabs">
+      ${tabs.map(t => `<button type="button" class="hr-tab-btn ${t.key === HrDetailTabs.active ? 'active' : ''}" data-tab="${t.key}"><span data-lucide="${t.icon}" style="width:14px;height:14px;"></span> ${t.label}</button>`).join('')}
+    </div>
+
+    <div id="hrDetailTabBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
+    <div id="hrEmpModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  document.querySelectorAll('#hrDetailTabs .hr-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      HrDetailTabs.active = btn.dataset.tab;
+      document.querySelectorAll('#hrDetailTabs .hr-tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+      renderHrDetailTabBody(emp);
+    });
+  });
+  document.getElementById('hrEmpEditBtn')?.addEventListener('click', () => openHrEmployeeModal(emp.id));
+
+  renderHrDetailTabBody(emp);
+}
+
+function _hrInfo(label, value, opts) {
+  const empty = !value && value !== 0;
+  return `<div class="hr-info-item"><div class="hr-info-label">${esc(label)}</div><div class="hr-info-value ${opts?.mono ? 'mono' : ''} ${empty ? 'empty' : ''}">${empty ? '—' : esc(String(value))}</div></div>`;
+}
+
+async function renderHrDetailTabBody(emp) {
+  const box = document.getElementById('hrDetailTabBody');
+  if (!box) return;
+  const prof = emp.hr_employee_profile || {};
+
+  if (HrDetailTabs.active === 'info') {
+    const contractTypeAr = { full_time: 'دوام كامل', part_time: 'دوام جزئي', temporary: 'مؤقت', seasonal: 'موسمي' }[prof.contract_type] || '';
+    const genderAr = { male: 'ذكر', female: 'أنثى' }[prof.gender] || '';
+    const maritalAr = { single: 'أعزب', married: 'متزوج', divorced: 'مطلق', widowed: 'أرمل' }[prof.marital_status] || '';
+    box.innerHTML = `
+      <div class="hr-section-heading"><span class="icon" data-lucide="user"></span> البيانات الأساسية</div>
+      <div class="hr-info-grid">
+        ${_hrInfo('الاسم الكامل', emp.full_name)}
+        ${_hrInfo('اسم المستخدم', emp.username)}
+        ${_hrInfo('الرقم الوظيفي', prof.employee_number, { mono: true })}
+        ${_hrInfo('البريد الإلكتروني', emp.email)}
+        ${_hrInfo('الجوال', emp.mobile_number, { mono: true })}
+        ${_hrInfo('الجنسية', emp.nationality)}
+        ${_hrInfo('تاريخ الميلاد', prof.birth_date ? fmtDateAr(prof.birth_date) : '')}
+        ${_hrInfo('الجنس', genderAr)}
+        ${_hrInfo('الحالة الاجتماعية', maritalAr)}
+      </div>
+
+      <div class="hr-section-heading"><span class="icon" data-lucide="briefcase"></span> بيانات العمل</div>
+      <div class="hr-info-grid">
+        ${_hrInfo('القسم', emp.departments?.name)}
+        ${_hrInfo('المنصب', emp.position_title)}
+        ${_hrInfo('الفرع', emp.branches?.name)}
+        ${_hrInfo('المدير المباشر', emp.manager?.full_name)}
+        ${_hrInfo('الدور', LABELS.role[emp.role] || emp.role)}
+        ${_hrInfo('تاريخ الانضمام', emp.joining_date ? fmtDateAr(emp.joining_date) : '')}
+        ${_hrInfo('نوع العقد', contractTypeAr)}
+        ${_hrInfo('بداية العقد', prof.contract_start_date ? fmtDateAr(prof.contract_start_date) : '')}
+        ${_hrInfo('نهاية العقد', prof.contract_end_date ? fmtDateAr(prof.contract_end_date) : '')}
+        ${_hrInfo('انتهاء التجربة', prof.probation_end_date ? fmtDateAr(prof.probation_end_date) : '')}
+        ${_hrInfo('ساعات الأسبوع', prof.working_hours_per_week)}
+      </div>
+
+      <div class="hr-section-heading"><span class="icon" data-lucide="id-card"></span> الهويات والوثائق</div>
+      <div class="hr-info-grid">
+        ${_hrInfo('رقم الهوية', prof.national_id, { mono: true })}
+        ${_hrInfo('رقم الإقامة', prof.iqama_number, { mono: true })}
+        ${_hrInfo('انتهاء الإقامة', prof.iqama_expiry ? fmtDateAr(prof.iqama_expiry) : '')}
+        ${_hrInfo('رقم جواز السفر', prof.passport_number, { mono: true })}
+        ${_hrInfo('انتهاء الجواز', prof.passport_expiry ? fmtDateAr(prof.passport_expiry) : '')}
+      </div>
+
+      <div class="hr-section-heading"><span class="icon" data-lucide="phone-call"></span> بيانات الاتصال والطوارئ</div>
+      <div class="hr-info-grid">
+        ${_hrInfo('العنوان', prof.home_address)}
+        ${_hrInfo('اسم جهة الاتصال الطارئة', prof.emergency_contact_name)}
+        ${_hrInfo('جوال الطارئة', prof.emergency_contact_phone, { mono: true })}
+        ${_hrInfo('صلة القرابة', prof.emergency_contact_relation)}
+      </div>
+
+      <div class="hr-section-heading"><span class="icon" data-lucide="wallet"></span> البيانات البنكية</div>
+      <div class="hr-info-grid">
+        ${_hrInfo('اسم البنك', prof.bank_name)}
+        ${_hrInfo('رقم الآيبان', prof.iban, { mono: true })}
+      </div>
+    `;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+
+  if (HrDetailTabs.active === 'attendance') {
+    const now = new Date(), y = now.getFullYear(), m = now.getMonth() + 1;
+    const { data: att } = await HR.attendance.forMonth(emp.id, y, m);
+    if (!att.length) {
+      box.innerHTML = `<div class="hr-empty"><span data-lucide="calendar-off"></span><p class="hr-empty-title">لا توجد سجلات حضور لهذا الشهر</p><p class="hr-empty-sub">تظهر هنا سجلات الحضور المسجلة من إدارة الموارد البشرية.</p></div>`;
+      if (window.lucide) lucide.createIcons();
+      return;
+    }
+    const statusLabels = { present: 'حاضر', absent: 'غائب', late: 'متأخر', leave: 'إجازة', holiday: 'عطلة', sick: 'مرضي', remote: 'عن بعد' };
+    box.innerHTML = `
+      <div class="hr-section-heading"><span class="icon" data-lucide="calendar-check"></span> حضور شهر ${m}/${y}</div>
+      <div style="overflow-x:auto;">
+        <table class="hr-emp-table">
+          <thead><tr><th>التاريخ</th><th>الحالة</th><th>الحضور</th><th>الانصراف</th><th>ملاحظات</th></tr></thead>
+          <tbody>
+            ${att.map(a => `<tr>
+              <td class="mono-num">${esc(a.attendance_date)}</td>
+              <td><span class="hr-pill hr-pill-${a.status === 'present' || a.status === 'remote' ? 'active' : 'inactive'}">${esc(statusLabels[a.status] || a.status)}</span></td>
+              <td class="mono-num">${a.check_in ? new Date(a.check_in).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+              <td class="mono-num">${a.check_out ? new Date(a.check_out).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+              <td>${esc(a.notes || '—')}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+
+  if (HrDetailTabs.active === 'leaves') {
+    const { data: leaves } = await HR.leaves.list({ user_id: emp.id });
+    if (!leaves.length) {
+      box.innerHTML = `<div class="hr-empty"><span data-lucide="palm-tree"></span><p class="hr-empty-title">لا توجد طلبات إجازة</p><p class="hr-empty-sub">لم يقدّم هذا الموظف أي طلب إجازة حتى الآن.</p></div>`;
+      if (window.lucide) lucide.createIcons();
+      return;
+    }
+    const statusLbl = { pending: 'معلق', approved: 'موافقة', rejected: 'مرفوض', cancelled: 'ملغي' };
+    const statusCls = { pending: 'hr-pill-inactive', approved: 'hr-pill-active', rejected: 'hr-pill-inactive', cancelled: 'hr-pill-inactive' };
+    box.innerHTML = `
+      <div class="hr-section-heading"><span class="icon" data-lucide="palm-tree"></span> طلبات الإجازة</div>
+      <div style="overflow-x:auto;">
+        <table class="hr-emp-table">
+          <thead><tr><th>النوع</th><th>من</th><th>إلى</th><th>عدد الأيام</th><th>الحالة</th><th>السبب</th></tr></thead>
+          <tbody>
+            ${leaves.map(l => `<tr>
+              <td>${esc(l.hr_leave_types?.name || '—')}</td>
+              <td class="mono-num">${esc(l.start_date)}</td>
+              <td class="mono-num">${esc(l.end_date)}</td>
+              <td class="mono-num">${esc(String(l.days_count))}</td>
+              <td><span class="hr-pill ${statusCls[l.status]}">${esc(statusLbl[l.status] || l.status)}</span></td>
+              <td>${esc(l.reason || '—')}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+
+  if (HrDetailTabs.active === 'payroll') {
+    const now = new Date(), y = now.getFullYear();
+    const { data: payrolls } = await HR.payroll.list({ user_id: emp.id, period_year: y });
+    if (!payrolls.length) {
+      box.innerHTML = `<div class="hr-empty"><span data-lucide="banknote"></span><p class="hr-empty-title">لا توجد كشوف رواتب</p><p class="hr-empty-sub">لم يتم إنشاء كشف راتب لهذا الموظف لسنة ${y}.</p></div>`;
+      if (window.lucide) lucide.createIcons();
+      return;
+    }
+    const statusLbl = { draft: 'مسودة', approved: 'معتمد', paid: 'مدفوع', cancelled: 'ملغي' };
+    const monthName = m => ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'][m - 1];
+    const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    box.innerHTML = `
+      <div class="hr-section-heading"><span class="icon" data-lucide="banknote"></span> كشوف رواتب ${y}</div>
+      <div style="overflow-x:auto;">
+        <table class="hr-emp-table">
+          <thead><tr><th>الشهر</th><th>الأساسي</th><th>البدلات</th><th>الخصومات</th><th>الصافي</th><th>الحالة</th></tr></thead>
+          <tbody>
+            ${payrolls.map(p => {
+              const allowances = Number(p.housing_allowance || 0) + Number(p.transport_allowance || 0) + Number(p.other_allowances || 0) + Number(p.overtime_amount || 0) + Number(p.bonus || 0);
+              return `<tr>
+                <td>${esc(monthName(p.period_month))} ${p.period_year}</td>
+                <td class="mono-num">${money(p.basic_salary)} ر.س</td>
+                <td class="mono-num">${money(allowances)} ر.س</td>
+                <td class="mono-num">${money(p.deductions)} ر.س</td>
+                <td class="mono-num" style="font-weight:800;color:#123F32;">${money(p.net_salary)} ر.س</td>
+                <td><span class="hr-pill hr-pill-${p.status === 'paid' || p.status === 'approved' ? 'active' : 'inactive'}">${esc(statusLbl[p.status] || p.status)}</span></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+}
+
+// ─── Modal: إضافة / تعديل موظف ──────────────────────────────────
+async function openHrEmployeeModal(userId) {
+  const isEdit = !!userId;
+  const [{ data: depts }, { data: branches }, { data: managers }, { data: positions }] = await Promise.all([
+    sb.from('departments').select('id, name').order('name'),
+    sb.from('branches').select('id, name').eq('is_active', true).order('name'),
+    sb.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
+    HR.positions.list()
+  ]);
+  let existing = null;
+  if (isEdit) {
+    const { data } = await HR.employees.get(userId);
+    existing = data;
+  }
+  const emp = existing || {};
+  const prof = existing?.hr_employee_profile || {};
+
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.id = 'hrEmpModalOverlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:720px;max-width:96%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="${isEdit ? 'pencil' : 'user-plus'}" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ${isEdit ? 'تعديل موظف' : 'إضافة موظف جديد'}</h3>
+        <button class="modal-close-x" id="hrEmpClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="hrEmpErr"></div>
+        <form id="hrEmpForm">
+
+          <div class="hr-section-heading"><span class="icon" data-lucide="user"></span> البيانات الأساسية</div>
+          <div class="hr-form-grid">
+            <div class="form-field"><label>الاسم الكامل *</label><input class="form-input" name="full_name" required value="${esc(emp.full_name || '')}"></div>
+            <div class="form-field"><label>الرقم الوظيفي</label><input class="form-input" name="employee_number" value="${esc(prof.employee_number || '')}"></div>
+            <div class="form-field"><label>البريد الإلكتروني</label><input class="form-input" name="email" type="email" value="${esc(emp.email || '')}"></div>
+            <div class="form-field"><label>الجوال</label><input class="form-input" name="mobile_number" placeholder="05xxxxxxxx" value="${esc(emp.mobile_number || '')}"></div>
+            <div class="form-field"><label>الجنسية</label><input class="form-input" name="nationality" value="${esc(emp.nationality || '')}"></div>
+            <div class="form-field"><label>تاريخ الميلاد</label><input class="form-input" type="date" name="birth_date" value="${esc(prof.birth_date || '')}"></div>
+            <div class="form-field"><label>الجنس</label>
+              <select class="form-select" name="gender">
+                <option value="">—</option>
+                <option value="male" ${prof.gender === 'male' ? 'selected' : ''}>ذكر</option>
+                <option value="female" ${prof.gender === 'female' ? 'selected' : ''}>أنثى</option>
+              </select>
+            </div>
+            <div class="form-field"><label>الحالة الاجتماعية</label>
+              <select class="form-select" name="marital_status">
+                <option value="">—</option>
+                <option value="single"   ${prof.marital_status === 'single'   ? 'selected' : ''}>أعزب</option>
+                <option value="married"  ${prof.marital_status === 'married'  ? 'selected' : ''}>متزوج</option>
+                <option value="divorced" ${prof.marital_status === 'divorced' ? 'selected' : ''}>مطلق</option>
+                <option value="widowed"  ${prof.marital_status === 'widowed'  ? 'selected' : ''}>أرمل</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="hr-section-heading"><span class="icon" data-lucide="briefcase"></span> بيانات العمل</div>
+          <div class="hr-form-grid">
+            <div class="form-field"><label>القسم *</label>
+              <select class="form-select" name="department_id" required>
+                <option value="">اختر القسم</option>
+                ${(depts || []).map(d => `<option value="${d.id}" ${String(d.id) === String(emp.department_id) ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-field"><label>الفرع</label>
+              <select class="form-select" name="branch_id">
+                <option value="">—</option>
+                ${(branches || []).map(b => `<option value="${b.id}" ${String(b.id) === String(emp.branch_id) ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-field"><label>المنصب (نص حر)</label><input class="form-input" name="position_title" value="${esc(emp.position_title || '')}"></div>
+            <div class="form-field"><label>المنصب (من الجدول)</label>
+              <select class="form-select" name="position_id">
+                <option value="">—</option>
+                ${(positions || []).map(p => `<option value="${p.id}" ${String(p.id) === String(prof.position_id) ? 'selected' : ''}>${esc(p.name)}${p.departments ? ' (' + esc(p.departments.name) + ')' : ''}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-field"><label>المدير المباشر</label>
+              <select class="form-select" name="direct_manager_id">
+                <option value="">—</option>
+                ${(managers || []).filter(m => m.id !== emp.id).map(m => `<option value="${m.id}" ${String(m.id) === String(emp.direct_manager_id) ? 'selected' : ''}>${esc(m.full_name)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-field"><label>الدور *</label>
+              <select class="form-select" name="role" required>
+                ${PERMISSION_ROLES.map(r => `<option value="${r}" ${(emp.role || 'employee') === r ? 'selected' : ''}>${esc(LABELS.role[r] || r)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-field"><label>تاريخ الانضمام</label><input class="form-input" type="date" name="joining_date" value="${esc(emp.joining_date || '')}"></div>
+            <div class="form-field"><label>نوع العقد</label>
+              <select class="form-select" name="contract_type">
+                <option value="">—</option>
+                <option value="full_time" ${prof.contract_type === 'full_time' ? 'selected' : ''}>دوام كامل</option>
+                <option value="part_time" ${prof.contract_type === 'part_time' ? 'selected' : ''}>دوام جزئي</option>
+                <option value="temporary" ${prof.contract_type === 'temporary' ? 'selected' : ''}>مؤقت</option>
+                <option value="seasonal"  ${prof.contract_type === 'seasonal'  ? 'selected' : ''}>موسمي</option>
+              </select>
+            </div>
+            <div class="form-field"><label>بداية العقد</label><input class="form-input" type="date" name="contract_start_date" value="${esc(prof.contract_start_date || '')}"></div>
+            <div class="form-field"><label>نهاية العقد</label><input class="form-input" type="date" name="contract_end_date" value="${esc(prof.contract_end_date || '')}"></div>
+            <div class="form-field"><label>انتهاء التجربة</label><input class="form-input" type="date" name="probation_end_date" value="${esc(prof.probation_end_date || '')}"></div>
+          </div>
+
+          <div class="hr-section-heading"><span class="icon" data-lucide="id-card"></span> الهويات</div>
+          <div class="hr-form-grid">
+            <div class="form-field"><label>رقم الهوية</label><input class="form-input" name="national_id" value="${esc(prof.national_id || '')}"></div>
+            <div class="form-field"><label>رقم الإقامة</label><input class="form-input" name="iqama_number" value="${esc(prof.iqama_number || '')}"></div>
+            <div class="form-field"><label>انتهاء الإقامة</label><input class="form-input" type="date" name="iqama_expiry" value="${esc(prof.iqama_expiry || '')}"></div>
+            <div class="form-field"><label>رقم جواز السفر</label><input class="form-input" name="passport_number" value="${esc(prof.passport_number || '')}"></div>
+            <div class="form-field"><label>انتهاء الجواز</label><input class="form-input" type="date" name="passport_expiry" value="${esc(prof.passport_expiry || '')}"></div>
+          </div>
+
+          <div class="hr-section-heading"><span class="icon" data-lucide="phone-call"></span> جهة اتصال الطوارئ</div>
+          <div class="hr-form-grid">
+            <div class="form-field full"><label>العنوان</label><input class="form-input" name="home_address" value="${esc(prof.home_address || '')}"></div>
+            <div class="form-field"><label>الاسم</label><input class="form-input" name="emergency_contact_name" value="${esc(prof.emergency_contact_name || '')}"></div>
+            <div class="form-field"><label>الجوال</label><input class="form-input" name="emergency_contact_phone" value="${esc(prof.emergency_contact_phone || '')}"></div>
+            <div class="form-field"><label>صلة القرابة</label><input class="form-input" name="emergency_contact_relation" value="${esc(prof.emergency_contact_relation || '')}"></div>
+          </div>
+
+          <div class="hr-section-heading"><span class="icon" data-lucide="wallet"></span> بيانات الراتب والبنك</div>
+          <div class="hr-form-grid">
+            <div class="form-field"><label>الراتب الأساسي (ر.س)</label><input class="form-input" type="number" step="0.01" min="0" name="base_salary" value="${esc(prof.base_salary || 0)}"></div>
+            <div class="form-field"><label>بدل السكن</label><input class="form-input" type="number" step="0.01" min="0" name="housing_allowance" value="${esc(prof.housing_allowance || 0)}"></div>
+            <div class="form-field"><label>بدل النقل</label><input class="form-input" type="number" step="0.01" min="0" name="transport_allowance" value="${esc(prof.transport_allowance || 0)}"></div>
+            <div class="form-field"><label>بدلات أخرى</label><input class="form-input" type="number" step="0.01" min="0" name="other_allowances" value="${esc(prof.other_allowances || 0)}"></div>
+            <div class="form-field"><label>اسم البنك</label><input class="form-input" name="bank_name" value="${esc(prof.bank_name || '')}"></div>
+            <div class="form-field"><label>رقم الآيبان (SA + 22 خانة)</label><input class="form-input" name="iban" placeholder="SA0000000000000000000000" value="${esc(prof.iban || '')}"></div>
+          </div>
+
+          <div class="form-field full" style="margin-top:12px;"><label>ملاحظات</label><textarea class="form-input" name="notes" rows="2">${esc(prof.notes || '')}</textarea></div>
+
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-outline" id="hrEmpCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">${isEdit ? 'حفظ التعديلات' : 'إضافة الموظف'}</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+
+  const close = () => host.remove();
+  host.querySelector('#hrEmpClose').addEventListener('click', close);
+  host.querySelector('#hrEmpCancel').addEventListener('click', close);
+
+  host.querySelector('#hrEmpForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('hrEmpErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {};
+    fd.forEach((v, k) => { payload[k] = v === '' ? null : v; });
+    ['department_id', 'branch_id', 'direct_manager_id', 'position_id'].forEach(k => { if (payload[k]) payload[k] = Number(payload[k]); });
+    ['base_salary', 'housing_allowance', 'transport_allowance', 'other_allowances'].forEach(k => { if (payload[k] != null) payload[k] = Number(payload[k]); });
+
+    try {
+      if (isEdit) {
+        const { error } = await HR.employees.saveProfile(userId, payload);
+        if (error) throw error;
+        toast('تم حفظ التعديلات بنجاح', 'success');
+        close();
+        // Refresh source page
+        if (location.hash.startsWith('#hr_employee')) renderApp();
+        else if (typeof renderHrEmployeesTable === 'function') renderHrEmployeesTable();
+      } else {
+        // Create the users row first (username auto-generated from email or ID)
+        const emailLocal = (payload.email || '').split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+        const usernameBase = emailLocal || ('emp' + Date.now().toString().slice(-6));
+        let username = usernameBase, n = 1;
+        while (true) {
+          const { data: existingU } = await sb.from('users').select('id').eq('username', username).maybeSingle();
+          if (!existingU) break;
+          n++; username = usernameBase + n;
+        }
+        const userInsert = {
+          full_name: payload.full_name,
+          username,
+          password_plain: 'TempPass' + Math.floor(Math.random() * 9000 + 1000),
+          email: payload.email || null,
+          mobile_number: payload.mobile_number || null,
+          role: payload.role || 'employee',
+          department_id: payload.department_id || null,
+          branch_id: payload.branch_id || null,
+          position_title: payload.position_title || null,
+          joining_date: payload.joining_date || null,
+          direct_manager_id: payload.direct_manager_id || null,
+          nationality: payload.nationality || null,
+          is_active: true,
+          status: 'active'
+        };
+        const { data: newUser, error: uErr } = await sb.from('users').insert(userInsert).select().single();
+        if (uErr) throw uErr;
+        // Then save the HR profile side
+        const { error: pErr } = await HR.employees.saveProfile(newUser.id, payload);
+        if (pErr) throw pErr;
+        toast('تم إنشاء الموظف. اسم المستخدم: ' + username, 'success');
+        close();
+        renderHrEmployeesTable();
+      }
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ أثناء الحفظ';
+      errBox.classList.add('show');
+    }
+  });
+}
 
 // ═══════════════════════════════════════════════════════════
 // كتالوج المديولات القادمة (HR / Accounting / Operations)
