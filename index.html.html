@@ -4407,7 +4407,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v59-2026-07-15-notif-routing-settings';
+const APP_VERSION = 'v60-2026-07-15-fault-taxonomy-phone-perms';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -4586,13 +4586,26 @@ async function loadPermissions() {
   PERMISSIONS_CACHE = { role: rolePerms || [], overrides: overrides || [] };
 }
 
+// صلاحيات افتراضية آمنة للأدوار الجديدة (مدير مطعم/نائب مدير) — تُستخدم فقط
+// لو مدير النظام لسه ما ضبطش صف حقيقي لهذا الدور في شاشة "الصلاحيات"؛ أي
+// تعديل يدوي هناك يتفوّق عليها تلقائيًا لأنه رح يمرّ كـ rolePerm حقيقي.
+// ملاحظة: نظام الصلاحيات الحالي يدعم نطاق "قسم تنظيمي" فقط (department_id)
+// ولا يوجد مفهوم "فرع" في جدول الصلاحيات، فنطبّق نفس نمط department_manager
+// كأقرب تطبيق آمن لمعنى "يشوف نطاقه فقط".
+const NEW_ROLE_DEFAULT_PERMS = {
+  branch_manager: { dashboard: 'view', meetings: 'manage', tasks: 'manage', department_tasks: 'manage', maintenance: 'manage', quality: 'manage', conversations: 'view' },
+  deputy_manager: { dashboard: 'view', meetings: 'view', tasks: 'manage', department_tasks: 'manage', maintenance: 'manage', quality: 'manage', conversations: 'view' }
+};
+
 // scope(sectionKey) -> 'company_wide' | 'own_department'
 function scope(sectionKey) {
   if (!CURRENT_USER) return 'own_department';
   if (CURRENT_USER.role === 'admin') return 'company_wide';
   if (!PERMISSIONS_CACHE) return 'company_wide';
   const rolePerm = PERMISSIONS_CACHE.role.find(p => p.section_key === sectionKey);
-  return (rolePerm && rolePerm.scope) || 'company_wide';
+  if (rolePerm) return rolePerm.scope || 'company_wide';
+  if (NEW_ROLE_DEFAULT_PERMS[CURRENT_USER.role]) return 'own_department';
+  return 'company_wide';
 }
 
 // helper شامل: هل المستخدم يقدر يدير هذا القسم لهذا الـ department_id تحديدًا؟
@@ -4612,8 +4625,12 @@ function can(sectionKey, mode = 'view') {
     if (val !== null && val !== undefined) return val;
   }
   const rolePerm = PERMISSIONS_CACHE.role.find(p => p.section_key === sectionKey);
-  if (!rolePerm) return false;
-  return mode === 'manage' ? rolePerm.can_manage : rolePerm.can_view;
+  if (rolePerm) return mode === 'manage' ? rolePerm.can_manage : rolePerm.can_view;
+
+  const fallback = NEW_ROLE_DEFAULT_PERMS[CURRENT_USER.role];
+  const fallbackLevel = fallback && fallback[sectionKey];
+  if (fallbackLevel) return mode === 'manage' ? fallbackLevel === 'manage' : true;
+  return false;
 }
 
 // ============ ترجمة القيم ============
@@ -4621,7 +4638,10 @@ const LABELS = {
   role: { admin: 'مدير النظام', company_manager: 'مدير الشركة', department_manager: 'مدير قسم', projects_manager: 'مدير مشاريع', development_manager: 'مدير تطوير', meeting_organizer: 'منظم اجتماع', branch_manager: 'مدير مطعم', deputy_manager: 'نائب مدير', employee: 'موظف عادي', maintenance_officer: 'مسؤول الصيانة', operations_manager: 'مدير التشغيل', finance: 'المالية' },
   maint_severity: { emergency: 'طارئ', urgent: 'عاجل', normal: 'عادي', preventive: 'وقائي' },
   maint_priority: { low: 'منخفض', medium: 'متوسط', high: 'عالي', critical: 'حرج' },
-  maint_area: { kitchen: 'مطبخ', hall: 'صالة', cashier: 'كاشير', ac: 'تكييف', electric: 'كهرباء', plumbing: 'سباكة', equipment: 'معدات', other: 'أخرى' },
+  // القيم القديمة تبقى للسجلات السابقة فقط — التصنيف الجديد يبدأ من electricity
+  maint_area: { kitchen: 'مطبخ', hall: 'صالة', cashier: 'كاشير', ac: 'تكييف', electric: 'كهرباء', plumbing: 'سباكة', equipment: 'معدات', other: 'أخرى',
+    electricity: 'كهرباء', airConditioning: 'تكييف وتبريد', kitchenEquipment: 'معدات المطبخ', appliances: 'أجهزة كهربائية',
+    furniture: 'أثاث وديكور', safety: 'أنظمة السلامة', networks: 'كاميرات وشبكات', construction: 'مبانٍ وإنشاءات', cleaning: 'نظافة ومكافحة حشرات' },
   maint_type: { electric: 'كهرباء', plumbing: 'سباكة', ac: 'تكييف', equipment: 'أجهزة ومعدات', furniture: 'أثاث', network: 'شبكة / تقنية', other: 'أخرى' },
   maint_location: { kitchen: 'المطبخ', hall: 'الصالة', store: 'المخزن', office: 'المكتب', bathroom: 'الحمام', outdoor: 'خارجية', other: 'أخرى' },
   equip_type: { ac: 'تكييف', fridge: 'ثلاجة', freezer: 'فريزر', fryer: 'قلاية', oven: 'فرن', generator: 'مولّد', fire_ext: 'طفاية حريق', other: 'أخرى' },
@@ -12023,8 +12043,7 @@ async function pageConversations(body, query) {
               </div>
               <span class="status-pill ${status.cls}"><span class="dot"></span>${status.label}</span>
               <div style="display:flex; gap:6px;">
-                ${u.mobile_number ? `<button class="chat-action-btn" style="background:#25D366;color:#fff;" onclick="openWhatsApp('مرحبًا ${esc(u.full_name).replace(/'/g,"")}', '${esc(u.mobile_number)}')" title="واتساب"><span data-lucide="message-circle" style="width:13px;height:13px;"></span></button>
-                <a class="chat-action-btn" style="background:#2F80C9;color:#fff;text-decoration:none;" href="tel:${esc(u.mobile_number)}" title="اتصال"><span data-lucide="phone" style="width:13px;height:13px;"></span></a>` : ''}
+                ${contactButtonsHtml(u.full_name, u.mobile_number)}
                 <button class="chat-action-btn" onclick="openDirectChatFromDirectory(${u.id}, '${esc(u.full_name).replace(/'/g,"")}')"><span data-lucide="message-circle" style="width:13px;height:13px;"></span> رسالة</button>
                 <button class="chat-action-btn" style="background:#123F32; color:#fff;" onclick="openQuickAddTaskModal(${u.id}, '${esc(u.full_name).replace(/'/g,"")}')"><span data-lucide="list-plus" style="width:13px;height:13px;"></span> إسناد مهمة</button>
                 <button class="chat-action-btn" style="background:var(--accent); color:#3a2c00;" onclick="openSharedTasksModal(${u.id}, '${esc(u.full_name).replace(/'/g,"")}')"><span data-lucide="clipboard-list" style="width:13px;height:13px;"></span> المهام المشتركة</button>
@@ -13557,8 +13576,9 @@ function renderUsersTabContent() {
                   <button title="عرض" onclick="openUserDetailModal(${u.id})"><span data-lucide="eye" style="width:13px;height:13px;"></span></button>
                   ${isAdmin?`<button title="تعديل" onclick="openUserDetailModal(${u.id}, true)"><span data-lucide="pencil" style="width:13px;height:13px;"></span></button>`:''}
                   <button title="رسالة" onclick="location.hash='#conversations'"><span data-lucide="message-circle" style="width:13px;height:13px;"></span></button>
-                  ${u.mobile_number ? `<button title="واتساب" style="color:#25D366;" onclick="openWhatsApp('مرحبًا ${esc(u.full_name).replace(/'/g,"")}', '${esc(u.mobile_number)}')"><span data-lucide="message-square" style="width:13px;height:13px;"></span></button>
-                  <a title="اتصال" style="color:#2F80C9;" href="tel:${esc(u.mobile_number)}"><span data-lucide="phone" style="width:13px;height:13px;"></span></a>` : ''}
+                  ${isValidPhoneNumber(u.mobile_number) ? `<button title="واتساب" style="color:#25D366;" onclick="openWhatsApp('مرحبًا ${esc(u.full_name).replace(/'/g,"")}', '${esc(u.mobile_number)}')"><span data-lucide="message-square" style="width:13px;height:13px;"></span></button>
+                  <a title="اتصال" style="color:#2F80C9;" href="tel:${normalizeWhatsAppPhone(u.mobile_number)}"><span data-lucide="phone" style="width:13px;height:13px;"></span></a>` : `<button title="لا يوجد رقم هاتف صالح" style="color:#94A3B8;cursor:not-allowed;" onclick="toast('لا يوجد رقم هاتف صالح','warning')"><span data-lucide="message-square" style="width:13px;height:13px;"></span></button>
+                  <button title="لا يوجد رقم هاتف صالح" style="color:#94A3B8;cursor:not-allowed;" onclick="toast('لا يوجد رقم هاتف صالح','warning')"><span data-lucide="phone" style="width:13px;height:13px;"></span></button>`}
                   ${isAdmin?`<button title="${(u.status||(u.is_active?'active':'inactive'))==='active'?'تعطيل':'تفعيل'}" class="danger" onclick="toggleUserStatus(${u.id})"><span data-lucide="power" style="width:13px;height:13px;"></span></button>`:''}
                 </div>
               </div>
@@ -14126,8 +14146,8 @@ window.openUserDetailModal = function(userId, editMode) {
           <div class="drawer-row"><span class="k">القسم</span><span>${u.departments?esc(u.departments.name):'-'}</span></div>
           <div class="drawer-row"><span class="k">الجوال</span><span style="display:flex;align-items:center;gap:8px;">
             <span class="mono-num">${esc(u.mobile_number||'-')}</span>
-            ${u.mobile_number ? `<button type="button" title="واتساب" style="background:none;border:none;cursor:pointer;color:#25D366;" onclick="openWhatsApp('مرحبًا ${esc(u.full_name).replace(/'/g,"")}', '${esc(u.mobile_number)}')"><span data-lucide="message-square" style="width:14px;height:14px;"></span></button>
-            <a title="اتصال" style="color:#2F80C9;" href="tel:${esc(u.mobile_number)}"><span data-lucide="phone" style="width:14px;height:14px;"></span></a>` : ''}
+            ${isValidPhoneNumber(u.mobile_number) ? `<button type="button" title="واتساب" style="background:none;border:none;cursor:pointer;color:#25D366;" onclick="openWhatsApp('مرحبًا ${esc(u.full_name).replace(/'/g,"")}', '${esc(u.mobile_number)}')"><span data-lucide="message-square" style="width:14px;height:14px;"></span></button>
+            <a title="اتصال" style="color:#2F80C9;" href="tel:${normalizeWhatsAppPhone(u.mobile_number)}"><span data-lucide="phone" style="width:14px;height:14px;"></span></a>` : `<span style="font-size:11px;color:#94A3B8;">لا يوجد رقم هاتف صالح</span>`}
           </span></div>
           <div class="drawer-row"><span class="k">البريد الإلكتروني</span><span>${esc(u.email||'-')}</span></div>
           <div class="drawer-row"><span class="k">الجنسية</span><span>${esc(u.nationality||'-')}</span></div>
@@ -16205,6 +16225,23 @@ function openWhatsApp(text, phone) {
   window.open(base + encodeURIComponent(text), '_blank');
 }
 
+// رقم صالح = بعد التنظيف (مسافات/شرطات/أقواس + صيغة دولية) يطول 8-15 رقمًا
+function isValidPhoneNumber(phone) {
+  const n = normalizeWhatsAppPhone(phone);
+  return !!n && /^\d{8,15}$/.test(n);
+}
+// زرّا واتساب/اتصال جاهزان لأي مستخدم — معطّلان مع رسالة توضيحية لو الرقم غير صالح
+// مصدر واحد مُعاد استخدامه في كل الأماكن بدل تكرار نفس الشرط
+function contactButtonsHtml(fullName, phone, size) {
+  size = size || 13;
+  if (!isValidPhoneNumber(phone)) {
+    return `<span class="chat-action-btn" style="opacity:.4;cursor:not-allowed;background:#94A3B8;color:#fff;" title="لا يوجد رقم هاتف صالح" onclick="toast('لا يوجد رقم هاتف صالح','warning')"><span data-lucide="message-circle" style="width:${size}px;height:${size}px;"></span></span><span class="chat-action-btn" style="opacity:.4;cursor:not-allowed;background:#94A3B8;color:#fff;" title="لا يوجد رقم هاتف صالح" onclick="toast('لا يوجد رقم هاتف صالح','warning')"><span data-lucide="phone" style="width:${size}px;height:${size}px;"></span></span>`;
+  }
+  const cleanPhone = normalizeWhatsAppPhone(phone);
+  const safeName = esc(fullName || '').replace(/'/g, '');
+  return `<button type="button" class="chat-action-btn" style="background:#25D366;color:#fff;" onclick="openWhatsApp('مرحبًا ${safeName}', '${esc(phone)}')" title="واتساب"><span data-lucide="message-circle" style="width:${size}px;height:${size}px;"></span></button><a class="chat-action-btn" style="background:#2F80C9;color:#fff;text-decoration:none;" href="tel:${cleanPhone}" title="اتصال"><span data-lucide="phone" style="width:${size}px;height:${size}px;"></span></a>`;
+}
+
 /* اختيار مستقبِل من قائمة (لما فيه أكتر من واحد زي حضور الاجتماع) */
 function whatsappRecipientPicker(title, recipients, buildText) {
   // recipients: [{ name, phone }]
@@ -17362,8 +17399,8 @@ async function pageMaintenanceReports(body, query) {
     el.querySelectorAll('[data-exp]').forEach(b => b.addEventListener('click', () => {
       const rows2 = getRows();
       const t = b.dataset.exp;
-      const H = ['رقم الطلب','الفرع','القسم','نوع الصيانة','عنوان المشكلة','الخطورة','التأثير','الحالة','التكلفة','تاريخ البلاغ','أيام منذ البلاغ'];
-      const toRow = r => [r.request_no||r.id, r.branches?.name||'', label('maint_area',r.affected_area), r.maintenance_type?label('maint_type',r.maintenance_type):'', r.issue_title||r.description||'', label('maint_priority',r.severity)||r.severity, label('maint_impact',r.impact_on_operation||'none'), label('maint_status',r.status), cost(r), (r.reported_at||'').slice(0,10), repAgeDays(r.reported_at||r.created_at)];
+      const H = ['رقم الطلب','الفرع','نوع العطل الرئيسي','العطل الفرعي','نوع الصيانة','عنوان المشكلة','الخطورة','التأثير','الحالة','التكلفة','تاريخ البلاغ','أيام منذ البلاغ'];
+      const toRow = r => [r.request_no||r.id, r.branches?.name||'', label('maint_area',r.affected_area), parseSubFault(r.description)||'', r.maintenance_type?label('maint_type',r.maintenance_type):'', r.issue_title||stripSubFaultTag(r.description||'')||'', label('maint_priority',r.severity)||r.severity, label('maint_impact',r.impact_on_operation||'none'), label('maint_status',r.status), cost(r), (r.reported_at||'').slice(0,10), repAgeDays(r.reported_at||r.created_at)];
       let data = rows2;
       if (t === 'delayed') data = rows2.filter(DELAYED);
       if (t === 'critical') data = rows2.filter(CRIT);
@@ -17528,6 +17565,38 @@ async function pageQualityReports(body, query) {
    ============  قسم الصيانة (Maintenance Module)  =============
    ============================================================ */
 
+// ═══════════════════════════════════════════════════════════
+// تصنيف أعطال الصيانة من مستويين: قسم رئيسي → عطل فرعي
+// مصدر مركزي واحد لكل القوائم (النموذج، التفاصيل، القائمة، التقارير)
+// ═══════════════════════════════════════════════════════════
+const MAINTENANCE_FAULTS = {
+  electricity: { label: 'كهرباء', faults: ['انقطاع الكهرباء','التماس كهربائي','تعطل مفتاح كهرباء','تعطل مقبس كهرباء','احتراق لمبة','ضعف الإضاءة','تعطل لوحة الكهرباء','ارتفاع الحمل الكهربائي','تعطل الأسلاك','أخرى'] },
+  plumbing: { label: 'سباكة', faults: ['تسريب مياه','انسداد صرف','تعطل خلاط المياه','كسر ماسورة','ضعف ضغط المياه','تعطل السخان','تسريب دورة المياه','تعطل مضخة المياه','رائحة من الصرف','أخرى'] },
+  airConditioning: { label: 'تكييف وتبريد', faults: ['التكييف لا يعمل','ضعف التبريد','تسريب مياه من المكيف','صوت مرتفع','رائحة غير طبيعية','تعطل وحدة التبريد','تعطل ثلاجة','تعطل فريزر','ارتفاع درجة الحرارة','أخرى'] },
+  kitchenEquipment: { label: 'معدات المطبخ', faults: ['تعطل فرن','تعطل قلاية','تعطل شواية','تعطل شفاط','تعطل ماكينة ثلج','تعطل غسالة صحون','تعطل سخان طعام','تعطل جهاز تحضير','تسريب غاز','أخرى'] },
+  appliances: { label: 'أجهزة كهربائية', faults: ['الجهاز لا يعمل','ضعف الأداء','صوت غير طبيعي','ارتفاع درجة الحرارة','تعطل الشاشة','تعطل لوحة التحكم','قطع كهربائي متكرر','أخرى'] },
+  furniture: { label: 'أثاث وديكور', faults: ['كرسي مكسور','طاولة تالفة','باب تالف','قفل تالف','زجاج مكسور','دهان متضرر','سقف مستعار متضرر','أرضية متضررة','أخرى'] },
+  safety: { label: 'أنظمة السلامة', faults: ['طفاية حريق غير صالحة','تعطل إنذار الحريق','تعطل كاشف الدخان','تعطل رشاشات الحريق','تعطل مخرج الطوارئ','تعطل إضاءة الطوارئ','تسريب غاز','أخرى'] },
+  networks: { label: 'كاميرات وشبكات', faults: ['تعطل كاميرا','انقطاع الإنترنت','تعطل جهاز التسجيل','ضعف الشبكة','تعطل نقطة اتصال','تعطل جهاز البصمة','تعطل طابعة','أخرى'] },
+  construction: { label: 'مبانٍ وإنشاءات', faults: ['تشققات بالجدار','تسريب من السقف','رطوبة','تلف الأرضيات','تلف الواجهة','كسر باب أو نافذة','تلف العزل','أخرى'] },
+  cleaning: { label: 'نظافة ومكافحة حشرات', faults: ['وجود حشرات','وجود قوارض','رائحة غير طبيعية','تراكم مخلفات','تعطل أدوات النظافة','مشكلة في مصائد الحشرات','أخرى'] },
+  other: { label: 'أخرى', faults: ['عطل آخر'] }
+};
+// نخزّن العطل الفرعي داخل description كوسم قابل للتحليل بدل عمود جديد في
+// قاعدة البيانات (لا نملك صلاحية تعديل بنية الجدول) — نفس أسلوب [شدة:] المستخدم
+// مسبقًا في وحدة الجودة. متوافق تمامًا مع السجلات القديمة (ترجع null بأمان).
+function encodeSubFault(subFault, description) {
+  const clean = (description || '').replace(/^\[عطل:[^\]]*\]\s*/, '');
+  return subFault ? `[عطل:${subFault}] ${clean}` : clean;
+}
+function parseSubFault(description) {
+  const m = (description || '').match(/^\[عطل:([^\]]+)\]/);
+  return m ? m[1] : null;
+}
+function stripSubFaultTag(description) {
+  return (description || '').replace(/^\[عطل:[^\]]*\]\s*/, '');
+}
+
 const MAINT_SEVERITY_COLOR = {
   // مقياس درجة الخطورة (الأساسي): منخفض/متوسط/عالي/حرج
   low: '#12372F', medium: '#245B4B', high: '#F2994A', critical: '#D32F2F',
@@ -17680,7 +17749,7 @@ async function pageMaintenance(body, urlQuery) {
   // Filter options
   const statusOpts = ['new','under_review','awaiting_inspection','inspection_reported','awaiting_approval','awaiting_quotes','awaiting_finance','in_progress','awaiting_receipt','closed','rejected'];
   const severityOpts = ['critical','high','medium','low'];
-  const areaOpts = ['kitchen','hall','cashier','ac','electric','plumbing','equipment','other'];
+  const areaOpts = Object.keys(MAINTENANCE_FAULTS);
 
   const analyticsHtml = `
     <div class="panel" style="margin-top:14px;"><div class="panel-header"><h3 class="panel-title">تحليل سريع</h3></div><div class="panel-body">
@@ -17761,7 +17830,7 @@ async function pageMaintenance(body, urlQuery) {
         <td style="font-weight:700;color:var(--primary);">${esc(r.request_no || r.id)}${r.is_draft ? ' <span style="font-size:9.5px;background:#E2E8F0;color:#64748B;padding:1px 6px;border-radius:6px;">مسودة</span>' : ''}</td>
         <td>${esc(r.branches?.name || '-')}</td>
         <td>${r.maintenance_type ? label('maint_type', r.maintenance_type) : label('maint_area', r.affected_area)}</td>
-        <td style="max-width:220px;">${esc(r.issue_title || (r.description||'').slice(0, 60))}${!r.issue_title && (r.description||'').length>60?'…':''}</td>
+        <td style="max-width:220px;">${esc(r.issue_title || stripSubFaultTag(r.description||'').slice(0, 60))}${!r.issue_title && stripSubFaultTag(r.description||'').length>60?'…':''}${parseSubFault(r.description) ? `<div style="font-size:10.5px;color:var(--text-muted);">${esc(parseSubFault(r.description))}</div>` : ''}</td>
         <td>${maintSevBadge(r.severity)}</td>
         <td>${maintStatusBadge(r.status)}</td>
         <td>${esc(r.owner?.full_name || r.requester?.full_name || '-')}</td>
@@ -17792,7 +17861,7 @@ async function pageMaintenanceNew(body, param) {
   }
   const { data: branches } = await sb.from('branches').select('*').eq('is_active', true).order('name');
   const canManageBranches = ['admin','company_manager','operations_manager','quality_manager','maintenance_officer'].includes(CURRENT_USER.role);
-  const areas = ['kitchen','hall','cashier','ac','electric','plumbing','equipment','other'];
+  const areas = Object.keys(MAINTENANCE_FAULTS);
   const types = ['electric','plumbing','ac','equipment','furniture','network','other'];
   const locations = ['kitchen','hall','store','office','bathroom','outdoor','other'];
   const priorities = ['low','medium','high','critical'];
@@ -17852,16 +17921,16 @@ async function pageMaintenanceNew(body, param) {
               </select>
             </div>
             <div class="form-field">
-              <label>القسم المتضرر <span style="font-size:10.5px;color:#64748B;font-weight:400;">(اختياري)</span></label>
-              <select name="affected_area" id="mtAreaSelect" class="form-select">
-                <option value="">— اختياري —</option>
-                ${areas.map(a => `<option value="${a}" ${draft && draft.affected_area===a?'selected':''}>${label('maint_area', a)}</option>`).join('')}
+              <label>نوع العطل الرئيسي *</label>
+              <select name="affected_area" id="mtAreaSelect" class="form-select" required>
+                <option value="">اختر نوع العطل</option>
+                ${areas.map(a => `<option value="${a}" ${draft && draft.affected_area===a?'selected':''}>${esc(MAINTENANCE_FAULTS[a].label)}</option>`).join('')}
               </select>
             </div>
-            <div class="form-field" id="mtSubFaultField" style="display:none;">
-              <label>تفصيل العطل <span style="font-size:10.5px;color:#64748B;font-weight:400;">(اختياري — يعبّي عنوان المشكلة تلقائيًا)</span></label>
-              <select id="mtSubFault" class="form-select">
-                <option value="">اختر العطل التفصيلي</option>
+            <div class="form-field" id="mtSubFaultField">
+              <label>العطل الفرعي *</label>
+              <select id="mtSubFault" class="form-select" required>
+                <option value="">اختر نوع العطل الرئيسي أولًا</option>
               </select>
             </div>
             <div class="form-field">
@@ -17891,8 +17960,8 @@ async function pageMaintenanceNew(body, param) {
           <div class="mform-grid">
             <div class="form-field full">
               <label>وصف المشكلة <span style="font-size:10.5px;color:#64748B;font-weight:400;">(اكتب وصف أو عنوان — واحد على الأقل)</span></label>
-              <textarea name="description" rows="3" class="form-input" maxlength="1000" placeholder="اكتب وصف المشكلة بالتفصيل (ماذا حدث؟ أين حدث؟ متى حدث؟)">${esc(draft?.description || '')}</textarea>
-              <div style="font-size:10.5px;color:#64748B;text-align:left;margin-top:3px;"><span id="mtDescCount">${(draft?.description||'').length}</span> / 1000</div>
+              <textarea name="description" rows="3" class="form-input" maxlength="1000" placeholder="اكتب وصف المشكلة بالتفصيل (ماذا حدث؟ أين حدث؟ متى حدث؟)">${esc(stripSubFaultTag(draft?.description || ''))}</textarea>
+              <div style="font-size:10.5px;color:#64748B;text-align:left;margin-top:3px;"><span id="mtDescCount">${stripSubFaultTag(draft?.description||'').length}</span> / 1000</div>
             </div>
             <div class="form-field">
               <label>تأثير العطل على التشغيل *</label>
@@ -18080,35 +18149,18 @@ async function pageMaintenanceNew(body, param) {
   form.querySelectorAll('select, input, textarea').forEach(el => el.addEventListener('input', updatePreview));
   updatePreview();
 
-  // ─── قائمة أعطال فرعية تفصيلية حسب القسم المتضرر (كهرباء→أعطال كهرباء، سباكة→أعطال سباكة، إلخ) ───
-  const MAINT_SUBFAULTS = {
-    electric: ['انقطاع كهرباء عام', 'عطل في الإضاءة', 'عطل في المقابس', 'عطل في القاطع الكهربائي (البريكر)', 'ماس كهربائي', 'ضعف الجهد الكهربائي', 'عطل في مولّد الطوارئ', 'أخرى'],
-    plumbing: ['تسريب مياه', 'انسداد الصرف', 'عطل في الخلاط', 'عطل في السخان', 'ضعف ضغط المياه', 'عطل في المضخة', 'رائحة كريهة من الصرف', 'أخرى'],
-    ac: ['عدم التبريد', 'تسريب مياه من المكيف', 'صوت غير طبيعي', 'عطل في الريموت', 'تحتاج تنظيف فلاتر', 'أخرى'],
-    equipment: ['عطل في الفرن', 'عطل في الثلاجة أو الفريزر', 'عطل في الخلاط أو المفرمة', 'عطل في ماكينة القهوة', 'عطل في غسالة الأطباق', 'أخرى'],
-    kitchen: ['تلف أرضيات أو بلاط', 'مشكلة في التهوية أو الشفاط', 'باب أو قفل تالف', 'أخرى'],
-    hall: ['تلف في الأثاث', 'مشكلة إضاءة الصالة', 'باب أو زجاج تالف', 'أخرى'],
-    cashier: ['عطل جهاز الكاشير', 'عطل طابعة الفواتير', 'مشكلة اتصال الإنترنت', 'أخرى']
-  };
+  // ─── تصنيف الأعطال من مستويين: نوع رئيسي → عطل فرعي (مصدره MAINTENANCE_FAULTS) ───
   const areaSelect = document.getElementById('mtAreaSelect');
-  const subFaultField = document.getElementById('mtSubFaultField');
   const subFaultSelect = document.getElementById('mtSubFault');
-  function syncSubFaultOptions() {
-    const list = MAINT_SUBFAULTS[areaSelect.value];
-    if (!list) { subFaultField.style.display = 'none'; subFaultSelect.innerHTML = '<option value="">اختر العطل التفصيلي</option>'; return; }
-    subFaultField.style.display = '';
-    subFaultSelect.innerHTML = '<option value="">اختر العطل التفصيلي</option>' + list.map(f => `<option value="${esc(f)}">${esc(f)}</option>`).join('');
+  const draftSubFault = draft ? parseSubFault(draft.description) : null;
+  function syncSubFaultOptions(preselect) {
+    const cat = MAINTENANCE_FAULTS[areaSelect.value];
+    if (!cat) { subFaultSelect.innerHTML = '<option value="">اختر نوع العطل الرئيسي أولًا</option>'; return; }
+    subFaultSelect.innerHTML = '<option value="">اختر العطل الفرعي</option>' +
+      cat.faults.map(f => `<option value="${esc(f)}" ${preselect === f ? 'selected' : ''}>${esc(f)}</option>`).join('');
   }
-  areaSelect.addEventListener('change', syncSubFaultOptions);
-  syncSubFaultOptions();
-  subFaultSelect.addEventListener('change', () => {
-    if (!subFaultSelect.value) return;
-    const titleInput = form.querySelector('[name="issue_title"]');
-    if (titleInput && !titleInput.value.trim()) {
-      titleInput.value = subFaultSelect.value;
-      titleInput.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-  });
+  areaSelect.addEventListener('change', () => syncSubFaultOptions());
+  syncSubFaultOptions(draftSubFault);
 
   // بناء الحمولة
   function buildPayload(isDraft) {
@@ -18165,6 +18217,8 @@ async function pageMaintenanceNew(body, param) {
     if (!payload.description && payload.issue_title) {
       payload.description = payload.issue_title;
     }
+    // نخزّن العطل الفرعي كوسم قابل للتحليل في بداية الوصف (بدون عمود جديد بقاعدة البيانات)
+    if (subFaultSelect.value) payload.description = encodeSubFault(subFaultSelect.value, payload.description);
     const submitBtn = form.querySelector('button[type="submit"]');
     const draftBtn = document.getElementById('mtSaveDraft');
     submitBtn.disabled = true; draftBtn.disabled = true;
@@ -18366,7 +18420,7 @@ async function pageMaintenanceDetail(body, id) {
       <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
         <div>
           <h3 class="panel-title" style="margin:0;">${esc(req.request_no || '#'+req.id)}${req.is_draft ? ' <span style="font-size:10.5px;background:#E2E8F0;color:#64748B;padding:2px 8px;border-radius:8px;">مسودة</span>' : ''}</h3>
-          <div style="font-size:13px;font-weight:700;color:#0F172A;margin-top:5px;">${esc(req.issue_title || req.description?.slice(0,60) || '-')}</div>
+          <div style="font-size:13px;font-weight:700;color:#0F172A;margin-top:5px;">${esc(req.issue_title || stripSubFaultTag(req.description || '').slice(0,60) || '-')}</div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${esc(req.branches?.name || '-')} · ${req.maintenance_type ? label('maint_type', req.maintenance_type) : label('maint_area', req.affected_area)}</div>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
@@ -18378,7 +18432,8 @@ async function pageMaintenanceDetail(body, id) {
       </div>
       <div class="panel-body">
         <div class="mstat-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px;">
-          <div><div style="font-size:11.5px;color:var(--text-muted);">القسم المتضرر</div><div style="font-weight:600;font-size:13px;">${label('maint_area', req.affected_area)}</div></div>
+          <div><div style="font-size:11.5px;color:var(--text-muted);">نوع العطل الرئيسي</div><div style="font-weight:600;font-size:13px;">${label('maint_area', req.affected_area)}</div></div>
+          <div><div style="font-size:11.5px;color:var(--text-muted);">العطل الفرعي</div><div style="font-weight:600;font-size:13px;">${esc(parseSubFault(req.description) || '-')}</div></div>
           <div><div style="font-size:11.5px;color:var(--text-muted);">نوع الصيانة</div><div style="font-weight:600;font-size:13px;">${req.maintenance_type ? label('maint_type', req.maintenance_type) : '-'}</div></div>
           <div><div style="font-size:11.5px;color:var(--text-muted);">الموقع داخل الفرع</div><div style="font-weight:600;font-size:13px;">${req.branch_location ? label('maint_location', req.branch_location) : '-'}</div></div>
           <div><div style="font-size:11.5px;color:var(--text-muted);">تأثير العطل</div><div style="font-weight:600;font-size:13px;color:${req.impact_on_operation==='full'?'var(--danger)':(req.impact_on_operation==='partial'?'#C4650E':'inherit')};">${label('maint_impact', req.impact_on_operation || 'none')}</div></div>
@@ -18390,7 +18445,7 @@ async function pageMaintenanceDetail(body, id) {
         </div>
         <div style="background:var(--bg);padding:12px 14px;border-radius:10px;margin-bottom:10px;">
           <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:4px;">وصف المشكلة</div>
-          <div style="font-size:13px;line-height:1.7;">${esc(req.description || '-')}</div>
+          <div style="font-size:13px;line-height:1.7;">${esc(stripSubFaultTag(req.description || '') || '-')}</div>
           ${req.cause ? `<div style="font-size:11.5px;color:var(--text-muted);margin-top:8px;">السبب: <span style="color:var(--text);font-weight:600;">${esc(req.cause)}</span></div>` : ''}
           ${req.stoppage_type && req.stoppage_type !== 'none' ? `<div style="font-size:11.5px;color:var(--text-muted);margin-top:8px;">التوقف: <span style="color:var(--text);font-weight:600;">${label('maint_stoppage', req.stoppage_type)}</span></div>` : ''}
           ${req.additional_notes ? `<div style="font-size:11.5px;color:var(--text-muted);margin-top:8px;">ملاحظات إضافية: <span style="color:var(--text);font-weight:600;">${esc(req.additional_notes)}</span></div>` : ''}

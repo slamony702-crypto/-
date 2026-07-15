@@ -7,7 +7,7 @@
 //   (1) استبدال أي SW قديم على أجهزة المستخدمين ثم إلغاء نفسه
 //   (2) توفير endpoint خفيف للفحص الدوري لإصدار التطبيق
 // ═══════════════════════════════════════════════════════════
-const SW_VERSION = 'v59-2026-07-15-notif-routing-settings';
+const SW_VERSION = 'v60-2026-07-15-fault-taxonomy-phone-perms';
 
 self.addEventListener('install', () => {
   // اتخطَّ الانتظار وابدأ التنشيط فوراً
