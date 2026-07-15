@@ -4354,7 +4354,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v52-2026-07-15-nav-speed-fix';
+const APP_VERSION = 'v53-2026-07-15-update-icon-fix';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -4389,7 +4389,7 @@ const APP_VERSION = 'v52-2026-07-15-nav-speed-fix';
     bar.id = 'appLiveUpdateBanner';
     bar.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top,0px) + 12px);left:12px;right:12px;z-index:99999;padding:14px 18px;border-radius:16px;background:linear-gradient(135deg,#059669 0%,#10B981 40%,#8B5CF6 100%);color:#fff;font-family:Tajawal,"Noto Sans Arabic",sans-serif;font-size:14px;font-weight:700;box-shadow:0 14px 34px rgba(16,185,129,0.35),0 6px 16px rgba(139,92,246,0.30);display:flex;align-items:center;gap:10px;';
     bar.innerHTML = `
-      <span style="font-size:20px;line-height:1;">✨</span>
+      <span style="font-size:20px;line-height:1;">🔄</span>
       <span style="flex:1;line-height:1.4;">تحديث جديد متاح — اضغط للتحديث الآن</span>
       <button id="appLiveUpdateBtn" style="background:#fff;color:#059669;border:none;padding:8px 16px;border-radius:10px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;">تحديث</button>
       <button id="appLiveUpdateDismiss" aria-label="إغلاق" style="background:none;border:none;color:#fff;font-size:18px;line-height:1;cursor:pointer;padding:4px 6px;opacity:.85;">✕</button>
