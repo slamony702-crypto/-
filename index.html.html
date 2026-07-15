@@ -4354,7 +4354,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v47-2026-07-15-ux-audit-fixes';
+const APP_VERSION = 'v48-2026-07-15-password-view-perf';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -5416,10 +5416,22 @@ function attachVoiceButtons(root) {
   targets.forEach(wireOneVoiceInput);
 }
 (function initVoiceObserver() {
+  // نجمّع كل العُقد المُضافة في دفعة واحدة بدل ما نمسح الـ DOM فورًا مع كل
+  // mutation — كل صفحة في التطبيق بتتغير عبر innerHTML لمحتوى كامل، فبدون
+  // التجميع ده كنا بنعمل querySelectorAll على نفس الشجرة عشرات المرات
+  // متتالية في نفس اللحظة، وده كان بيبطّئ أي تنقل بين الصفحات
+  let pendingNodes = [];
+  let scheduled = false;
+  function flush() {
+    scheduled = false;
+    const nodes = pendingNodes; pendingNodes = [];
+    nodes.forEach(node => { if (node.isConnected) { attachVoiceButtons(node); makeMobilePanelsCollapsible(node); } });
+  }
   const observer = new MutationObserver((mutations) => {
     for (const m of mutations) {
-      m.addedNodes.forEach(node => { if (node.nodeType === 1) { attachVoiceButtons(node); makeMobilePanelsCollapsible(node); } });
+      m.addedNodes.forEach(node => { if (node.nodeType === 1) pendingNodes.push(node); });
     }
+    if (!scheduled && pendingNodes.length) { scheduled = true; requestAnimationFrame(flush); }
   });
   document.addEventListener('DOMContentLoaded', () => {
     observer.observe(document.body, { childList: true, subtree: true });
@@ -13994,11 +14006,32 @@ window.openUserDetailModal = function(userId, editMode) {
           <div class="drawer-row"><span class="k">تاريخ الانضمام</span><span class="mono-num">${u.joining_date||'-'}</span></div>
           <div class="drawer-row"><span class="k">آخر دخول</span><span class="mono-num">${u.last_login_at?fmtDate(u.last_login_at):'لم يسجّل دخول بعد'}</span></div>
           <div class="drawer-row"><span class="k">الحالة</span><span>${userStatusBadge(u)}</span></div>
+          ${window.__usersPageData.isAdmin ? `
+          <div class="drawer-row"><span class="k">كلمة المرور</span><span style="display:flex;align-items:center;gap:8px;">
+            <span id="userPwMask_${u.id}" class="mono-num">••••••••</span>
+            <span id="userPwReal_${u.id}" class="mono-num" style="display:none;">${esc(u.password_plain || 'غير متوفرة (تم تغييرها يدويًا)')}</span>
+            <button type="button" title="إظهار/إخفاء" onclick="toggleUserPasswordView(${u.id})" style="background:none;border:none;cursor:pointer;color:var(--text-muted);"><span data-lucide="eye" id="userPwEyeIcon_${u.id}" style="width:14px;height:14px;"></span></button>
+            ${u.password_plain ? `<button type="button" title="نسخ" onclick="copyUserPassword('${esc(u.password_plain).replace(/'/g,"")}')" style="background:none;border:none;cursor:pointer;color:var(--text-muted);"><span data-lucide="copy" style="width:14px;height:14px;"></span></button>` : ''}
+          </span></div>` : ''}
         </div>
       </div>
     </div>
   `);
   if (window.lucide) lucide.createIcons();
+};
+window.toggleUserPasswordView = function(userId) {
+  const mask = document.getElementById('userPwMask_' + userId);
+  const real = document.getElementById('userPwReal_' + userId);
+  const icon = document.getElementById('userPwEyeIcon_' + userId);
+  if (!mask || !real) return;
+  const showing = real.style.display !== 'none';
+  mask.style.display = showing ? '' : 'none';
+  real.style.display = showing ? 'none' : '';
+  if (icon) icon.setAttribute('data-lucide', showing ? 'eye' : 'eye-off');
+  if (window.lucide) lucide.createIcons();
+};
+window.copyUserPassword = function(pw) {
+  navigator.clipboard?.writeText(pw).then(() => toast('تم نسخ كلمة المرور', 'success')).catch(() => toast('تعذر النسخ', 'error'));
 };
 
 
