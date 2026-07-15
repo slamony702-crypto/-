@@ -1721,6 +1721,42 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
 .hr-att-legend .lg { display: inline-flex; align-items: center; gap: 4px; }
 .hr-att-legend .sw { width: 12px; height: 12px; border-radius: 3px; }
 
+/* ═══════════════════════════════════════════════════════════════════
+   ACCOUNTING MODULE — tree views, journal editor
+═══════════════════════════════════════════════════════════════════ */
+.acct-tree { display: flex; flex-direction: column; gap: 2px; }
+.acct-tree-node { border-radius: 10px; }
+.acct-tree-row {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px;
+  cursor: default; transition: background .12s ease;
+}
+.acct-tree-row:hover { background: rgba(16,185,129,0.06); }
+.acct-tree-toggle { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; color: #64748B; cursor: pointer; flex-shrink: 0; }
+.acct-tree-toggle.leaf { visibility: hidden; }
+.acct-tree-code { font-family: 'Courier New', monospace; font-size: 11.5px; color: var(--text-muted); min-width: 52px; font-weight: 700; }
+.acct-tree-name { font-size: 13px; font-weight: 700; color: #0F172A; flex: 1; }
+.acct-tree-badge { font-size: 10px; padding: 2px 8px; border-radius: 999px; font-weight: 700; }
+.acct-tree-badge.t-asset     { background: rgba(56,189,248,0.14); color: #0369A1; }
+.acct-tree-badge.t-liability { background: rgba(245,158,11,0.14); color: #B45309; }
+.acct-tree-badge.t-equity    { background: rgba(139,92,246,0.14); color: #6D28D9; }
+.acct-tree-badge.t-revenue   { background: rgba(16,185,129,0.14); color: #047857; }
+.acct-tree-badge.t-expense   { background: rgba(220,38,38,0.14); color: #B91C1C; }
+.acct-tree-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .12s ease; }
+.acct-tree-row:hover .acct-tree-actions { opacity: 1; }
+.acct-tree-actions button { width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface); color: #64748B; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.acct-tree-actions button:hover { color: #047857; border-color: #10B981; }
+.acct-tree-children { padding-right: 26px; border-right: 1.5px dashed var(--border); margin-right: 10px; }
+
+/* Journal entry lines editor */
+.acct-je-lines { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.acct-je-line-row { display: grid; grid-template-columns: 1fr 1fr 110px 110px 32px; gap: 8px; align-items: center; }
+@media (max-width: 720px) { .acct-je-line-row { grid-template-columns: 1fr; } }
+.acct-je-line-del { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: #B91C1C; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.acct-je-totals { display: flex; gap: 16px; justify-content: flex-end; padding: 10px 14px; border-radius: 10px; background: rgba(148,163,184,0.08); font-size: 13px; font-weight: 700; margin-bottom: 12px; }
+.acct-je-totals.balanced { background: rgba(16,185,129,0.10); color: #047857; }
+.acct-je-totals.unbalanced { background: rgba(220,38,38,0.10); color: #B91C1C; }
+.acct-je-totals .lbl { color: var(--text-muted); font-weight: 600; margin-left: 6px; }
+
 .panel-header { position: relative; }
 .panel-header h3 { position: relative; padding-right: 12px; }
 .panel-header h3::before { content: ''; position: absolute; right: 0; top: 2px; bottom: 2px; width: 3px; background: var(--accent); border-radius: 2px; }
@@ -4784,7 +4820,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v81-2026-07-16-acct-data-layer';
+const APP_VERSION = 'v82-2026-07-16-acct-phase-a-screens';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -8124,7 +8160,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', operations: 'تشغيل المطاعم', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', operations: 'تشغيل المطاعم', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -12688,7 +12724,12 @@ async function route() {
     else if (page === 'hr_attendance') await pageHrAttendance(body, query);
     else if (page === 'hr_leaves') await pageHrLeaves(body, query);
     else if (page === 'hr_payroll') await pageHrPayroll(body, query);
-    else if (page === 'accounting') await pageComingSoonModule(body, 'accounting');
+    else if (page === 'accounting') await pageAcctDashboard(body);
+    else if (page === 'acct_chart') await pageAcctChart(body);
+    else if (page === 'acct_cost_centers') await pageAcctCostCenters(body);
+    else if (page === 'acct_periods') await pageAcctPeriods(body);
+    else if (page === 'acct_journal') await pageAcctJournal(body, query);
+    else if (page === 'acct_journal_entry') await pageAcctJournalDetail(body, param);
     else if (page === 'operations') await pageComingSoonModule(body, 'operations');
     else if (page === 'meetings') await pageMeetings(body, query);
     else if (page === 'meetings_calendar') await pageMeetingsCalendar(body, query);
@@ -18149,6 +18190,789 @@ async function openHrPayrollEdit(payrollId, readOnly) {
 // صفحات Overview فقط — لا يوجد جداول ولا Backend حتى الآن.
 // المصدر: التقرير التحليلي الشامل للمرحلة الأولى.
 // ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+// ACCOUNTING MODULE — Pages (v82 — Step 2.4, Phase 2.a screens)
+// ═══════════════════════════════════════════════════════════════════════
+
+function isFinanceManager() { return CURRENT_USER && ['admin', 'company_manager', 'finance_manager'].includes(CURRENT_USER.role); }
+function isAccountingRole() { return CURRENT_USER && ['admin', 'company_manager', 'finance_manager', 'gl_accountant', 'ap_officer', 'ar_officer'].includes(CURRENT_USER.role); }
+
+const accountTypeAr = { asset: 'أصول', liability: 'التزامات', equity: 'حقوق ملكية', revenue: 'إيرادات', expense: 'مصروفات' };
+
+// ─── لوحة تحكم الحسابات ───────────────────────────────────────────
+async function pageAcctDashboard(body) {
+  const canManage = isFinanceManager();
+  body.innerHTML = `
+    <div class="mod-hero">
+      <div class="mod-hero-top">
+        <div class="mod-hero-icon"><span data-lucide="landmark"></span></div>
+        <div>
+          <h2 class="mod-hero-title">الحسابات والمالية</h2>
+          <p class="mod-hero-sub">دورة محاسبية متكاملة: دليل الحسابات، القيود اليومية، مراكز التكلفة، والفترات المحاسبية.</p>
+        </div>
+      </div>
+      <div class="mod-hero-badges">
+        <a href="#acct_chart" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="book-open" style="width:12px;height:12px;"></span> دليل الحسابات</a>
+        <a href="#acct_cost_centers" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="layers" style="width:12px;height:12px;"></span> مراكز التكلفة</a>
+        <a href="#acct_journal" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="book" style="width:12px;height:12px;"></span> القيود اليومية</a>
+        <a href="#acct_periods" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="calendar-range" style="width:12px;height:12px;"></span> الفترات المالية</a>
+        ${canManage ? `<span class="mod-hero-badge hb-scope"><span data-lucide="shield-check" style="width:12px;height:12px;"></span> صلاحية إدارة كاملة</span>` : ''}
+      </div>
+    </div>
+
+    <div class="mod-stats" id="acctKpis">
+      ${[1,2,3,4].map(() => `<div class="mod-stat"><div class="skeleton skeleton-row" style="width:60%;height:24px;"></div><div class="skeleton skeleton-row" style="width:80%;margin-top:8px;"></div></div>`).join('')}
+    </div>
+
+    <div class="mod-section-title"><span data-lucide="clock" style="width:16px;height:16px;"></span> آخر القيود</div>
+    <div id="acctRecentEntries"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  const summary = await ACCT.dashboard.summary();
+  const kpiBox = document.getElementById('acctKpis');
+  if (kpiBox) {
+    const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const periodLbl = { open: 'مفتوحة', closed: 'مغلقة', locked: 'مقفلة', 'غير موجودة': 'غير موجودة' }[summary.currentPeriodStatus] || summary.currentPeriodStatus;
+    kpiBox.innerHTML = `
+      <div class="mod-stat"><div class="mod-stat-val">${summary.draftEntries}</div><div class="mod-stat-lbl">قيود مسودة بانتظار الترحيل</div></div>
+      <div class="mod-stat"><div class="mod-stat-val" style="font-size:20px;">${money(summary.postedVolumeThisMonth)} <span style="font-size:12px;font-weight:600;color:var(--text-muted);">ر.س</span></div><div class="mod-stat-lbl">حجم القيود المرحّلة هذا الشهر</div></div>
+      <div class="mod-stat"><div class="mod-stat-val" style="font-size:18px;">${esc(periodLbl)}</div><div class="mod-stat-lbl">حالة الفترة الحالية</div></div>
+      <div class="mod-stat"><div class="mod-stat-val" style="font-size:20px;">${money(summary.dualApprovalThreshold)} <span style="font-size:12px;font-weight:600;color:var(--text-muted);">ر.س</span></div><div class="mod-stat-lbl">حد الاعتماد المزدوج</div></div>
+    `;
+  }
+
+  const { data: entries } = await ACCT.journal.list({});
+  const recentBox = document.getElementById('acctRecentEntries');
+  if (recentBox) {
+    const rows = (entries || []).slice(0, 8);
+    if (!rows.length) {
+      recentBox.innerHTML = `<div class="hr-empty"><span data-lucide="book"></span><p class="hr-empty-title">لا توجد قيود بعد</p><p class="hr-empty-sub">القيود تُنشأ يدويًا أو تلقائيًا من اعتماد رواتب HR وطلبات الكافيه.</p></div>`;
+    } else {
+      const statusLbl = { draft: 'مسودة', posted: 'مرحّل', reversed: 'معكوس', cancelled: 'ملغي' };
+      const statusCls = { draft: 'st-empty', posted: 'st-present', reversed: 'st-late', cancelled: 'st-absent' };
+      recentBox.innerHTML = `
+        <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+          <thead><tr><th>رقم القيد</th><th>التاريخ</th><th>الوصف</th><th>المصدر</th><th>الحالة</th></tr></thead>
+          <tbody>${rows.map(e => `
+            <tr class="hr-emp-row" onclick="location.hash='#acct_journal_entry/${e.id}'">
+              <td class="mono-num">${esc(e.entry_no)}</td>
+              <td class="mono-num">${esc(e.entry_date)}</td>
+              <td>${esc(e.description)}</td>
+              <td>${esc({ manual: 'يدوي', hr_payroll: 'رواتب', bill: 'فاتورة مورد', invoice: 'فاتورة مبيعات', payment: 'دفعة', receipt: 'مقبوضات', cafe_order: 'كافيه', depreciation: 'إهلاك', closing: 'إقفال', opening: 'افتتاحي', reversal: 'عكسي' }[e.source_type] || e.source_type)}</td>
+              <td><span class="hr-att-cell ${statusCls[e.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(statusLbl[e.status])}</span></td>
+            </tr>`).join('')}</tbody>
+        </table></div></div></div>
+      `;
+    }
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+// ─── دليل الحسابات (Tree View) ───────────────────────────────────
+async function pageAcctChart(body) {
+  const canManage = isFinanceManager();
+  body.innerHTML = `
+    <a href="#accounting" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الحسابات</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="book-open" style="width:22px;height:22px;color:#123F32;"></span> دليل الحسابات</h2>
+        <p>الهيكل الشجري الكامل للحسابات المحاسبية — أصول، التزامات، حقوق ملكية، إيرادات، ومصروفات.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="acctAddAccBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> إضافة حساب</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body" id="acctChartBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="acctModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) document.getElementById('acctAddAccBtn').addEventListener('click', () => openAcctAccountModal(null));
+  await renderAcctChartTree();
+}
+
+async function renderAcctChartTree() {
+  const box = document.getElementById('acctChartBody');
+  if (!box) return;
+  const canManage = isFinanceManager();
+  const { data: tree, error } = await ACCT.accounts.tree();
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!tree.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="book-open"></span><p class="hr-empty-title">لا توجد حسابات</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  function renderNode(node) {
+    const hasChildren = node.children && node.children.length;
+    return `
+      <div class="acct-tree-node">
+        <div class="acct-tree-row">
+          <span class="acct-tree-toggle ${hasChildren ? '' : 'leaf'}" ${hasChildren ? `data-tree-toggle="${node.id}"` : ''}>
+            <span data-lucide="${hasChildren ? 'chevron-down' : 'minus'}" style="width:14px;height:14px;"></span>
+          </span>
+          <span class="acct-tree-code">${esc(node.code)}</span>
+          <span class="acct-tree-name">${esc(node.name)}${!node.is_active ? ' <span style="color:#94A3B8;font-weight:400;">(موقوف)</span>' : ''}</span>
+          <span class="acct-tree-badge t-${node.account_type}">${esc(accountTypeAr[node.account_type] || node.account_type)}</span>
+          ${canManage ? `
+            <div class="acct-tree-actions">
+              <button type="button" title="تعديل" data-acc-edit="${node.id}"><span data-lucide="pencil" style="width:13px;height:13px;"></span></button>
+              <button type="button" title="حذف" data-acc-delete="${node.id}"><span data-lucide="trash-2" style="width:13px;height:13px;"></span></button>
+            </div>` : ''}
+        </div>
+        ${hasChildren ? `<div class="acct-tree-children" data-tree-children="${node.id}">${node.children.map(renderNode).join('')}</div>` : ''}
+      </div>
+    `;
+  }
+  box.innerHTML = `<div class="acct-tree">${tree.map(renderNode).join('')}</div>`;
+  if (window.lucide) lucide.createIcons();
+
+  box.querySelectorAll('[data-tree-toggle]').forEach(el => {
+    el.addEventListener('click', () => {
+      const childBox = box.querySelector(`[data-tree-children="${el.dataset.treeToggle}"]`);
+      if (!childBox) return;
+      const collapsed = childBox.style.display === 'none';
+      childBox.style.display = collapsed ? '' : 'none';
+      el.querySelector('[data-lucide]').setAttribute('data-lucide', collapsed ? 'chevron-down' : 'chevron-left');
+      if (window.lucide) lucide.createIcons();
+    });
+  });
+  if (canManage) {
+    box.querySelectorAll('[data-acc-edit]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); openAcctAccountModal(Number(b.dataset.accEdit)); }));
+    box.querySelectorAll('[data-acc-delete]').forEach(b => b.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!(await customConfirm('حذف/إيقاف هذا الحساب؟'))) return;
+      const { error } = await ACCT.accounts.remove(Number(b.dataset.accDelete));
+      if (error) { toast('تعذّر الحذف: ' + error.message, 'error'); return; }
+      toast('تم إيقاف الحساب', 'success');
+      renderAcctChartTree();
+    }));
+  }
+}
+
+async function openAcctAccountModal(accId) {
+  const isEdit = !!accId;
+  const [{ data: acc }, { data: parents }] = await Promise.all([
+    isEdit ? ACCT.accounts.get(accId) : { data: {} },
+    ACCT.accounts.list({ is_active: true })
+  ]);
+  const a = acc || {};
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:520px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="${isEdit ? 'pencil' : 'plus'}" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ${isEdit ? 'تعديل حساب' : 'إضافة حساب جديد'}</h3>
+        <button class="modal-close-x" id="acctAccClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="acctAccErr"></div>
+        <form id="acctAccForm" class="hr-form-grid">
+          <div class="form-field"><label>رمز الحساب *</label><input class="form-input mono-num" name="code" required value="${esc(a.code || '')}" ${isEdit ? 'readonly' : ''}></div>
+          <div class="form-field"><label>اسم الحساب *</label><input class="form-input" name="name" required value="${esc(a.name || '')}"></div>
+          <div class="form-field"><label>النوع *</label>
+            <select class="form-select" name="account_type" required ${isEdit ? 'disabled' : ''}>
+              ${Object.entries(accountTypeAr).map(([k, v]) => `<option value="${k}" ${a.account_type === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>الطبيعة *</label>
+            <select class="form-select" name="normal_balance" required ${isEdit ? 'disabled' : ''}>
+              <option value="debit"  ${a.normal_balance === 'debit'  ? 'selected' : ''}>مدين</option>
+              <option value="credit" ${a.normal_balance === 'credit' ? 'selected' : ''}>دائن</option>
+            </select>
+          </div>
+          <div class="form-field full"><label>الحساب الأب (اختياري)</label>
+            <select class="form-select" name="parent_id">
+              <option value="">— حساب رئيسي —</option>
+              ${(parents || []).filter(p => p.id !== accId).map(p => `<option value="${p.id}" ${String(p.id) === String(a.parent_id) ? 'selected' : ''}>${esc(p.code)} — ${esc(p.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>حساب فرعي (Leaf)؟</label>
+            <select class="form-select" name="is_leaf">
+              <option value="true"  ${a.is_leaf !== false ? 'selected' : ''}>نعم — تُقيَّد عليه الحركات</option>
+              <option value="false" ${a.is_leaf === false ? 'selected' : ''}>لا — حساب تجميعي فقط</option>
+            </select>
+          </div>
+          <div class="form-field"><label>خاضع لـ VAT؟</label>
+            <select class="form-select" name="vat_applicable">
+              <option value="false" ${!a.vat_applicable ? 'selected' : ''}>لا</option>
+              <option value="true"  ${a.vat_applicable ? 'selected' : ''}>نعم</option>
+            </select>
+          </div>
+          <div class="form-field full"><label>وصف</label><textarea class="form-input" name="description" rows="2">${esc(a.description || '')}</textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="acctAccCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">${isEdit ? 'حفظ' : 'إضافة'}</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#acctAccClose').addEventListener('click', close);
+  host.querySelector('#acctAccCancel').addEventListener('click', close);
+  host.querySelector('#acctAccForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('acctAccErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      name: (fd.get('name') || '').trim(),
+      parent_id: fd.get('parent_id') ? Number(fd.get('parent_id')) : null,
+      is_leaf: fd.get('is_leaf') === 'true',
+      vat_applicable: fd.get('vat_applicable') === 'true',
+      description: (fd.get('description') || '').trim() || null
+    };
+    if (!isEdit) {
+      payload.code = (fd.get('code') || '').trim();
+      payload.account_type = fd.get('account_type');
+      payload.normal_balance = fd.get('normal_balance');
+    }
+    try {
+      const { error } = isEdit ? await ACCT.accounts.update(accId, payload) : await ACCT.accounts.create(payload);
+      if (error) throw error;
+      toast(isEdit ? 'تم حفظ التعديلات' : 'تم إضافة الحساب', 'success');
+      close();
+      renderAcctChartTree();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ─── مراكز التكلفة (Tree View) ────────────────────────────────────
+async function pageAcctCostCenters(body) {
+  const canManage = isFinanceManager();
+  body.innerHTML = `
+    <a href="#accounting" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الحسابات</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="layers" style="width:22px;height:22px;color:#123F32;"></span> مراكز التكلفة</h2>
+        <p>كل فرع مركز تكلفة رئيسي، وتحته المطبخ والصالة والتوصيل والإدارة كمراكز فرعية.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="acctAddCcBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> إضافة مركز</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body" id="acctCcBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="acctModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) document.getElementById('acctAddCcBtn').addEventListener('click', () => openAcctCostCenterModal(null));
+  await renderAcctCcTree();
+}
+
+async function renderAcctCcTree() {
+  const box = document.getElementById('acctCcBody');
+  if (!box) return;
+  const canManage = isFinanceManager();
+  const { data: tree, error } = await ACCT.costCenters.tree();
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!tree.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="layers"></span><p class="hr-empty-title">لا توجد مراكز تكلفة</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  function renderNode(node) {
+    const hasChildren = node.children && node.children.length;
+    return `
+      <div class="acct-tree-node">
+        <div class="acct-tree-row">
+          <span class="acct-tree-toggle ${hasChildren ? '' : 'leaf'}" ${hasChildren ? `data-cc-toggle="${node.id}"` : ''}>
+            <span data-lucide="${hasChildren ? 'chevron-down' : 'minus'}" style="width:14px;height:14px;"></span>
+          </span>
+          <span class="acct-tree-code">${esc(node.code)}</span>
+          <span class="acct-tree-name">${esc(node.name)}${node.branches ? ' <span style="color:var(--text-muted);font-weight:400;font-size:11.5px;">— ' + esc(node.branches.name) + '</span>' : ''}</span>
+          ${canManage ? `
+            <div class="acct-tree-actions">
+              <button type="button" title="تعديل" data-cc-edit="${node.id}"><span data-lucide="pencil" style="width:13px;height:13px;"></span></button>
+              <button type="button" title="حذف" data-cc-delete="${node.id}"><span data-lucide="trash-2" style="width:13px;height:13px;"></span></button>
+            </div>` : ''}
+        </div>
+        ${hasChildren ? `<div class="acct-tree-children" data-cc-children="${node.id}">${node.children.map(renderNode).join('')}</div>` : ''}
+      </div>
+    `;
+  }
+  box.innerHTML = `<div class="acct-tree">${tree.map(renderNode).join('')}</div>`;
+  if (window.lucide) lucide.createIcons();
+
+  box.querySelectorAll('[data-cc-toggle]').forEach(el => {
+    el.addEventListener('click', () => {
+      const childBox = box.querySelector(`[data-cc-children="${el.dataset.ccToggle}"]`);
+      if (!childBox) return;
+      const collapsed = childBox.style.display === 'none';
+      childBox.style.display = collapsed ? '' : 'none';
+      el.querySelector('[data-lucide]').setAttribute('data-lucide', collapsed ? 'chevron-down' : 'chevron-left');
+      if (window.lucide) lucide.createIcons();
+    });
+  });
+  if (canManage) {
+    box.querySelectorAll('[data-cc-edit]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); openAcctCostCenterModal(Number(b.dataset.ccEdit)); }));
+    box.querySelectorAll('[data-cc-delete]').forEach(b => b.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!(await customConfirm('حذف/إيقاف مركز التكلفة هذا؟'))) return;
+      const { error } = await ACCT.costCenters.remove(Number(b.dataset.ccDelete));
+      if (error) { toast('تعذّر الحذف: ' + error.message, 'error'); return; }
+      toast('تم إيقاف المركز', 'success');
+      renderAcctCcTree();
+    }));
+  }
+}
+
+async function openAcctCostCenterModal(ccId) {
+  const isEdit = !!ccId;
+  const [{ data: cc }, { data: parents }, { data: branches }] = await Promise.all([
+    isEdit ? ACCT.costCenters.get(ccId) : { data: {} },
+    ACCT.costCenters.list(),
+    sb.from('branches').select('id, name').eq('is_active', true).order('name')
+  ]);
+  const c = cc || {};
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:480px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="${isEdit ? 'pencil' : 'plus'}" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ${isEdit ? 'تعديل مركز تكلفة' : 'إضافة مركز تكلفة'}</h3>
+        <button class="modal-close-x" id="acctCcClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="acctCcErr"></div>
+        <form id="acctCcForm" style="display:grid;gap:12px;">
+          <div class="form-field"><label>الرمز *</label><input class="form-input mono-num" name="code" required value="${esc(c.code || '')}" ${isEdit ? 'readonly' : ''}></div>
+          <div class="form-field"><label>الاسم *</label><input class="form-input" name="name" required value="${esc(c.name || '')}"></div>
+          <div class="form-field"><label>الفرع (اختياري)</label>
+            <select class="form-select" name="branch_id">
+              <option value="">—</option>
+              ${(branches || []).map(b => `<option value="${b.id}" ${String(b.id) === String(c.branch_id) ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>المركز الأب (اختياري)</label>
+            <select class="form-select" name="parent_id">
+              <option value="">— مركز رئيسي —</option>
+              ${(parents || []).filter(p => p.id !== ccId).map(p => `<option value="${p.id}" ${String(p.id) === String(c.parent_id) ? 'selected' : ''}>${esc(p.code)} — ${esc(p.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>الوصف</label><textarea class="form-input" name="description" rows="2">${esc(c.description || '')}</textarea></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="acctCcCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">${isEdit ? 'حفظ' : 'إضافة'}</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#acctCcClose').addEventListener('click', close);
+  host.querySelector('#acctCcCancel').addEventListener('click', close);
+  host.querySelector('#acctCcForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('acctCcErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      name: (fd.get('name') || '').trim(),
+      branch_id: fd.get('branch_id') ? Number(fd.get('branch_id')) : null,
+      parent_id: fd.get('parent_id') ? Number(fd.get('parent_id')) : null,
+      description: (fd.get('description') || '').trim() || null
+    };
+    if (!isEdit) payload.code = (fd.get('code') || '').trim();
+    try {
+      const { error } = isEdit ? await ACCT.costCenters.update(ccId, payload) : await ACCT.costCenters.create(payload);
+      if (error) throw error;
+      toast(isEdit ? 'تم حفظ التعديلات' : 'تم إضافة المركز', 'success');
+      close();
+      renderAcctCcTree();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ─── السنوات والفترات المالية ─────────────────────────────────────
+async function pageAcctPeriods(body) {
+  const canManage = isFinanceManager();
+  body.innerHTML = `
+    <a href="#accounting" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الحسابات</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="calendar-range" style="width:22px;height:22px;color:#123F32;"></span> السنوات والفترات المالية</h2>
+        <p>إدارة الدورة المحاسبية السنوية وفتح/إقفال كل فترة شهرية.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="acctAddFyBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> إضافة سنة مالية</button>` : ''}
+    </div>
+    <div id="acctPeriodsBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
+    <div id="acctModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) document.getElementById('acctAddFyBtn').addEventListener('click', async () => {
+    const currentYear = new Date().getFullYear();
+    const year = await customPrompt('السنة المالية (مثال: ' + (currentYear + 1) + ')', String(currentYear + 1));
+    if (!year || !/^\d{4}$/.test(year.trim())) return;
+    const { error } = await ACCT.fiscalYears.create(Number(year.trim()));
+    if (error) { toast('تعذّر الإضافة: ' + error.message, 'error'); return; }
+    toast('تم إنشاء السنة المالية و12 فترة شهرية', 'success');
+    renderAcctPeriodsBody();
+  });
+  await renderAcctPeriodsBody();
+}
+
+async function renderAcctPeriodsBody() {
+  const box = document.getElementById('acctPeriodsBody');
+  if (!box) return;
+  const canManage = isFinanceManager();
+  const { data: years } = await ACCT.fiscalYears.list();
+  if (!years || !years.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="calendar-range"></span><p class="hr-empty-title">لا توجد سنوات مالية</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  let html = '';
+  for (const fy of years) {
+    const { data: periods } = await ACCT.periods.list({ year: fy.year });
+    const sorted = (periods || []).sort((a, b) => a.month - b.month);
+    html += `
+      <div class="panel" style="margin-bottom:14px;">
+        <div class="panel-header">
+          <h3>السنة المالية ${fy.year} <span class="hr-pill hr-pill-${fy.status === 'open' ? 'active' : 'inactive'}" style="margin-right:8px;">${fy.status === 'open' ? 'مفتوحة' : 'مغلقة'}</span></h3>
+          ${canManage && fy.status === 'open' ? `<button type="button" class="btn btn-outline btn-sm" data-fy-close="${fy.id}"><span data-lucide="lock" style="width:13px;height:13px;"></span> إقفال السنة</button>` : ''}
+        </div>
+        <div class="panel-body">
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;">
+            ${sorted.map(p => `
+              <div class="hr-att-sum-card" style="justify-content:space-between;">
+                <div>
+                  <div style="font-size:12.5px;font-weight:700;color:#0F172A;">${monthNames[p.month - 1]}</div>
+                  <div class="hr-pill hr-pill-${p.status === 'open' ? 'active' : 'inactive'}" style="margin-top:4px;">${{ open: 'مفتوحة', closed: 'مغلقة', locked: 'مقفلة' }[p.status]}</div>
+                </div>
+                ${canManage ? `<button type="button" title="${p.status === 'open' ? 'إقفال' : 'إعادة فتح'}" data-period-toggle="${p.id}" data-period-status="${p.status}" style="width:26px;height:26px;border-radius:8px;border:1px solid var(--border);background:var(--surface);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;"><span data-lucide="${p.status === 'open' ? 'lock' : 'unlock'}" style="width:13px;height:13px;"></span></button>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  box.innerHTML = html;
+  if (window.lucide) lucide.createIcons();
+
+  box.querySelectorAll('[data-fy-close]').forEach(b => b.addEventListener('click', async () => {
+    if (!(await customConfirm('إقفال هذه السنة المالية بالكامل؟ لن يمكن ترحيل أي قيد جديد فيها.'))) return;
+    const { error } = await ACCT.fiscalYears.close(Number(b.dataset.fyClose));
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم إقفال السنة المالية', 'success');
+    renderAcctPeriodsBody();
+  }));
+  box.querySelectorAll('[data-period-toggle]').forEach(b => b.addEventListener('click', async () => {
+    const isOpen = b.dataset.periodStatus === 'open';
+    if (!(await customConfirm(isOpen ? 'إقفال هذه الفترة؟ لن يمكن ترحيل قيود جديدة فيها.' : 'إعادة فتح هذه الفترة؟'))) return;
+    const { error } = isOpen ? (await ACCT.periods.close(Number(b.dataset.periodToggle))).error : (await ACCT.periods.reopen(Number(b.dataset.periodToggle))).error;
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast(isOpen ? 'تم إقفال الفترة' : 'تم فتح الفترة', 'success');
+    renderAcctPeriodsBody();
+  }));
+}
+
+// ─── القيود اليومية ────────────────────────────────────────────────
+const AcctJournalState = { statusFilter: '', sourceFilter: '' };
+
+async function pageAcctJournal(body, urlQuery) {
+  const canCreate = isAccountingRole();
+  if (urlQuery && urlQuery.status) AcctJournalState.statusFilter = urlQuery.status;
+
+  body.innerHTML = `
+    <a href="#accounting" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الحسابات</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="book" style="width:22px;height:22px;color:#123F32;"></span> القيود اليومية</h2>
+        <p>كل القيود اليدوية والآلية (من الرواتب والكافيه) مع الترحيل والعكس.</p>
+      </div>
+      ${canCreate ? `<button type="button" class="btn" id="acctJeNewBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> قيد يدوي جديد</button>` : ''}
+    </div>
+
+    <div class="panel"><div class="panel-body">
+      <div class="hr-toolbar">
+        <div class="filter-select-wrap"><span class="fsw-icon" data-lucide="check-circle-2" style="width:15px;height:15px;"></span>
+          <select id="acctJeStatus">
+            <option value="">كل الحالات</option>
+            <option value="draft"     ${AcctJournalState.statusFilter === 'draft'     ? 'selected' : ''}>مسودة</option>
+            <option value="posted"    ${AcctJournalState.statusFilter === 'posted'    ? 'selected' : ''}>مرحّل</option>
+            <option value="reversed"  ${AcctJournalState.statusFilter === 'reversed'  ? 'selected' : ''}>معكوس</option>
+            <option value="cancelled" ${AcctJournalState.statusFilter === 'cancelled' ? 'selected' : ''}>ملغي</option>
+          </select>
+        </div>
+        <div class="filter-select-wrap"><span class="fsw-icon" data-lucide="git-branch" style="width:15px;height:15px;"></span>
+          <select id="acctJeSource">
+            <option value="">كل المصادر</option>
+            <option value="manual">يدوي</option>
+            <option value="hr_payroll">رواتب</option>
+            <option value="cafe_order">كافيه</option>
+            <option value="reversal">عكسي</option>
+          </select>
+        </div>
+        <button type="button" class="reset-filters-btn" id="acctJeReset"><span data-lucide="refresh-cw"></span> إعادة التصفية</button>
+      </div>
+      <div id="acctJeTableBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
+    </div></div>
+    <div id="acctModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  document.getElementById('acctJeStatus').addEventListener('change', (e) => { AcctJournalState.statusFilter = e.target.value; renderAcctJournalTable(); });
+  document.getElementById('acctJeSource').addEventListener('change', (e) => { AcctJournalState.sourceFilter = e.target.value; renderAcctJournalTable(); });
+  document.getElementById('acctJeReset').addEventListener('click', () => {
+    AcctJournalState.statusFilter = ''; AcctJournalState.sourceFilter = '';
+    document.getElementById('acctJeStatus').value = ''; document.getElementById('acctJeSource').value = '';
+    renderAcctJournalTable();
+  });
+  if (canCreate) document.getElementById('acctJeNewBtn').addEventListener('click', () => openAcctJournalCreateModal());
+
+  await renderAcctJournalTable();
+}
+
+async function renderAcctJournalTable() {
+  const box = document.getElementById('acctJeTableBody');
+  if (!box) return;
+  const filters = {};
+  if (AcctJournalState.statusFilter) filters.status = AcctJournalState.statusFilter;
+  if (AcctJournalState.sourceFilter) filters.source_type = AcctJournalState.sourceFilter;
+  const { data: rows, error } = await ACCT.journal.list(filters);
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="book"></span><p class="hr-empty-title">لا توجد قيود مطابقة</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const statusLbl = { draft: 'مسودة', posted: 'مرحّل', reversed: 'معكوس', cancelled: 'ملغي' };
+  const statusCls = { draft: 'st-empty', posted: 'st-present', reversed: 'st-late', cancelled: 'st-absent' };
+  const sourceLbl = { manual: 'يدوي', hr_payroll: 'رواتب', bill: 'فاتورة مورد', invoice: 'فاتورة مبيعات', payment: 'دفعة', receipt: 'مقبوضات', cafe_order: 'كافيه', depreciation: 'إهلاك', closing: 'إقفال', opening: 'افتتاحي', reversal: 'عكسي' };
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  box.innerHTML = `
+    <div style="overflow-x:auto;">
+      <table class="hr-emp-table">
+        <thead><tr><th>رقم القيد</th><th>التاريخ</th><th>الوصف</th><th>المصدر</th><th>الإجمالي</th><th>الحالة</th></tr></thead>
+        <tbody>
+          ${rows.map(e => `<tr class="hr-emp-row" data-je-id="${e.id}">
+            <td class="mono-num">${esc(e.entry_no)}</td>
+            <td class="mono-num">${esc(e.entry_date)}</td>
+            <td>${esc(e.description)}</td>
+            <td>${esc(sourceLbl[e.source_type] || e.source_type)}</td>
+            <td class="mono-num">${money(e.total_debit)}</td>
+            <td><span class="hr-att-cell ${statusCls[e.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(statusLbl[e.status])}</span></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  box.querySelectorAll('[data-je-id]').forEach(el => el.addEventListener('click', () => { location.hash = '#acct_journal_entry/' + el.dataset.jeId; }));
+}
+
+// ─── مودال إنشاء قيد يدوي جديد ────────────────────────────────────
+async function openAcctJournalCreateModal() {
+  const { data: accounts } = await ACCT.accounts.list({ leafOnly: true, is_active: true });
+  const { data: costCenters } = await ACCT.costCenters.list({ leafOnly: true });
+
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:760px;max-width:97%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> قيد يدوي جديد</h3>
+        <button class="modal-close-x" id="acctJeCreateClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="acctJeCreateErr"></div>
+        <div class="hr-form-grid" style="margin-bottom:12px;">
+          <div class="form-field"><label>التاريخ *</label><input class="form-input" type="date" id="acctJeDate" value="${new Date().toISOString().slice(0,10)}"></div>
+          <div class="form-field full"><label>الوصف *</label><input class="form-input" id="acctJeDesc" placeholder="مثال: قيد تسوية مصروفات..."></div>
+        </div>
+
+        <div class="hr-section-heading"><span class="icon" data-lucide="list"></span> الأسطر</div>
+        <div class="acct-je-lines" id="acctJeLinesBox"></div>
+        <button type="button" class="btn btn-outline btn-sm" id="acctJeAddLineBtn" style="margin-bottom:12px;"><span data-lucide="plus" style="width:13px;height:13px;"></span> إضافة سطر</button>
+
+        <div class="acct-je-totals" id="acctJeTotals">مدين: 0.00 <span class="lbl">|</span> دائن: 0.00</div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+          <button type="button" class="btn btn-outline" id="acctJeCreateCancel">إلغاء</button>
+          <button type="button" class="btn" id="acctJeSaveDraftBtn" style="background:var(--surface);border:1.5px solid var(--border);color:#0F172A;"><span data-lucide="save" style="width:13px;height:13px;"></span> حفظ كمسودة</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#acctJeCreateClose').addEventListener('click', close);
+  host.querySelector('#acctJeCreateCancel').addEventListener('click', close);
+
+  const linesBox = host.querySelector('#acctJeLinesBox');
+  const totalsBox = host.querySelector('#acctJeTotals');
+  let lineCount = 0;
+
+  function accOptions() {
+    return `<option value="">اختر الحساب</option>` + (accounts || []).map(a => `<option value="${a.id}">${esc(a.code)} — ${esc(a.name)}</option>`).join('');
+  }
+  function ccOptions() {
+    return `<option value="">بدون مركز تكلفة</option>` + (costCenters || []).map(c => `<option value="${c.id}">${esc(c.code)} — ${esc(c.name)}</option>`).join('');
+  }
+  function addLineRow() {
+    lineCount++;
+    const row = document.createElement('div');
+    row.className = 'acct-je-line-row';
+    row.dataset.lineId = lineCount;
+    row.innerHTML = `
+      <select class="form-select je-line-account">${accOptions()}</select>
+      <select class="form-select je-line-cc">${ccOptions()}</select>
+      <input class="form-input mono-num je-line-debit" type="number" step="0.01" min="0" placeholder="مدين">
+      <input class="form-input mono-num je-line-credit" type="number" step="0.01" min="0" placeholder="دائن">
+      <button type="button" class="acct-je-line-del" title="حذف السطر"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+    `;
+    linesBox.appendChild(row);
+    if (window.lucide) lucide.createIcons();
+    row.querySelector('.acct-je-line-del').addEventListener('click', () => { row.remove(); recalcTotals(); });
+    row.querySelector('.je-line-debit').addEventListener('input', (e) => { if (Number(e.target.value) > 0) row.querySelector('.je-line-credit').value = ''; recalcTotals(); });
+    row.querySelector('.je-line-credit').addEventListener('input', (e) => { if (Number(e.target.value) > 0) row.querySelector('.je-line-debit').value = ''; recalcTotals(); });
+  }
+  function recalcTotals() {
+    let debit = 0, credit = 0;
+    linesBox.querySelectorAll('.acct-je-line-row').forEach(r => {
+      debit += Number(r.querySelector('.je-line-debit').value || 0);
+      credit += Number(r.querySelector('.je-line-credit').value || 0);
+    });
+    const balanced = Math.abs(debit - credit) < 0.005 && debit > 0;
+    totalsBox.className = 'acct-je-totals ' + (balanced ? 'balanced' : 'unbalanced');
+    totalsBox.textContent = `مدين: ${debit.toFixed(2)} | دائن: ${credit.toFixed(2)}` + (balanced ? ' ✓ متوازن' : ' — غير متوازن');
+  }
+  host.querySelector('#acctJeAddLineBtn').addEventListener('click', addLineRow);
+  addLineRow(); addLineRow();
+
+  host.querySelector('#acctJeSaveDraftBtn').addEventListener('click', async () => {
+    const errBox = host.querySelector('#acctJeCreateErr');
+    errBox.classList.remove('show');
+    const entryDate = host.querySelector('#acctJeDate').value;
+    const description = host.querySelector('#acctJeDesc').value.trim();
+    if (!entryDate || !description) { errBox.textContent = 'التاريخ والوصف مطلوبان'; errBox.classList.add('show'); return; }
+
+    const lineRows = [...linesBox.querySelectorAll('.acct-je-line-row')];
+    const lines = lineRows.map(r => ({
+      account_id: r.querySelector('.je-line-account').value ? Number(r.querySelector('.je-line-account').value) : null,
+      cost_center_id: r.querySelector('.je-line-cc').value ? Number(r.querySelector('.je-line-cc').value) : null,
+      debit: Number(r.querySelector('.je-line-debit').value || 0),
+      credit: Number(r.querySelector('.je-line-credit').value || 0)
+    })).filter(l => l.account_id && (l.debit > 0 || l.credit > 0));
+
+    if (lines.length < 2) { errBox.textContent = 'أضف سطرين على الأقل (مدين ودائن)'; errBox.classList.add('show'); return; }
+    const totalDebit = lines.reduce((s, l) => s + l.debit, 0);
+    const totalCredit = lines.reduce((s, l) => s + l.credit, 0);
+    if (Math.abs(totalDebit - totalCredit) > 0.005) { errBox.textContent = 'القيد غير متوازن — مجموع المدين يجب أن يساوي مجموع الدائن'; errBox.classList.add('show'); return; }
+
+    try {
+      const { data: entry, error: createErr } = await ACCT.journal.create({ entry_date: entryDate, description });
+      if (createErr) throw createErr;
+      for (const line of lines) {
+        const { error: lineErr } = await ACCT.journal.addLine(entry.id, line);
+        if (lineErr) throw lineErr;
+      }
+      toast('تم حفظ القيد كمسودة', 'success');
+      close();
+      location.hash = '#acct_journal_entry/' + entry.id;
+      renderApp();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ─── تفاصيل قيد يومية ──────────────────────────────────────────────
+async function pageAcctJournalDetail(body, idParam) {
+  const entryId = Number(idParam);
+  if (!entryId) { body.innerHTML = '<p class="error-msg show">معرف القيد غير صحيح</p>'; return; }
+  const { data: entry, error } = await ACCT.journal.get(entryId);
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!entry) { body.innerHTML = '<p class="empty-state">القيد غير موجود</p>'; return; }
+
+  const canPost = isFinanceManager();
+  const canEdit = isAccountingRole() && entry.status === 'draft';
+  const statusLbl = { draft: 'مسودة', posted: 'مرحّل', reversed: 'معكوس', cancelled: 'ملغي' };
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  body.innerHTML = `
+    <a href="#acct_journal" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للقيود اليومية</a>
+
+    <div class="hr-emp-hero">
+      <div class="hr-emp-hero-content">
+        <div class="hr-emp-hero-avatar"><span data-lucide="book" style="width:28px;height:28px;"></span></div>
+        <div class="hr-emp-hero-info">
+          <h2 class="hr-emp-hero-name">${esc(entry.entry_no)}</h2>
+          <div class="hr-emp-hero-meta">
+            <span><span data-lucide="calendar" style="width:13px;height:13px;"></span> ${esc(entry.entry_date)}</span>
+            <span><span data-lucide="file-text" style="width:13px;height:13px;"></span> ${esc(entry.description)}</span>
+            <span><span data-lucide="info" style="width:13px;height:13px;"></span> ${esc(statusLbl[entry.status])}</span>
+          </div>
+        </div>
+        <div class="hr-emp-hero-actions">
+          ${canPost && entry.status === 'draft'  ? `<button type="button" class="hr-emp-hero-btn" id="acctJePostBtn"><span data-lucide="check-check" style="width:13px;height:13px;"></span> ترحيل</button>` : ''}
+          ${canPost && entry.status === 'posted' ? `<button type="button" class="hr-emp-hero-btn" id="acctJeReverseBtn"><span data-lucide="rotate-ccw" style="width:13px;height:13px;"></span> عكس القيد</button>` : ''}
+          ${canEdit ? `<button type="button" class="hr-emp-hero-btn" id="acctJeCancelBtn"><span data-lucide="ban" style="width:13px;height:13px;"></span> إلغاء</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="hr-info-grid" style="margin-bottom:20px;">
+      ${_hrInfo('أنشأه', entry.creator?.full_name)}
+      ${_hrInfo('رحّله', entry.poster?.full_name)}
+      ${_hrInfo('الفترة', entry.period ? entry.period.month + '/' + entry.period.year : '')}
+      ${_hrInfo('المرجع', entry.reference)}
+    </div>
+
+    <div class="hr-section-heading"><span class="icon" data-lucide="list"></span> أسطر القيد</div>
+    <div style="overflow-x:auto;">
+      <table class="hr-emp-table">
+        <thead><tr><th>الحساب</th><th>مركز التكلفة</th><th>مدين</th><th>دائن</th><th>الوصف</th></tr></thead>
+        <tbody>
+          ${(entry.lines || []).sort((a, b) => a.line_no - b.line_no).map(l => `<tr>
+            <td>${esc(l.account?.code || '')} — ${esc(l.account?.name || '')}</td>
+            <td>${l.cost_center ? esc(l.cost_center.code) + ' — ' + esc(l.cost_center.name) : '—'}</td>
+            <td class="mono-num">${l.debit > 0 ? money(l.debit) : '—'}</td>
+            <td class="mono-num">${l.credit > 0 ? money(l.credit) : '—'}</td>
+            <td>${esc(l.description || '—')}</td>
+          </tr>`).join('')}
+          <tr style="font-weight:800;background:rgba(16,185,129,0.05);">
+            <td colspan="2">الإجمالي</td>
+            <td class="mono-num">${money(entry.total_debit || (entry.lines||[]).reduce((s,l)=>s+Number(l.debit||0),0))}</td>
+            <td class="mono-num">${money(entry.total_credit || (entry.lines||[]).reduce((s,l)=>s+Number(l.credit||0),0))}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  document.getElementById('acctJePostBtn')?.addEventListener('click', async () => {
+    if (!(await customConfirm('ترحيل هذا القيد؟ لن يمكن تعديل أسطره بعد الترحيل.'))) return;
+    const { error } = await ACCT.journal.post(entryId);
+    if (error) { toast('تعذّر الترحيل: ' + error.message, 'error'); return; }
+    toast('تم ترحيل القيد', 'success');
+    renderApp();
+  });
+  document.getElementById('acctJeReverseBtn')?.addEventListener('click', async () => {
+    if (!(await customConfirm('عكس هذا القيد؟ سيتم إنشاء قيد جديد بالجانب المعاكس ومرحّل تلقائيًا.'))) return;
+    const { data, error } = await ACCT.journal.reverse(entryId);
+    if (error) { toast('تعذّر العكس: ' + error.message, 'error'); return; }
+    toast('تم عكس القيد بنجاح', 'success');
+    location.hash = '#acct_journal_entry/' + data.id;
+    renderApp();
+  });
+  document.getElementById('acctJeCancelBtn')?.addEventListener('click', async () => {
+    if (!(await customConfirm('إلغاء هذه المسودة؟'))) return;
+    const { error } = await ACCT.journal.cancel(entryId);
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم إلغاء القيد', 'success');
+    location.hash = '#acct_journal';
+    renderApp();
+  });
+}
+
 const COMING_SOON_MODULES = {
   hr: {
     title: 'الموارد البشرية',
