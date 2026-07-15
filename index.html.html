@@ -516,6 +516,8 @@ tr:hover td { background: var(--primary-light); }
 }
 .msg-edit-save { background: var(--primary); color: #fff; }
 .msg-edit-cancel { background: var(--bg); color: var(--text-muted); }
+.msg-bubble .reply-btn { min-width: 32px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; }
+.msg-bubble .reply-btn:active { background: rgba(0,0,0,0.06); }
 
 .chat-input { display: flex; flex-direction: column; border-top: 1px solid var(--border); background: var(--surface); }
 .chat-toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 10px 0; }
@@ -731,7 +733,7 @@ tr:hover td { background: var(--primary-light); }
 }
 .chat-send-btn:hover { background: var(--primary-dark); transform: scale(1.05); }
 .chat-send-btn:active { transform: scale(.95); }
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 50; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 2000; }
 .modal-box { width: 420px; max-width: 92%; max-height: 85vh; overflow-y: auto; }
 /* ============ Header محسّن ============ */
 .topbar { gap: 16px; }
@@ -2001,6 +2003,22 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
 :root[data-theme="dark"] .modal-box { background: var(--surface); color: var(--text); }
 :root[data-theme="dark"] .modal-overlay { background: rgba(0,0,0,0.7); }
 :root[data-theme="dark"] .drawer { background: var(--surface); color: var(--text); }
+
+/* تصحيح شامل: نصوص كثيرة عبر الملف مكتوبة بلون داكن ثابت inline (زي #0F172A،
+   #12372F) بدل متغيرات الألوان، فتفضل داكنة على خلفية داكنة في الوضع الليلي.
+   بدل تعديل كل موضع على حدة، نلغي هذه الألوان الثابتة فور تفعيل الوضع الليلي */
+:root[data-theme="dark"] [style*="color:#0F172A"],
+:root[data-theme="dark"] [style*="color: #0F172A"],
+:root[data-theme="dark"] [style*="color:#12372F"],
+:root[data-theme="dark"] [style*="color: #12372F"],
+:root[data-theme="dark"] [style*="color:#123F32"],
+:root[data-theme="dark"] [style*="color: #123F32"],
+:root[data-theme="dark"] [style*="color:#245B4B"],
+:root[data-theme="dark"] [style*="color: #245B4B"],
+:root[data-theme="dark"] [style*="color:#17372D"],
+:root[data-theme="dark"] [style*="color: #17372D"] {
+  color: var(--text) !important;
+}
 
 /* ============ Dark Mode: تعديلات موسّعة لكل المكونات ============ */
 /* الشات والرسائل */
@@ -4336,7 +4354,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v46-2026-07-15-chat-perf-fixes';
+const APP_VERSION = 'v47-2026-07-15-ux-audit-fixes';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -4602,6 +4620,59 @@ function badgeHtml(value, group) {
 }
 function fmtDate(dt) { if (!dt) return '-'; return String(dt).replace('T', ' ').slice(0, 16); }
 function esc(s) { return (s ?? '').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function customConfirm(message, opts) {
+  return new Promise(resolve => {
+    const host = document.createElement('div');
+    host.className = 'modal-overlay';
+    host.innerHTML = `<div class="panel modal-box" style="width:360px;padding:22px;text-align:center;">
+      <p style="font-size:14px;color:var(--text);margin:0 0 18px;line-height:1.7;">${esc(message)}</p>
+      <div style="display:flex;gap:8px;justify-content:center;">
+        <button type="button" class="btn btn-outline" id="ccCancel">${esc(opts && opts.cancelText || 'إلغاء')}</button>
+        <button type="button" class="btn" style="background:${opts && opts.danger ? 'var(--danger)' : 'var(--primary)'};color:#fff;" id="ccOk">${esc(opts && opts.okText || 'تأكيد')}</button>
+      </div></div>`;
+    document.body.appendChild(host);
+    const close = v => { host.remove(); resolve(v); };
+    host.querySelector('#ccCancel').addEventListener('click', () => close(false));
+    host.querySelector('#ccOk').addEventListener('click', () => close(true));
+    host.addEventListener('click', e => { if (e.target === host) close(false); });
+  });
+}
+function customPrompt(message, defaultValue) {
+  return new Promise(resolve => {
+    const host = document.createElement('div');
+    host.className = 'modal-overlay';
+    host.innerHTML = `<div class="panel modal-box" style="width:380px;padding:22px;">
+      <p style="font-size:13.5px;color:var(--text);margin:0 0 10px;white-space:pre-line;">${esc(message)}</p>
+      <input type="text" id="cpInput" class="form-input" style="width:100%;box-sizing:border-box;margin-bottom:16px;">
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button type="button" class="btn btn-outline" id="cpCancel">إلغاء</button>
+        <button type="button" class="btn" style="background:var(--primary);color:#fff;" id="cpOk">تأكيد</button>
+      </div></div>`;
+    document.body.appendChild(host);
+    const input = host.querySelector('#cpInput');
+    input.value = defaultValue || '';
+    input.focus(); input.select();
+    const close = v => { host.remove(); resolve(v); };
+    host.querySelector('#cpCancel').addEventListener('click', () => close(null));
+    host.querySelector('#cpOk').addEventListener('click', () => close(input.value));
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') close(input.value); if (e.key === 'Escape') close(null); });
+    host.addEventListener('click', e => { if (e.target === host) close(null); });
+  });
+}
+function customAlert(message) {
+  return new Promise(resolve => {
+    const host = document.createElement('div');
+    host.className = 'modal-overlay';
+    host.innerHTML = `<div class="panel modal-box" style="width:340px;padding:22px;text-align:center;">
+      <p style="font-size:14px;color:var(--text);margin:0 0 18px;line-height:1.7;">${esc(message)}</p>
+      <button type="button" class="btn" style="background:var(--primary);color:#fff;width:100%;" id="caOk">حسنًا</button></div>`;
+    document.body.appendChild(host);
+    const close = () => { host.remove(); resolve(); };
+    host.querySelector('#caOk').addEventListener('click', close);
+    host.addEventListener('click', e => { if (e.target === host) close(); });
+  });
+}
 function fmtDateAr(dt) {
   if (!dt) return '-';
   const d = new Date(dt);
@@ -7632,7 +7703,7 @@ function wireMeetingCreateForm(departments, allUsersForMeeting) {
     if (!raw) return;
     const [kind, key] = raw.split(':');
     const hasContent = mGoal.value.trim() || agendaItems.length || mNotes.value.trim();
-    if (hasContent && !confirm('سيتم استبدال الهدف وجدول الأعمال والملاحظات بمحتوى القالب. متابعة؟')) {
+    if (hasContent && !(await customConfirm('سيتم استبدال الهدف وجدول الأعمال والملاحظات بمحتوى القالب. متابعة؟'))) {
       e.target.value = ''; return;
     }
 
@@ -7661,11 +7732,11 @@ function wireMeetingCreateForm(departments, allUsersForMeeting) {
   });
 
   // ---------- زر حفظ الحالي كقالب مخصص ----------
-  document.getElementById('mTplSaveBtn').addEventListener('click', () => {
+  document.getElementById('mTplSaveBtn').addEventListener('click', async () => {
     const goal = mGoal.value.trim();
     const notes = mNotes.value.trim();
     if (!goal && !agendaItems.length && !notes) { toast('اكتب هدفًا أو أضف نقطة قبل الحفظ كقالب', 'warning'); return; }
-    const name = prompt('اسم القالب:', '');
+    const name = await customPrompt('اسم القالب:', '');
     if (!name || !name.trim()) return;
     const list = loadCustomTpls();
     // منع التكرار بالاسم
@@ -7678,14 +7749,14 @@ function wireMeetingCreateForm(departments, allUsersForMeeting) {
   });
 
   // ---------- زر إدارة/حذف قالب مخصص ----------
-  document.getElementById('mTplManageBtn').addEventListener('click', () => {
+  document.getElementById('mTplManageBtn').addEventListener('click', async () => {
     const list = loadCustomTpls();
     if (!list.length) return;
     const names = list.map((t, i) => `${i+1}. ${t.name}`).join('\n');
-    const ans = prompt('اكتب رقم القالب لحذفه:\n\n' + names);
+    const ans = await customPrompt('اكتب رقم القالب لحذفه:\n\n' + names);
     const n = parseInt(ans, 10);
     if (!n || n < 1 || n > list.length) return;
-    if (!confirm(`حذف القالب "${list[n-1].name}"؟`)) return;
+    if (!(await customConfirm(`حذف القالب "${list[n-1].name}"؟`, { danger: true }))) return;
     list.splice(n - 1, 1);
     saveCustomTpls(list);
     renderCustomTplGroup();
@@ -8238,7 +8309,7 @@ async function pageMeetingDetail(body, meetingId, urlQuery) {
   const minutesRemoveBtn = document.getElementById('mMinutesRemoveBtn');
   if (minutesRemoveBtn) {
     minutesRemoveBtn.addEventListener('click', async () => {
-      if (!confirm('حذف محضر الاجتماع؟')) return;
+      if (!(await customConfirm('حذف محضر الاجتماع؟', { danger: true }))) return;
       const { error } = await sb.from('meetings').update({
         minutes_file_url: null, minutes_file_name: null,
         minutes_uploaded_at: null, minutes_uploaded_by: null, minutes_notes: null
@@ -8382,7 +8453,7 @@ window.cancelEditMessage = async function() {
   if (cid) await loadChatMessages(cid);
 };
 window.deleteMessageConfirm = async function(msgId) {
-  if (!confirm('هل تريد حذف هذه الرسالة؟ لا يمكن التراجع بعد الحذف.')) return;
+  if (!(await customConfirm('هل تريد حذف هذه الرسالة؟ لا يمكن التراجع بعد الحذف.', { danger: true }))) return;
   const { error } = await sb.from('messages').update({
     message_text: DELETED_MSG_TEXT, attachment_url: null, attachment_name: null, attachment_type: null, is_pinned: false
   }).eq('id', msgId);
@@ -8783,7 +8854,7 @@ window.openTaskProject = async function(taskId, task) {
   if (!project) {
     // المسؤول عن المهمة فقط يقدر يفتح مشروع
     if (task.assigned_to !== CURRENT_USER.id && !['admin','company_manager'].includes(CURRENT_USER.role)) {
-      alert('فقط المسؤول عن المهمة يمكنه فتح مشروع لها');
+      toast('فقط المسؤول عن المهمة يمكنه فتح مشروع لها', 'warning');
       return;
     }
     const { data: allUsers } = await sb.from('users').select('id, full_name').eq('is_active', true).order('full_name');
@@ -8940,7 +9011,7 @@ window.openTaskProject = async function(taskId, task) {
 
   // إغلاق مهمة فرعية (المسؤول الرئيسي)
   document.querySelectorAll('[data-close-member]').forEach(btn => btn.addEventListener('click', async () => {
-    if (!confirm('تأكيد إغلاق هذه المهمة الفرعية كمكتملة؟')) return;
+    if (!(await customConfirm('تأكيد إغلاق هذه المهمة الفرعية كمكتملة؟'))) return;
     const memberId = Number(btn.dataset.closeMember);
     const mm = (members || []).find(x => x.id === memberId);
     await sb.from('task_project_members').update({ status: 'completed', progress_percent: 100 }).eq('id', memberId);
@@ -10868,7 +10939,7 @@ async function renderAppCore() {
       <aside class="sidebar ${collapsed ? 'collapsed' : ''}" id="appSidebar">
         <button class="sidebar-toggle" id="sidebarToggleBtn" title="طي/فتح القائمة">${collapsed ? '›' : '‹'}</button>
         <div class="brand" style="border-radius:10px; display:flex; align-items:center; justify-content:center;">
-          <img src="logo-icon-v4.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI" class="brand-text">
+          <img src="logo-icon-v4.png" width="56" height="56" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI" class="brand-text">
         </div>
         <nav>${menuHtml}</nav>
         <div class="sidebar-footer">
@@ -11327,8 +11398,8 @@ async function copyItemLink(hashOrPath, label = 'الرابط') {
     // Web Share API لو متاح (على الموبايل)
     if (navigator.share) {
       // ننتظر ربع ثانية لكي يشوف الـ toast الأول
-      setTimeout(() => {
-        if (confirm('تريد مشاركة الرابط مباشرة؟')) {
+      setTimeout(async () => {
+        if (await customConfirm('تريد مشاركة الرابط مباشرة؟')) {
           navigator.share({ title: label, url: url }).catch(() => {});
         }
       }, 200);
@@ -12342,14 +12413,14 @@ async function pageCustomChat(body, convId) {
 
   // إجراءات المالك
   document.getElementById('cchEditName')?.addEventListener('click', async () => {
-    const newName = prompt('اسم الشات الجديد:', conv.title || '');
+    const newName = await customPrompt('اسم الشات الجديد:', conv.title || '');
     if (!newName || !newName.trim() || newName === conv.title) return;
     await sb.from('conversations').update({ title: newName.trim() }).eq('id', cid);
     toast('تم تحديث الاسم', 'success');
     renderApp();
   });
   document.getElementById('cchArchive')?.addEventListener('click', async () => {
-    if (!confirm('أرشفة الشات؟')) return;
+    if (!(await customConfirm('أرشفة الشات؟'))) return;
     await sb.from('conversations').update({ is_archived: true, archived_at: new Date().toISOString(), archived_by: CURRENT_USER.id }).eq('id', cid);
     toast('تم أرشفة الشات', 'success');
     location.hash = '#conversations';
@@ -13639,7 +13710,7 @@ function renderUsersTabContent() {
           region: srFieldVal('region-'+origReq.id, origReq.region) || origReq.region,
           notes: srFieldVal('notes-'+origReq.id, origReq.notes)
         };
-        if (!confirm('تأكيد قبول طلب "' + req.full_name + '" وإنشاء حساب له؟')) return;
+        if (!(await customConfirm('تأكيد قبول طلب "' + req.full_name + '" وإنشاء حساب له؟'))) return;
         btn.disabled = true;
         try {
           const deptSelect = host.querySelector(`[data-sr-dept="${origReq.id}"]`);
@@ -13648,7 +13719,7 @@ function renderUsersTabContent() {
           if (req.email) {
             const { data: existing } = await sb.from('users').select('id, full_name, username').eq('email', req.email).maybeSingle();
             if (existing) {
-              const useModified = confirm(
+              const useModified = await customConfirm(
                 'الإيميل "' + req.email + '" مستخدم بالفعل للمستخدم "' + existing.full_name + '" (' + existing.username + ').\n\n' +
                 'اضغط "موافق" لإنشاء الحساب بإيميل معدَّل تلقائيًا (' + req.email.split('@')[0] + '+' + Date.now().toString().slice(-4) + '@' + req.email.split('@')[1] + '), ' +
                 'أو "إلغاء" للرجوع وتعديل الإيميل يدويًا في الجدول.'
@@ -13695,7 +13766,7 @@ function renderUsersTabContent() {
     });
     host.querySelectorAll('[data-sr-reject]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const reason = prompt('سبب الرفض (اختياري):', '');
+        const reason = await customPrompt('سبب الرفض (اختياري):', '');
         if (reason === null) return; // اتلغى
         await sb.from('signup_requests').update({
           status: 'rejected', reviewed_by: CURRENT_USER.id, reviewed_at: new Date().toISOString(),
@@ -14055,7 +14126,7 @@ async function pageMyProfile(body) {
     }
   });
   if (removeBtn) removeBtn.addEventListener('click', async () => {
-    if (!confirm('حذف صورة الملف الشخصي؟')) return;
+    if (!(await customConfirm('حذف صورة الملف الشخصي؟', { danger: true }))) return;
     const { error } = await sb.from('users').update({ avatar_url: null }).eq('id', uid);
     if (error) { toast(error.message, 'error'); return; }
     CURRENT_USER.avatar_url = null;
@@ -18291,7 +18362,7 @@ async function handleMaintAction(action, req) {
     const { data: quotes } = await sb.from('maintenance_quotes').select('id').eq('request_id', rid);
     const n = (quotes || []).length;
     if (n < 3) {
-      if (!confirm(`لديك ${n} عرض سعر فقط — الموصى به 3 عروض للمقارنة.\n\nهل تريد الإرسال للمالية على أي حال؟`)) return;
+      if (!(await customConfirm(`لديك ${n} عرض سعر فقط — الموصى به 3 عروض للمقارنة.\n\nهل تريد الإرسال للمالية على أي حال؟`))) return;
     }
     return advance('awaiting_finance', 'أُرسل الطلب للمالية');
   }
@@ -20022,7 +20093,7 @@ function mobileAppShellHtml() {
   return `
     <header class="m-appbar">
       <div class="m-appbar-brand">
-        <img src="logo-icon-v4.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI" onerror="this.style.display='none'">
+        <img src="logo-icon-v4.png" width="34" height="34" alt="شؤون الغذاء" onerror="this.style.display='none'">
         <span class="m-appbar-title">شؤون الغذاء</span>
       </div>
       <div class="m-appbar-actions">
