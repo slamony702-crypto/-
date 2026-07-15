@@ -4259,6 +4259,40 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 }
 
 /* ═══════════════════════════════════════════════════════════
+   💫 شعار تحميل فخم — يظهر بس لو التنقل بين الصفحات أخذ أكتر من ثانية
+   ═══════════════════════════════════════════════════════════ */
+.route-loader-overlay {
+  position: fixed; inset: 0; z-index: 6000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(244,247,246,0.4);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  opacity: 0; pointer-events: none;
+  transition: opacity .3s ease;
+}
+.route-loader-overlay.show { opacity: 1; pointer-events: auto; }
+.route-loader-badge {
+  width: 78px; height: 78px; border-radius: 24px;
+  background: linear-gradient(135deg, #10B981 0%, #34D399 45%, #8B5CF6 100%);
+  box-shadow: 0 16px 36px rgba(16,185,129,0.32), 0 6px 18px rgba(139,92,246,0.28);
+  display: flex; align-items: center; justify-content: center;
+  transform: scale(.55); opacity: 0;
+  transition: transform .4s cubic-bezier(.34,1.56,.64,1), opacity .3s ease;
+}
+.route-loader-overlay.show .route-loader-badge {
+  transform: scale(1); opacity: 1;
+  animation: routeLoaderBreathe 1.5s ease-in-out .4s infinite;
+}
+.route-loader-badge img { width: 54px; height: 54px; object-fit: contain; border-radius: 16px; }
+@keyframes routeLoaderBreathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-loader-overlay, .route-loader-badge { transition: opacity .2s ease !important; }
+  .route-loader-overlay.show .route-loader-badge { transform: scale(1) !important; animation: none !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════
    🧭 الجولة التعريفية للموبايل — هادئة وبسيطة، بدون وميض أو اهتزاز
    ═══════════════════════════════════════════════════════════ */
 .m-onboard-overlay {
@@ -4361,7 +4395,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v55-2026-07-15-friendly-error-msgs';
+const APP_VERSION = 'v56-2026-07-15-route-loader';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -11245,12 +11279,33 @@ async function renderShellOnce() {
 let __routeToken = 0;
 function isStaleRoute(tk) { return tk !== __routeToken; }
 
+// ═══ شعار تحميل أنيق يظهر فقط لو التنقل بين الصفحات أخذ أكتر من ثانية ═══
+let __routeLoaderEl = null;
+function showRouteLoader() {
+  if (!__routeLoaderEl) {
+    __routeLoaderEl = document.createElement('div');
+    __routeLoaderEl.className = 'route-loader-overlay';
+    __routeLoaderEl.innerHTML = '<div class="route-loader-badge"><img src="logo-icon-v4.png" alt=""></div>';
+    document.body.appendChild(__routeLoaderEl);
+  }
+  requestAnimationFrame(() => requestAnimationFrame(() => __routeLoaderEl?.classList.add('show')));
+}
+function hideRouteLoader() {
+  if (!__routeLoaderEl) return;
+  const el = __routeLoaderEl;
+  __routeLoaderEl = null;
+  el.classList.remove('show');
+  setTimeout(() => el.remove(), 400);
+}
+
 async function route() {
   const { page, param, query } = currentRoute();
   const myTk = ++__routeToken;
   document.title = 'شؤون الغذاء - ' + (PAGE_TITLES[page] || '');
   const body = document.getElementById('pageBody');
   body.dataset.routeTk = String(myTk);
+  // لو التنقل أخذ أكتر من ثانية، اعرض شعار المنصة بشكل أنيق بدل ما تفضل الشاشة فارغة
+  const loaderTimer = setTimeout(() => { if (!isStaleRoute(myTk)) showRouteLoader(); }, 1000);
   try {
     if (isStaleRoute(myTk)) return;
     if (page === 'dashboard') await pageDashboard(body);
@@ -11303,6 +11358,8 @@ async function route() {
         </div>`;
     } catch (e2) { /* حتى لو فشل عرض رسالة الخطأ، لا نترك التطبيق يقع */ }
   }
+  clearTimeout(loaderTimer);
+  hideRouteLoader();
   // كل خطوات ما بعد الرندر محميّة كل واحدة على حدة لكي فشل أي منها ما يوقفش الباقي
   try { if (window.lucide) lucide.createIcons(); } catch (e) { fwReport('lucide', e); }
   try { wireSearchIcons(); } catch (e) { fwReport('wireSearchIcons', e); }
