@@ -4427,7 +4427,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v63-2026-07-15-silent-error-logging';
+const APP_VERSION = 'v64-2026-07-15-select-sheet-rollout';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -11428,6 +11428,7 @@ async function route() {
   try { wireSearchIcons(); } catch (e) { fwReport('wireSearchIcons', e); }
   try { initPremiumDateFields(); } catch (e) { fwReport('initPremiumDateFields', e); }
   try { wireClickableStatCards(); } catch (e) { fwReport('wireClickableStatCards', e); }
+  try { enhanceAllSelectsForMobile(); } catch (e) { fwReport('enhanceAllSelectsForMobile', e); }
   try { scrollToTableTarget(query && query.scroll); } catch (e) { fwReport('scrollToTableTarget', e); }
   try { updateBackButtonVisibility(page); } catch (e) {}
 }
@@ -17697,6 +17698,39 @@ function enhanceSelectForMobile(selectEl, title) {
   selectEl._refreshFakeLabel = refreshLabel;
 }
 
+// يستنتج عنوان الشيت تلقائيًا من الـ label المجاور للـ select (يُستخدم بس
+// من التحويل التلقائي الشامل تحت — التوصيلات اليدوية القديمة عندها عنوان محدّد بالفعل)
+function deriveSelectTitle(selectEl) {
+  try {
+    const wrap = selectEl.closest('.form-field, .mform-field, .field');
+    const labelText = wrap?.querySelector('label')?.textContent;
+    if (labelText) {
+      const cleaned = labelText.replace(/\*\s*$/, '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+      if (cleaned) return cleaned;
+    }
+    const placeholderOpt = [...selectEl.options].find(o => !o.value);
+    if (placeholderOpt && placeholderOpt.textContent.trim()) return placeholderOpt.textContent.trim();
+    if (selectEl.name) return selectEl.name;
+    if (selectEl.id) return selectEl.id;
+  } catch (e) { /* أي غرابة في المارك أب ما توقفش التمريرة كلها */ }
+  return 'اختر قيمة';
+}
+// تحويل تلقائي شامل: كل القوائم الثابتة أحادية الاختيار (form-select/meeting-select)
+// تتحول لشيت مخصص بعد كل رندر صفحة. نستثني عمدًا:
+//  - القوائم متعددة الاختيار (multiple) — الشيت الحالي بيدعم اختيار واحد بس
+//  - أي select فيه optgroup — التفكيك الحالي هيفقد عناوين المجموعات
+//  - فلاتر الجداول والقوائم داخل صفوف الجداول الديناميكية (الحضور، تتبع
+//    الجودة، تجاوزات الصلاحيات) — دي بتتولّد بره route() في أماكن متفرقة
+//    ومحتاجة متابعة منفصلة لو الشركة عايزة تعميمها كمان
+function enhanceAllSelectsForMobile() {
+  if (!isMobileView()) return;
+  document.querySelectorAll('select.form-select:not([multiple]), select.meeting-select:not([multiple])').forEach(sel => {
+    if (sel.dataset.mEnhanced) return;
+    if (sel.querySelector('optgroup')) return;
+    enhanceSelectForMobile(sel, deriveSelectTitle(sel));
+  });
+}
+
 const MAINT_SEVERITY_COLOR = {
   // مقياس درجة الخطورة (الأساسي): منخفض/متوسط/عالي/حرج
   low: '#12372F', medium: '#245B4B', high: '#F2994A', critical: '#D32F2F',
@@ -19580,6 +19614,7 @@ async function pageMaintenancePreventive(body, query) {
     branchSel.addEventListener('change', () => {
       const bid = Number(branchSel.value);
       equipSel.innerHTML = '<option value="">بدون معدة محددة</option>' + (equipment||[]).filter(e => e.branch_id === bid).map(e => `<option value="${e.id}">${esc(e.equipment_name)}</option>`).join('');
+      equipSel._refreshFakeLabel?.();
     });
     host.querySelector('#pmCancel').addEventListener('click', () => host.remove());
     host.querySelector('#pmForm').addEventListener('submit', async (e) => {
