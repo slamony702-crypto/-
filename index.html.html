@@ -4427,7 +4427,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v64-2026-07-15-select-sheet-rollout';
+const APP_VERSION = 'v65-2026-07-15-merge-maint-type-field';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -17431,8 +17431,8 @@ async function pageMaintenanceReports(body, query) {
     el.querySelectorAll('[data-exp]').forEach(b => b.addEventListener('click', () => {
       const rows2 = getRows();
       const t = b.dataset.exp;
-      const H = ['رقم الطلب','الفرع','نوع العطل الرئيسي','العطل الفرعي','نوع الصيانة','عنوان المشكلة','الخطورة','التأثير','الحالة','التكلفة','تاريخ البلاغ','أيام منذ البلاغ'];
-      const toRow = r => [r.request_no||r.id, r.branches?.name||'', label('maint_area',r.affected_area), parseSubFault(r.description)||'', r.maintenance_type?label('maint_type',r.maintenance_type):'', r.issue_title||stripSubFaultTag(r.description||'')||'', label('maint_priority',r.severity)||r.severity, label('maint_impact',r.impact_on_operation||'none'), label('maint_status',r.status), cost(r), (r.reported_at||'').slice(0,10), repAgeDays(r.reported_at||r.created_at)];
+      const H = ['رقم الطلب','الفرع','نوع الصيانة','العطل الفرعي','عنوان المشكلة','الخطورة','التأثير','الحالة','التكلفة','تاريخ البلاغ','أيام منذ البلاغ'];
+      const toRow = r => [r.request_no||r.id, r.branches?.name||'', label('maint_area',r.affected_area), parseSubFault(r.description)||'', r.issue_title||stripSubFaultTag(r.description||'')||'', label('maint_priority',r.severity)||r.severity, label('maint_impact',r.impact_on_operation||'none'), label('maint_status',r.status), cost(r), (r.reported_at||'').slice(0,10), repAgeDays(r.reported_at||r.created_at)];
       let data = rows2;
       if (t === 'delayed') data = rows2.filter(DELAYED);
       if (t === 'critical') data = rows2.filter(CRIT);
@@ -17996,7 +17996,6 @@ async function pageMaintenanceNew(body, param) {
   const { data: branches } = await sb.from('branches').select('*').eq('is_active', true).order('name');
   const canManageBranches = ['admin','company_manager','operations_manager','quality_manager','maintenance_officer'].includes(CURRENT_USER.role);
   const areas = Object.keys(MAINTENANCE_FAULTS);
-  const types = ['electric','plumbing','ac','equipment','furniture','network','other'];
   const locations = ['kitchen','hall','store','office','bathroom','outdoor','other'];
   const priorities = ['low','medium','high','critical'];
   const impacts = ['none','partial','full'];
@@ -18055,7 +18054,7 @@ async function pageMaintenanceNew(body, param) {
               </select>
             </div>
             <div class="form-field">
-              <label>نوع العطل الرئيسي *</label>
+              <label>نوع الصيانة *</label>
               <select name="affected_area" id="mtAreaSelect" class="form-select" required>
                 <option value="">اختر نوع العطل</option>
                 ${areas.map(a => `<option value="${a}" ${draft && draft.affected_area===a?'selected':''}>${esc(MAINTENANCE_FAULTS[a].label)}</option>`).join('')}
@@ -18064,14 +18063,7 @@ async function pageMaintenanceNew(body, param) {
             <div class="form-field" id="mtSubFaultField">
               <label>العطل الفرعي *</label>
               <select id="mtSubFault" class="form-select" required>
-                <option value="">اختر نوع العطل الرئيسي أولًا</option>
-              </select>
-            </div>
-            <div class="form-field">
-              <label>نوع الصيانة <span style="font-size:10.5px;color:#64748B;font-weight:400;">(اختياري)</span></label>
-              <select name="maintenance_type" class="form-select">
-                <option value="">— اختياري —</option>
-                ${types.map(t => `<option value="${t}" ${draft && draft.maintenance_type===t?'selected':''}>${label('maint_type', t)}</option>`).join('')}
+                <option value="">اختر نوع الصيانة أولًا</option>
               </select>
             </div>
             <div class="form-field">
@@ -18162,8 +18154,8 @@ async function pageMaintenanceNew(body, param) {
         <div class="meeting-summary-card">
           <div class="meeting-section-title" style="margin-bottom:12px;"><span data-lucide="eye" style="width:16px;height:16px;"></span> معاينة الطلب</div>
           <div class="msc-row"><span class="k">الفرع</span><span class="v" id="pvBranch">-</span></div>
-          <div class="msc-row"><span class="k">القسم المتضرر</span><span class="v" id="pvArea">-</span></div>
-          <div class="msc-row"><span class="k">نوع الصيانة</span><span class="v" id="pvType">-</span></div>
+          <div class="msc-row"><span class="k">نوع الصيانة</span><span class="v" id="pvArea">-</span></div>
+          <div class="msc-row"><span class="k">العطل الفرعي</span><span class="v" id="pvType">-</span></div>
           <div class="msc-row"><span class="k">الموقع داخل الفرع</span><span class="v" id="pvLoc">-</span></div>
           <div class="msc-row"><span class="k">عنوان المشكلة</span><span class="v" id="pvTitle">-</span></div>
           <div class="msc-row"><span class="k">درجة الخطورة</span><span class="v" id="pvSev">-</span></div>
@@ -18263,33 +18255,14 @@ async function pageMaintenanceNew(body, param) {
     document.getElementById('mtVidRemove').addEventListener('click', () => { st.video = null; vidInput.value = ''; vidPreview.innerHTML = ''; });
   });
 
-  // تحديث المعاينة الحية
-  function updatePreview() {
-    const branchSel = form.querySelector('[name="branch_id"]');
-    const areaV = form.querySelector('[name="affected_area"]').value;
-    const typeV = form.querySelector('[name="maintenance_type"]').value;
-    const locV = form.querySelector('[name="branch_location"]').value;
-    const titleV = form.querySelector('[name="issue_title"]').value;
-    document.getElementById('pvBranch').textContent = branchSel.value ? (branchSel.options[branchSel.selectedIndex]?.text || '-') : '-';
-    document.getElementById('pvArea').textContent = areaV ? label('maint_area', areaV) : '-';
-    document.getElementById('pvType').textContent = typeV ? label('maint_type', typeV) : '-';
-    document.getElementById('pvLoc').textContent = locV ? label('maint_location', locV) : '-';
-    document.getElementById('pvTitle').textContent = titleV || '-';
-    document.getElementById('pvSev').innerHTML = maintSevBadge(st.severity);
-    document.getElementById('pvImpact').textContent = label('maint_impact', st.impact);
-    const complete = branchSel.value && areaV && typeV && titleV && descEl.value.trim();
-    document.getElementById('pvWarn').style.display = complete ? 'none' : 'flex';
-  }
-  form.querySelectorAll('select, input, textarea').forEach(el => el.addEventListener('input', updatePreview));
-  updatePreview();
-
   // ─── تصنيف الأعطال من مستويين: نوع رئيسي → عطل فرعي (مصدره MAINTENANCE_FAULTS) ───
+  // (لازم تتعرّف قبل updatePreview لأنها بتستخدم subFaultSelect فورًا عند أول استدعاء)
   const areaSelect = document.getElementById('mtAreaSelect');
   const subFaultSelect = document.getElementById('mtSubFault');
   const draftSubFault = draft ? parseSubFault(draft.description) : null;
   function syncSubFaultOptions(preselect) {
     const cat = MAINTENANCE_FAULTS[areaSelect.value];
-    if (!cat) { subFaultSelect.innerHTML = '<option value="">اختر نوع العطل الرئيسي أولًا</option>'; }
+    if (!cat) { subFaultSelect.innerHTML = '<option value="">اختر نوع الصيانة أولًا</option>'; }
     else {
       subFaultSelect.innerHTML = '<option value="">اختر العطل الفرعي</option>' +
         cat.faults.map(f => `<option value="${esc(f)}" ${preselect === f ? 'selected' : ''}>${esc(f)}</option>`).join('');
@@ -18298,8 +18271,28 @@ async function pageMaintenanceNew(body, param) {
   }
   areaSelect.addEventListener('change', () => syncSubFaultOptions());
   syncSubFaultOptions(draftSubFault);
-  enhanceSelectForMobile(areaSelect, 'نوع العطل الرئيسي');
+  enhanceSelectForMobile(areaSelect, 'نوع الصيانة');
   enhanceSelectForMobile(subFaultSelect, 'العطل الفرعي');
+
+  // تحديث المعاينة الحية
+  function updatePreview() {
+    const branchSel = form.querySelector('[name="branch_id"]');
+    const areaV = form.querySelector('[name="affected_area"]').value;
+    const subFaultV = subFaultSelect.value;
+    const locV = form.querySelector('[name="branch_location"]').value;
+    const titleV = form.querySelector('[name="issue_title"]').value;
+    document.getElementById('pvBranch').textContent = branchSel.value ? (branchSel.options[branchSel.selectedIndex]?.text || '-') : '-';
+    document.getElementById('pvArea').textContent = areaV ? label('maint_area', areaV) : '-';
+    document.getElementById('pvType').textContent = subFaultV || '-';
+    document.getElementById('pvLoc').textContent = locV ? label('maint_location', locV) : '-';
+    document.getElementById('pvTitle').textContent = titleV || '-';
+    document.getElementById('pvSev').innerHTML = maintSevBadge(st.severity);
+    document.getElementById('pvImpact').textContent = label('maint_impact', st.impact);
+    const complete = branchSel.value && areaV && subFaultV && titleV && descEl.value.trim();
+    document.getElementById('pvWarn').style.display = complete ? 'none' : 'flex';
+  }
+  form.querySelectorAll('select, input, textarea').forEach(el => el.addEventListener('input', updatePreview));
+  updatePreview();
 
   // بناء الحمولة
   function buildPayload(isDraft) {
@@ -18346,14 +18339,16 @@ async function pageMaintenanceNew(body, param) {
       }
       // تحقّق صريح (بدل الاعتماد فقط على required في select — لا يعمل تلقائيًا
       // لما نخفي الـ select الأصلي على الموبايل ونستبدله بزرار مخصص)
-      if (!areaSelect.value) { toast('يرجى اختيار نوع العطل الرئيسي', 'error'); return; }
+      if (!areaSelect.value) { toast('يرجى اختيار نوع الصيانة', 'error'); return; }
       if (!subFaultSelect.value) { toast('يرجى اختيار العطل الفرعي', 'error'); return; }
     } else if (!payload.branch_id && !payload.issue_title && !payload.description) {
       toast('أدخل الفرع أو نص المشكلة على الأقل للحفظ كمسودة', 'warning'); return;
     }
     // قيم افتراضية ذكية للحقول المخففة
     if (!payload.affected_area) payload.affected_area = 'other';
-    if (!payload.maintenance_type) payload.maintenance_type = 'other';
+    // ملاحظة: maintenance_type بقى بدون قيمة افتراضية عمدًا (الحقل اتحذف من
+    // النموذج ودُمج مع نوع الصيانة/العطل الرئيسي) — نتركه null عشان شاشات
+    // العرض والتقارير ترجع تلقائيًا لعرض affected_area بدل ما تفضل دايمًا "أخرى"
     if (!payload.issue_title && payload.description) {
       payload.issue_title = payload.description.split('\n')[0].slice(0, 100);
     }
@@ -18575,9 +18570,8 @@ async function pageMaintenanceDetail(body, id) {
       </div>
       <div class="panel-body">
         <div class="mstat-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px;">
-          <div><div style="font-size:11.5px;color:var(--text-muted);">نوع العطل الرئيسي</div><div style="font-weight:600;font-size:13px;">${label('maint_area', req.affected_area)}</div></div>
+          <div><div style="font-size:11.5px;color:var(--text-muted);">نوع الصيانة</div><div style="font-weight:600;font-size:13px;">${label('maint_area', req.affected_area)}</div></div>
           <div><div style="font-size:11.5px;color:var(--text-muted);">العطل الفرعي</div><div style="font-weight:600;font-size:13px;">${esc(parseSubFault(req.description) || '-')}</div></div>
-          <div><div style="font-size:11.5px;color:var(--text-muted);">نوع الصيانة</div><div style="font-weight:600;font-size:13px;">${req.maintenance_type ? label('maint_type', req.maintenance_type) : '-'}</div></div>
           <div><div style="font-size:11.5px;color:var(--text-muted);">الموقع داخل الفرع</div><div style="font-weight:600;font-size:13px;">${req.branch_location ? label('maint_location', req.branch_location) : '-'}</div></div>
           <div><div style="font-size:11.5px;color:var(--text-muted);">تأثير العطل</div><div style="font-weight:600;font-size:13px;color:${req.impact_on_operation==='full'?'var(--danger)':(req.impact_on_operation==='partial'?'#C4650E':'inherit')};">${label('maint_impact', req.impact_on_operation || 'none')}</div></div>
           <div><div style="font-size:11.5px;color:var(--text-muted);">تاريخ البلاغ</div><div style="font-weight:600;font-size:13px;">${fmtDate(req.reported_at)}</div></div>
