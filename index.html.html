@@ -3388,7 +3388,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
   body.mobile-app-ready #sidebarToggleBtn,
   body.mobile-app-ready .topbar { display: none !important; }
   body.mobile-app-ready .main-content { margin: 0 !important; padding: 0 !important; }
-  body.mobile-app-ready .page-body { padding: calc(env(safe-area-inset-top, 0px) + 76px) 14px 24px !important; margin-top: 0 !important; }
+  body.mobile-app-ready .page-body { padding: calc(env(safe-area-inset-top, 0px) + 86px) 14px 24px !important; margin-top: 0 !important; }
   body.mobile-app-ready.more-open .sidebar {
     display: flex !important; position: fixed !important;
     inset: auto 0 0 0 !important; height: 82vh !important;
@@ -3439,8 +3439,8 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
     left: 12px; right: 12px; z-index: 55;
   }
   .m-searchbar {
-    display: flex; align-items: center; gap: 8px;
-    padding: 8px 14px; height: 48px;
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 16px; height: 58px;
     background: rgba(255,255,255,0.95);
     border-radius: 999px;
     border: 1.5px solid transparent;
@@ -3452,19 +3452,26 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
     box-shadow: 0 6px 18px rgba(18,55,47,0.10), 0 2px 6px rgba(139,92,246,0.10);
   }
   .m-searchbar-icon {
-    width: 18px; height: 18px; color: #10B981;
+    width: 19px; height: 19px; color: #10B981;
     flex-shrink: 0; cursor: pointer;
     display: inline-flex; align-items: center; justify-content: center;
   }
-  .m-searchbar-icon svg { width: 18px; height: 18px; stroke-width: 2.2; }
+  .m-searchbar-icon svg { width: 19px; height: 19px; stroke-width: 2.2; }
   .m-searchbar-input {
     flex: 1; border: none; outline: none; background: transparent;
-    font-family: inherit; font-size: 14px; font-weight: 600; color: #17372D;
+    font-family: inherit; font-size: 15px; font-weight: 600; color: #17372D;
     min-width: 0; direction: rtl;
   }
   .m-searchbar-input::placeholder { color: #9CA3AF; font-weight: 500; }
+  .m-searchbar-clear {
+    width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+    background: rgba(23,55,45,0.08); color: #6F7D76; border: none; cursor: pointer;
+    display: none; align-items: center; justify-content: center;
+  }
+  .m-searchbar-clear.show { display: flex; }
+  .m-searchbar-clear svg { width: 13px; height: 13px; }
   .m-searchbar-mic {
-    width: 34px; height: 34px; border-radius: 50%;
+    width: 42px; height: 42px; border-radius: 50%;
     background: linear-gradient(135deg, #10B981, #8B5CF6);
     color: #fff; border: none; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
@@ -3476,7 +3483,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
   .m-searchbar-mic.is-listening {
     animation: mMicPulse 1.2s ease-in-out infinite;
   }
-  .m-searchbar-mic svg { width: 16px; height: 16px; stroke-width: 2.2; }
+  .m-searchbar-mic svg { width: 20px; height: 20px; stroke-width: 2.2; }
   @keyframes mMicPulse {
     0%, 100% { box-shadow: 0 3px 10px rgba(139,92,246,0.35), 0 0 0 0 rgba(239,68,68,0.4); }
     50%      { box-shadow: 0 3px 10px rgba(139,92,246,0.35), 0 0 0 10px rgba(239,68,68,0); }
@@ -4354,7 +4361,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v53-2026-07-15-update-icon-fix';
+const APP_VERSION = 'v54-2026-07-15-multi-fixes';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -4565,7 +4572,7 @@ function can(sectionKey, mode = 'view') {
 
 // ============ ترجمة القيم ============
 const LABELS = {
-  role: { admin: 'مدير النظام', company_manager: 'مدير الشركة', department_manager: 'مدير قسم', projects_manager: 'مدير مشاريع', development_manager: 'مدير تطوير', meeting_organizer: 'منظم اجتماع', employee: 'موظف', maintenance_officer: 'مسؤول الصيانة', operations_manager: 'مدير التشغيل', finance: 'المالية' },
+  role: { admin: 'مدير النظام', company_manager: 'مدير الشركة', department_manager: 'مدير قسم', projects_manager: 'مدير مشاريع', development_manager: 'مدير تطوير', meeting_organizer: 'منظم اجتماع', branch_manager: 'مدير مطعم', deputy_manager: 'نائب مدير', employee: 'موظف عادي', maintenance_officer: 'مسؤول الصيانة', operations_manager: 'مدير التشغيل', finance: 'المالية' },
   maint_severity: { emergency: 'طارئ', urgent: 'عاجل', normal: 'عادي', preventive: 'وقائي' },
   maint_priority: { low: 'منخفض', medium: 'متوسط', high: 'عالي', critical: 'حرج' },
   maint_area: { kitchen: 'مطبخ', hall: 'صالة', cashier: 'كاشير', ac: 'تكييف', electric: 'كهرباء', plumbing: 'سباكة', equipment: 'معدات', other: 'أخرى' },
@@ -4578,7 +4585,7 @@ const LABELS = {
   maint_impact: { none: 'لا يؤثر', partial: 'يؤثر جزئيًا', full: 'يوقف التشغيل بالكامل' },
   maint_stoppage: { none: 'لا يوجد', partial: 'توقف جزئي', full: 'توقف كامل' },
   quality_status: { conform: 'مطابق', non_conform: 'غير مطابق', follow_up: 'يحتاج متابعة', na: 'غير قابل للتطبيق', fixed_on_site: 'تم التصحيح أثناء الزيارة' },
-  quality_severity: { critical: 'حرج (24 ساعة)', medium: 'متوسط (72 ساعة)', low: 'بسيط (أسبوع)' },
+  quality_severity: { critical: 'حرجة (24 ساعة)', high: 'عالية', medium: 'متوسط (72 ساعة)', low: 'بسيط (أسبوع)', immediate: 'خطر فوري' },
   quality_responsible_role: {
     branch_manager: 'مدير الفرع',
     maintenance_dept: 'قسم الصيانة',
@@ -4595,7 +4602,6 @@ const LABELS = {
     cleaning_tools: 'أدوات نظافة', decoration: 'ديكور وإضاءة', kitchenware: 'أواني وأدوات مطبخ', other: 'أخرى'
   },
   asset_condition: { excellent: 'ممتازة', good: 'جيدة', fair: 'متوسطة', poor: 'ضعيفة', broken: 'معطلة' },
-  quality_severity: { low: 'منخفض', medium: 'متوسط', high: 'عالي', immediate: 'خطر فوري' },
   quality_exec: { done: 'تم التنفيذ', in_progress: 'تحت الإجراء', not_started: 'لم يبدأ' },
   maint_status: { new: 'طلب جديد', under_review: 'تحت المراجعة', awaiting_inspection: 'بانتظار الفحص', inspection_reported: 'تم رفع تقرير الفحص', awaiting_approval: 'بانتظار الاعتماد', awaiting_quotes: 'بانتظار عروض الأسعار', awaiting_finance: 'بانتظار موافقة المالية', in_progress: 'قيد التنفيذ', awaiting_receipt: 'بانتظار استلام الفرع', closed: 'مغلق', rejected: 'مرفوض' },
   maint_recommend: { repair: 'إصلاح', replace: 'استبدال', postpone: 'تأجيل', reject: 'رفض' },
@@ -11948,6 +11954,8 @@ async function pageConversations(body, query) {
               </div>
               <span class="status-pill ${status.cls}"><span class="dot"></span>${status.label}</span>
               <div style="display:flex; gap:6px;">
+                ${u.mobile_number ? `<button class="chat-action-btn" style="background:#25D366;color:#fff;" onclick="openWhatsApp('مرحبًا ${esc(u.full_name).replace(/'/g,"")}', '${esc(u.mobile_number)}')" title="واتساب"><span data-lucide="message-circle" style="width:13px;height:13px;"></span></button>
+                <a class="chat-action-btn" style="background:#2F80C9;color:#fff;text-decoration:none;" href="tel:${esc(u.mobile_number)}" title="اتصال"><span data-lucide="phone" style="width:13px;height:13px;"></span></a>` : ''}
                 <button class="chat-action-btn" onclick="openDirectChatFromDirectory(${u.id}, '${esc(u.full_name).replace(/'/g,"")}')"><span data-lucide="message-circle" style="width:13px;height:13px;"></span> رسالة</button>
                 <button class="chat-action-btn" style="background:#123F32; color:#fff;" onclick="openQuickAddTaskModal(${u.id}, '${esc(u.full_name).replace(/'/g,"")}')"><span data-lucide="list-plus" style="width:13px;height:13px;"></span> إسناد مهمة</button>
                 <button class="chat-action-btn" style="background:var(--accent); color:#3a2c00;" onclick="openSharedTasksModal(${u.id}, '${esc(u.full_name).replace(/'/g,"")}')"><span data-lucide="clipboard-list" style="width:13px;height:13px;"></span> المهام المشتركة</button>
@@ -13480,6 +13488,8 @@ function renderUsersTabContent() {
                   <button title="عرض" onclick="openUserDetailModal(${u.id})"><span data-lucide="eye" style="width:13px;height:13px;"></span></button>
                   ${isAdmin?`<button title="تعديل" onclick="openUserDetailModal(${u.id}, true)"><span data-lucide="pencil" style="width:13px;height:13px;"></span></button>`:''}
                   <button title="رسالة" onclick="location.hash='#conversations'"><span data-lucide="message-circle" style="width:13px;height:13px;"></span></button>
+                  ${u.mobile_number ? `<button title="واتساب" style="color:#25D366;" onclick="openWhatsApp('مرحبًا ${esc(u.full_name).replace(/'/g,"")}', '${esc(u.mobile_number)}')"><span data-lucide="message-square" style="width:13px;height:13px;"></span></button>
+                  <a title="اتصال" style="color:#2F80C9;" href="tel:${esc(u.mobile_number)}"><span data-lucide="phone" style="width:13px;height:13px;"></span></a>` : ''}
                   ${isAdmin?`<button title="${(u.status||(u.is_active?'active':'inactive'))==='active'?'تعطيل':'تفعيل'}" class="danger" onclick="toggleUserStatus(${u.id})"><span data-lucide="power" style="width:13px;height:13px;"></span></button>`:''}
                 </div>
               </div>
@@ -14045,7 +14055,11 @@ window.openUserDetailModal = function(userId, editMode) {
         <div class="panel-body">
           <div class="drawer-row"><span class="k">المنصب</span><span>${esc(u.position_title||'-')}</span></div>
           <div class="drawer-row"><span class="k">القسم</span><span>${u.departments?esc(u.departments.name):'-'}</span></div>
-          <div class="drawer-row"><span class="k">الجوال</span><span class="mono-num">${esc(u.mobile_number||'-')}</span></div>
+          <div class="drawer-row"><span class="k">الجوال</span><span style="display:flex;align-items:center;gap:8px;">
+            <span class="mono-num">${esc(u.mobile_number||'-')}</span>
+            ${u.mobile_number ? `<button type="button" title="واتساب" style="background:none;border:none;cursor:pointer;color:#25D366;" onclick="openWhatsApp('مرحبًا ${esc(u.full_name).replace(/'/g,"")}', '${esc(u.mobile_number)}')"><span data-lucide="message-square" style="width:14px;height:14px;"></span></button>
+            <a title="اتصال" style="color:#2F80C9;" href="tel:${esc(u.mobile_number)}"><span data-lucide="phone" style="width:14px;height:14px;"></span></a>` : ''}
+          </span></div>
           <div class="drawer-row"><span class="k">البريد الإلكتروني</span><span>${esc(u.email||'-')}</span></div>
           <div class="drawer-row"><span class="k">الجنسية</span><span>${esc(u.nationality||'-')}</span></div>
           <div class="drawer-row"><span class="k">المدير المباشر</span><span>${u.manager?esc(u.manager.full_name):'-'}</span></div>
@@ -14097,7 +14111,7 @@ const PERMISSION_SECTIONS = [
   { key: 'settings', label: 'الإعدادات' },
   { key: 'task_projects', label: 'مشاريع المهام' },
 ];
-const PERMISSION_ROLES = ['admin','company_manager','department_manager','projects_manager','development_manager','meeting_organizer','employee'];
+const PERMISSION_ROLES = ['admin','company_manager','department_manager','projects_manager','development_manager','meeting_organizer','branch_manager','deputy_manager','employee'];
 
 // ============ ملفي الشخصي ============
 async function pageMyProfile(body) {
@@ -17711,9 +17725,15 @@ async function pageMaintenanceNew(body, param) {
             </div>
             <div class="form-field">
               <label>القسم المتضرر <span style="font-size:10.5px;color:#64748B;font-weight:400;">(اختياري)</span></label>
-              <select name="affected_area" class="form-select">
+              <select name="affected_area" id="mtAreaSelect" class="form-select">
                 <option value="">— اختياري —</option>
                 ${areas.map(a => `<option value="${a}" ${draft && draft.affected_area===a?'selected':''}>${label('maint_area', a)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-field" id="mtSubFaultField" style="display:none;">
+              <label>تفصيل العطل <span style="font-size:10.5px;color:#64748B;font-weight:400;">(اختياري — يعبّي عنوان المشكلة تلقائيًا)</span></label>
+              <select id="mtSubFault" class="form-select">
+                <option value="">اختر العطل التفصيلي</option>
               </select>
             </div>
             <div class="form-field">
@@ -17745,10 +17765,6 @@ async function pageMaintenanceNew(body, param) {
               <label>وصف المشكلة <span style="font-size:10.5px;color:#64748B;font-weight:400;">(اكتب وصف أو عنوان — واحد على الأقل)</span></label>
               <textarea name="description" rows="3" class="form-input" maxlength="1000" placeholder="اكتب وصف المشكلة بالتفصيل (ماذا حدث؟ أين حدث؟ متى حدث؟)">${esc(draft?.description || '')}</textarea>
               <div style="font-size:10.5px;color:#64748B;text-align:left;margin-top:3px;"><span id="mtDescCount">${(draft?.description||'').length}</span> / 1000</div>
-            </div>
-            <div class="form-field full">
-              <label>سبب المشكلة (اختياري)</label>
-              <input type="text" name="cause" class="form-input" placeholder="اكتب سبب المشكلة إن وُجد" value="${esc(draft?.cause || '')}">
             </div>
             <div class="form-field">
               <label>تأثير العطل على التشغيل *</label>
@@ -17936,6 +17952,36 @@ async function pageMaintenanceNew(body, param) {
   form.querySelectorAll('select, input, textarea').forEach(el => el.addEventListener('input', updatePreview));
   updatePreview();
 
+  // ─── قائمة أعطال فرعية تفصيلية حسب القسم المتضرر (كهرباء→أعطال كهرباء، سباكة→أعطال سباكة، إلخ) ───
+  const MAINT_SUBFAULTS = {
+    electric: ['انقطاع كهرباء عام', 'عطل في الإضاءة', 'عطل في المقابس', 'عطل في القاطع الكهربائي (البريكر)', 'ماس كهربائي', 'ضعف الجهد الكهربائي', 'عطل في مولّد الطوارئ', 'أخرى'],
+    plumbing: ['تسريب مياه', 'انسداد الصرف', 'عطل في الخلاط', 'عطل في السخان', 'ضعف ضغط المياه', 'عطل في المضخة', 'رائحة كريهة من الصرف', 'أخرى'],
+    ac: ['عدم التبريد', 'تسريب مياه من المكيف', 'صوت غير طبيعي', 'عطل في الريموت', 'تحتاج تنظيف فلاتر', 'أخرى'],
+    equipment: ['عطل في الفرن', 'عطل في الثلاجة أو الفريزر', 'عطل في الخلاط أو المفرمة', 'عطل في ماكينة القهوة', 'عطل في غسالة الأطباق', 'أخرى'],
+    kitchen: ['تلف أرضيات أو بلاط', 'مشكلة في التهوية أو الشفاط', 'باب أو قفل تالف', 'أخرى'],
+    hall: ['تلف في الأثاث', 'مشكلة إضاءة الصالة', 'باب أو زجاج تالف', 'أخرى'],
+    cashier: ['عطل جهاز الكاشير', 'عطل طابعة الفواتير', 'مشكلة اتصال الإنترنت', 'أخرى']
+  };
+  const areaSelect = document.getElementById('mtAreaSelect');
+  const subFaultField = document.getElementById('mtSubFaultField');
+  const subFaultSelect = document.getElementById('mtSubFault');
+  function syncSubFaultOptions() {
+    const list = MAINT_SUBFAULTS[areaSelect.value];
+    if (!list) { subFaultField.style.display = 'none'; subFaultSelect.innerHTML = '<option value="">اختر العطل التفصيلي</option>'; return; }
+    subFaultField.style.display = '';
+    subFaultSelect.innerHTML = '<option value="">اختر العطل التفصيلي</option>' + list.map(f => `<option value="${esc(f)}">${esc(f)}</option>`).join('');
+  }
+  areaSelect.addEventListener('change', syncSubFaultOptions);
+  syncSubFaultOptions();
+  subFaultSelect.addEventListener('change', () => {
+    if (!subFaultSelect.value) return;
+    const titleInput = form.querySelector('[name="issue_title"]');
+    if (titleInput && !titleInput.value.trim()) {
+      titleInput.value = subFaultSelect.value;
+      titleInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  });
+
   // بناء الحمولة
   function buildPayload(isDraft) {
     const fd = new FormData(form);
@@ -17946,7 +17992,6 @@ async function pageMaintenanceNew(body, param) {
       branch_location: fd.get('branch_location') || null,
       issue_title: fd.get('issue_title') || null,
       description: fd.get('description') || null,
-      cause: fd.get('cause') || null,
       severity: st.severity,
       impact_on_operation: st.impact,
       stoppage_type: st.stoppage,
@@ -20194,6 +20239,9 @@ function mobileAppShellHtml() {
       <div class="m-searchbar" id="mSearchBar" role="search">
         <span data-lucide="search" class="m-searchbar-icon"></span>
         <input type="text" id="mSearchInput" class="m-searchbar-input" placeholder="ابحث في المنصة…" autocomplete="off" />
+        <button class="m-searchbar-clear" id="mSearchClearBtn" type="button" aria-label="مسح">
+          <span data-lucide="x"></span>
+        </button>
         <button class="m-searchbar-mic" id="mBtnVoice" type="button" aria-label="بحث صوتي">
           <span data-lucide="mic"></span>
         </button>
@@ -20260,12 +20308,17 @@ function ensureMobileShell() {
     // Search bar interactions
     const sInput = document.getElementById('mSearchInput');
     const sMic = document.getElementById('mBtnVoice');
+    const sClear = document.getElementById('mSearchClearBtn');
     if (sInput) {
       const runSearch = () => {
         const q = (sInput.value || '').trim();
         if (q) location.hash = '#search?q=' + encodeURIComponent(q);
       };
+      const syncClearBtn = () => sClear?.classList.toggle('show', !!sInput.value);
       sInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') runSearch(); });
+      sInput.addEventListener('input', syncClearBtn);
+      syncClearBtn();
+      sClear?.addEventListener('click', () => { sInput.value = ''; syncClearBtn(); sInput.focus(); });
       // اضغط على أيقونة البحث نفسها = افتح شيت البحث الشامل
       document.querySelector('.m-searchbar-icon')?.addEventListener('click', () => openMobileSearchSheet());
     }
@@ -20279,7 +20332,7 @@ function ensureMobileShell() {
           sMic.classList.add('is-listening');
           rec.onresult = async (ev) => {
             const t = ev.results[0][0].transcript;
-            if (sInput) sInput.value = t;
+            if (sInput) { sInput.value = t; sClear?.classList.add('show'); }
             // جرّب الأمر الصوتي أولاً (زي 'ارسل رسالة'، 'افتح الاجتماعات'، إلخ)
             let handled = false;
             try {
