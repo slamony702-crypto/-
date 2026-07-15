@@ -4784,7 +4784,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v80-2026-07-16-hr-leaves-payroll';
+const APP_VERSION = 'v81-2026-07-16-acct-data-layer';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -4985,7 +4985,12 @@ const NEW_ROLE_DEFAULT_PERMS = {
   deputy_manager: { dashboard: 'view', meetings: 'view', tasks: 'manage', department_tasks: 'manage', maintenance: 'manage', quality: 'manage', conversations: 'view' },
   // Roles added for HR module (v77+)
   hr_manager:      { dashboard: 'view', hr: 'manage', conversations: 'view', users: 'view' },
-  payroll_officer: { dashboard: 'view', hr: 'view',   conversations: 'view' }
+  payroll_officer: { dashboard: 'view', hr: 'view',   conversations: 'view' },
+  // Roles added for Accounting module (v81+)
+  finance_manager: { dashboard: 'view', accounting: 'manage', hr: 'view', conversations: 'view' },
+  gl_accountant:   { dashboard: 'view', accounting: 'manage', conversations: 'view' },
+  ap_officer:      { dashboard: 'view', accounting: 'manage', conversations: 'view' },
+  ar_officer:      { dashboard: 'view', accounting: 'manage', conversations: 'view' }
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -5308,6 +5313,12 @@ const HR = {
       const { data, error } = await sb.from('hr_payroll').update({
         status: 'approved', approved_by: uid, approved_at: new Date().toISOString()
       }).eq('id', id).select().single();
+      // تكامل الحسابات: يولّد قيد يومية مسودة تلقائيًا (مصروف رواتب / مستحقات موظفين).
+      // لا نفشل اعتماد الراتب لو مديول الحسابات غير مُفعَّل بعد أو حصل خطأ فيه —
+      // اعتماد الراتب أولوية HR، وربط القيد ثانوي وقابل للمعالجة يدويًا لاحقًا.
+      if (!error && typeof ACCT !== 'undefined') {
+        try { await ACCT.integrations.postPayrollJournal(id); } catch (e) { fwReport('postPayrollJournal', e); }
+      }
       return { data, error };
     },
     async markPaid(id) {
@@ -5390,6 +5401,321 @@ const HR = {
 };
 window.HR = HR;
 
+// ═══════════════════════════════════════════════════════════════════════
+// ACCOUNTING MODULE — Data Access Layer (v1.0 — 2026-07-16, Phase 2.a)
+// ─────────────────────────────────────────────────────────────────────
+// نفس نمط HR: كل دالة ترجع { data, error }، والصلاحيات مطبَّقة عبر RLS
+// في acct-schema.sql. الطبقة دي مالهاش شاشات لسه (Step 2.3) — بتُستخدم
+// من شاشات المراحل الجاية، ومن نقاط التكامل مع HR والكافيه.
+// ═══════════════════════════════════════════════════════════════════════
+const ACCT = {
+
+  validate: {
+    account(data) {
+      const errors = [];
+      if (!data.code || !data.code.trim()) errors.push('رمز الحساب مطلوب');
+      if (!data.name || !data.name.trim()) errors.push('اسم الحساب مطلوب');
+      if (!['asset', 'liability', 'equity', 'revenue', 'expense'].includes(data.account_type)) errors.push('نوع الحساب غير صحيح');
+      if (!['debit', 'credit'].includes(data.normal_balance)) errors.push('الطبيعة (مدين/دائن) مطلوبة');
+      return errors;
+    },
+    costCenter(data) {
+      const errors = [];
+      if (!data.code || !data.code.trim()) errors.push('رمز مركز التكلفة مطلوب');
+      if (!data.name || !data.name.trim()) errors.push('اسم مركز التكلفة مطلوب');
+      return errors;
+    },
+    journalEntry(data) {
+      const errors = [];
+      if (!data.entry_date) errors.push('تاريخ القيد مطلوب');
+      if (!data.description || !data.description.trim()) errors.push('وصف القيد مطلوب');
+      return errors;
+    },
+    journalLine(data) {
+      const errors = [];
+      if (!data.account_id) errors.push('الحساب مطلوب');
+      const debit = Number(data.debit || 0), credit = Number(data.credit || 0);
+      if (debit > 0 && credit > 0) errors.push('السطر لا يمكن أن يكون مدينًا ودائنًا معًا');
+      if (debit <= 0 && credit <= 0) errors.push('أدخل مبلغًا مدينًا أو دائنًا (وليس صفرًا)');
+      return errors;
+    }
+  },
+
+  _err(msg) { return { data: null, error: { message: msg } }; },
+
+  // ─── Settings (singleton row id=1) ────────────────────────────────
+  settings: {
+    async get() {
+      const { data, error } = await sb.from('acct_settings').select('*').eq('id', 1).maybeSingle();
+      return { data, error };
+    },
+    async save(payload) {
+      const { data, error } = await sb.from('acct_settings').update(payload).eq('id', 1).select().single();
+      return { data, error };
+    }
+  },
+
+  // ─── Chart of Accounts ─────────────────────────────────────────────
+  accounts: {
+    async list(filters = {}) {
+      let q = sb.from('acct_chart_of_accounts').select('*').is('deleted_at', null).order('code');
+      if (filters.account_type) q = q.eq('account_type', filters.account_type);
+      if (filters.is_active != null) q = q.eq('is_active', filters.is_active);
+      if (filters.leafOnly) q = q.eq('is_leaf', true);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('acct_chart_of_accounts').select('*, parent:parent_id(id, code, name)').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      const errs = ACCT.validate.account(payload);
+      if (errs.length) return ACCT._err(errs.join('؛ '));
+      const { data, error } = await sb.from('acct_chart_of_accounts').insert(payload).select().single();
+      return { data, error };
+    },
+    async update(id, payload) {
+      const { data, error } = await sb.from('acct_chart_of_accounts').update(payload).eq('id', id).select().single();
+      return { data, error };
+    },
+    async remove(id) {
+      const { data: used } = await sb.from('acct_journal_lines').select('id').eq('account_id', id).limit(1);
+      if (used && used.length) return ACCT._err('لا يمكن حذف حساب له حركات في القيود — أوقف الحساب بدلًا من حذفه');
+      const { error } = await sb.from('acct_chart_of_accounts').update({ deleted_at: new Date().toISOString(), is_active: false }).eq('id', id);
+      return { error };
+    },
+    // يبني شجرة من القائمة المسطّحة للعرض
+    async tree() {
+      const { data, error } = await ACCT.accounts.list();
+      if (error) return { data: [], error };
+      const byId = {}; data.forEach(a => { byId[a.id] = { ...a, children: [] }; });
+      const roots = [];
+      data.forEach(a => {
+        if (a.parent_id && byId[a.parent_id]) byId[a.parent_id].children.push(byId[a.id]);
+        else roots.push(byId[a.id]);
+      });
+      return { data: roots, error: null };
+    }
+  },
+
+  // ─── Cost Centers ──────────────────────────────────────────────────
+  costCenters: {
+    async list(filters = {}) {
+      let q = sb.from('acct_cost_centers').select('*, branches(name)').is('deleted_at', null).order('code');
+      if (filters.branch_id) q = q.eq('branch_id', filters.branch_id);
+      if (filters.leafOnly) q = q.eq('is_leaf', true);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('acct_cost_centers').select('*, branches(name), parent:parent_id(id, code, name)').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      const errs = ACCT.validate.costCenter(payload);
+      if (errs.length) return ACCT._err(errs.join('؛ '));
+      const { data, error } = await sb.from('acct_cost_centers').insert(payload).select().single();
+      return { data, error };
+    },
+    async update(id, payload) {
+      const { data, error } = await sb.from('acct_cost_centers').update(payload).eq('id', id).select().single();
+      return { data, error };
+    },
+    async remove(id) {
+      const { data: used } = await sb.from('acct_journal_lines').select('id').eq('cost_center_id', id).limit(1);
+      if (used && used.length) return ACCT._err('لا يمكن حذف مركز تكلفة له حركات في القيود');
+      const { error } = await sb.from('acct_cost_centers').update({ deleted_at: new Date().toISOString(), is_active: false }).eq('id', id);
+      return { error };
+    },
+    async tree() {
+      const { data, error } = await ACCT.costCenters.list();
+      if (error) return { data: [], error };
+      const byId = {}; data.forEach(c => { byId[c.id] = { ...c, children: [] }; });
+      const roots = [];
+      data.forEach(c => {
+        if (c.parent_id && byId[c.parent_id]) byId[c.parent_id].children.push(byId[c.id]);
+        else roots.push(byId[c.id]);
+      });
+      return { data: roots, error: null };
+    }
+  },
+
+  // ─── Fiscal Years + Periods ────────────────────────────────────────
+  fiscalYears: {
+    async list() {
+      const { data, error } = await sb.from('acct_fiscal_years').select('*').order('year', { ascending: false });
+      return { data: data || [], error };
+    },
+    // إدخال سنة جديدة يولّد تلقائيًا 12 فترة شهرية (trigger في قاعدة البيانات)
+    async create(year) {
+      const start = `${year}-01-01`, end = `${year}-12-31`;
+      const { data, error } = await sb.from('acct_fiscal_years').insert({ year, start_date: start, end_date: end }).select().single();
+      return { data, error };
+    },
+    async close(id) {
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_fiscal_years').update({ status: 'closed', closed_at: new Date().toISOString(), closed_by: uid }).eq('id', id).select().single();
+      return { data, error };
+    }
+  },
+
+  periods: {
+    async list(filters = {}) {
+      let q = sb.from('acct_periods').select('*').order('year', { ascending: false }).order('month', { ascending: false });
+      if (filters.year) q = q.eq('year', filters.year);
+      if (filters.status) q = q.eq('status', filters.status);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async current() {
+      const now = new Date();
+      const { data, error } = await sb.from('acct_periods').select('*').eq('year', now.getFullYear()).eq('month', now.getMonth() + 1).maybeSingle();
+      return { data, error };
+    },
+    async close(id) {
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_periods').update({ status: 'closed', closed_at: new Date().toISOString(), closed_by: uid }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async reopen(id) {
+      const { data, error } = await sb.from('acct_periods').update({ status: 'open', closed_at: null, closed_by: null }).eq('id', id).select().single();
+      return { data, error };
+    }
+  },
+
+  // ─── Journal Entries ───────────────────────────────────────────────
+  journal: {
+    // filters: { status, source_type, from_date, to_date, period_id }
+    async list(filters = {}) {
+      let q = sb.from('acct_journal_entries').select('*, period:period_id(year, month), creator:created_by(full_name), poster:posted_by(full_name)').is('deleted_at', null).order('entry_date', { ascending: false });
+      if (filters.status)      q = q.eq('status', filters.status);
+      if (filters.source_type) q = q.eq('source_type', filters.source_type);
+      if (filters.from_date)   q = q.gte('entry_date', filters.from_date);
+      if (filters.to_date)     q = q.lte('entry_date', filters.to_date);
+      if (filters.period_id)   q = q.eq('period_id', filters.period_id);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('acct_journal_entries')
+        .select('*, period:period_id(year, month, status), creator:created_by(full_name), poster:posted_by(full_name), lines:acct_journal_lines(*, account:account_id(code, name), cost_center:cost_center_id(code, name))')
+        .eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    // ينشئ رأس القيد فقط (بدون أسطر) — نستخدم addLine بعدها
+    async create(payload) {
+      const errs = ACCT.validate.journalEntry(payload);
+      if (errs.length) return ACCT._err(errs.join('؛ '));
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      // اربط القيد تلقائيًا بالفترة المحاسبية المطابقة لتاريخه
+      let periodId = payload.period_id || null;
+      if (!periodId) {
+        const { data: per } = await sb.from('acct_periods').select('id, status').lte('start_date', payload.entry_date).gte('end_date', payload.entry_date).maybeSingle();
+        if (!per) return ACCT._err('لا توجد فترة محاسبية مطابقة لهذا التاريخ — أنشئ السنة المالية أولًا');
+        if (per.status !== 'open') return ACCT._err('الفترة المحاسبية لهذا التاريخ مغلقة');
+        periodId = per.id;
+      }
+      const entryNo = 'JE-' + Date.now().toString().slice(-8) + '-' + Math.floor(Math.random() * 900 + 100);
+      const { data, error } = await sb.from('acct_journal_entries').insert({
+        entry_no: entryNo, entry_date: payload.entry_date, period_id: periodId,
+        description: payload.description, reference: payload.reference || null,
+        source_type: payload.source_type || 'manual', source_id: payload.source_id || null,
+        status: 'draft', created_by: uid
+      }).select().single();
+      return { data, error };
+    },
+    async addLine(entryId, line) {
+      const errs = ACCT.validate.journalLine(line);
+      if (errs.length) return ACCT._err(errs.join('؛ '));
+      const { data: existingLines } = await sb.from('acct_journal_lines').select('line_no').eq('entry_id', entryId).order('line_no', { ascending: false }).limit(1);
+      const nextLineNo = (existingLines && existingLines[0] ? existingLines[0].line_no : 0) + 1;
+      const { data, error } = await sb.from('acct_journal_lines').insert({
+        entry_id: entryId, line_no: nextLineNo,
+        account_id: line.account_id, cost_center_id: line.cost_center_id || null,
+        debit: Number(line.debit || 0), credit: Number(line.credit || 0),
+        description: line.description || null
+      }).select().single();
+      return { data, error };
+    },
+    async removeLine(lineId) {
+      const { error } = await sb.from('acct_journal_lines').delete().eq('id', lineId);
+      return { error };
+    },
+    async updateHeader(entryId, payload) {
+      const { data, error } = await sb.from('acct_journal_entries').update(payload).eq('id', entryId).select().single();
+      return { data, error };
+    },
+    // الترحيل: قاعدة البيانات نفسها ترفض لو غير متوازن أو الفترة مقفلة (انظر acct-schema.sql)
+    async post(entryId) {
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_journal_entries').update({ status: 'posted', posted_by: uid }).eq('id', entryId).select().single();
+      return { data, error };
+    },
+    async cancel(entryId) {
+      const { data, error } = await sb.from('acct_journal_entries').update({ status: 'cancelled' }).eq('id', entryId).select().single();
+      return { data, error };
+    },
+    // عكس قيد مرحّل: ينشئ قيدًا جديدًا بنفس الأسطر لكن بالجانب المعاكس
+    async reverse(entryId) {
+      const { data: original, error: getErr } = await ACCT.journal.get(entryId);
+      if (getErr || !original) return ACCT._err(getErr ? getErr.message : 'القيد غير موجود');
+      if (original.status !== 'posted') return ACCT._err('لا يمكن عكس إلا قيدًا مرحّلًا');
+      const { data: reversal, error: createErr } = await ACCT.journal.create({
+        entry_date: new Date().toISOString().slice(0, 10),
+        description: 'عكس قيد: ' + original.description,
+        source_type: 'reversal', source_id: entryId
+      });
+      if (createErr) return { data: null, error: createErr };
+      for (const line of original.lines) {
+        await ACCT.journal.addLine(reversal.id, {
+          account_id: line.account_id, cost_center_id: line.cost_center_id,
+          debit: line.credit, credit: line.debit,
+          description: 'عكس: ' + (line.description || '')
+        });
+      }
+      const { error: postErr } = await ACCT.journal.post(reversal.id);
+      if (postErr) return { data: null, error: postErr };
+      await sb.from('acct_journal_entries').update({ status: 'reversed', reversed_by: reversal.id }).eq('id', entryId);
+      return { data: reversal, error: null };
+    }
+  },
+
+  // ─── Integrations: HR + Cafe (تستدعي RPC معرّفة في acct-schema.sql) ─
+  integrations: {
+    async postPayrollJournal(payrollId) {
+      const { data, error } = await sb.rpc('create_journal_for_payroll', { p_payroll_id: payrollId });
+      return { data, error };
+    },
+    async postCafeOrderJournal(orderId) {
+      const { data, error } = await sb.rpc('create_journal_for_cafe_order', { p_order_id: orderId });
+      return { data, error };
+    }
+  },
+
+  // ─── Dashboard aggregates ──────────────────────────────────────────
+  dashboard: {
+    async summary() {
+      const now = new Date();
+      const { data: period } = await sb.from('acct_periods').select('id, status').eq('year', now.getFullYear()).eq('month', now.getMonth() + 1).maybeSingle();
+      const [pendingEntries, postedThisMonth, settings] = await Promise.all([
+        sb.from('acct_journal_entries').select('id', { count: 'exact', head: true }).eq('status', 'draft').is('deleted_at', null),
+        period ? sb.from('acct_journal_entries').select('total_debit').eq('period_id', period.id).eq('status', 'posted').is('deleted_at', null) : { data: [] },
+        ACCT.settings.get()
+      ]);
+      const totalPosted = (postedThisMonth.data || []).reduce((s, r) => s + Number(r.total_debit || 0), 0);
+      return {
+        draftEntries: pendingEntries.count || 0,
+        postedVolumeThisMonth: totalPosted,
+        currentPeriodStatus: period ? period.status : 'غير موجودة',
+        dualApprovalThreshold: settings.data ? Number(settings.data.dual_approval_threshold) : 10000,
+        error: pendingEntries.error || settings.error || null
+      };
+    }
+  }
+};
+window.ACCT = ACCT;
+
 // scope(sectionKey) -> 'company_wide' | 'own_department'
 function scope(sectionKey) {
   if (!CURRENT_USER) return 'own_department';
@@ -5428,7 +5754,7 @@ function can(sectionKey, mode = 'view') {
 
 // ============ ترجمة القيم ============
 const LABELS = {
-  role: { admin: 'مدير النظام', company_manager: 'مدير الشركة', department_manager: 'مدير قسم', projects_manager: 'مدير مشاريع', development_manager: 'مدير تطوير', meeting_organizer: 'منظم اجتماع', branch_manager: 'مدير مطعم', deputy_manager: 'نائب مدير', employee: 'موظف عادي', maintenance_officer: 'مسؤول الصيانة', operations_manager: 'مدير التشغيل', finance: 'المالية', hr_manager: 'مدير الموارد البشرية', payroll_officer: 'مسؤول الرواتب' },
+  role: { admin: 'مدير النظام', company_manager: 'مدير الشركة', department_manager: 'مدير قسم', projects_manager: 'مدير مشاريع', development_manager: 'مدير تطوير', meeting_organizer: 'منظم اجتماع', branch_manager: 'مدير مطعم', deputy_manager: 'نائب مدير', employee: 'موظف عادي', maintenance_officer: 'مسؤول الصيانة', operations_manager: 'مدير التشغيل', finance: 'المالية', hr_manager: 'مدير الموارد البشرية', payroll_officer: 'مسؤول الرواتب', finance_manager: 'المدير المالي', gl_accountant: 'محاسب عام', ap_officer: 'مسؤول مدفوعات', ar_officer: 'مسؤول مقبوضات' },
   maint_severity: { emergency: 'طارئ', urgent: 'عاجل', normal: 'عادي', preventive: 'وقائي' },
   maint_priority: { low: 'منخفض', medium: 'متوسط', high: 'عالي', critical: 'حرج' },
   // القيم القديمة تبقى للسجلات السابقة فقط — التصنيف الجديد يبدأ من electricity
@@ -15236,7 +15562,7 @@ const PERMISSION_SECTIONS = [
   { key: 'settings', label: 'الإعدادات' },
   { key: 'task_projects', label: 'مشاريع المهام' },
 ];
-const PERMISSION_ROLES = ['admin','company_manager','department_manager','projects_manager','development_manager','meeting_organizer','branch_manager','deputy_manager','hr_manager','payroll_officer','employee'];
+const PERMISSION_ROLES = ['admin','company_manager','department_manager','projects_manager','development_manager','meeting_organizer','branch_manager','deputy_manager','hr_manager','payroll_officer','finance_manager','gl_accountant','ap_officer','ar_officer','employee'];
 
 // ═══════════════════════════════════════════════════════════
 // توزيع الإشعارات الجماعية (غير الشخصية) على الأدوار — بدون جدول قاعدة بيانات
@@ -23729,6 +24055,11 @@ async function updateCafeOrderStatus(orderId, newStatus) {
         }).eq('id', oi.item_id);
       }
     } catch (e) {}
+  }
+  // تكامل الحسابات: طلب الكافيه المُسلَّم يولّد قيد مبيعات مسودة تلقائيًا
+  // (نقدية / إيرادات مبيعات الكافيه) — قابل للتعطيل من إعدادات الحسابات.
+  if (newStatus === 'delivered' && o.status !== 'delivered' && typeof ACCT !== 'undefined') {
+    try { await ACCT.integrations.postCafeOrderJournal(orderId); } catch (e) { fwReport('postCafeOrderJournal', e); }
   }
   // إشعار لصاحب الطلب
   const notifBodyMap = {
