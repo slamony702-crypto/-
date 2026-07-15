@@ -4354,7 +4354,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v48-2026-07-15-password-view-perf';
+const APP_VERSION = 'v49-2026-07-15-password-warning';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -13921,11 +13921,22 @@ window.openUserEditModal = function(userId) {
 };
 
 window.openChangePasswordModal = function(userId) {
+  const u = (window.__usersPageData?.users || []).find(x => x.id === userId);
+  const hasAuthAccount = !!(u && u.auth_id);
   document.getElementById('root').insertAdjacentHTML('beforeend', `
     <div class="modal-overlay" id="pwdOverlay">
       <div class="panel modal-box">
         <div class="panel-header"><h3>تغيير كلمة المرور</h3><button class="modal-close-x" onclick="document.getElementById('pwdOverlay').remove()"><span data-lucide="x" style="width:14px;height:14px;"></span></button></div>
         <div class="panel-body">
+          ${hasAuthAccount ? `
+          <div style="background:rgba(214,164,55,0.12);border:1px solid rgba(214,164,55,0.35);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:12.5px;color:#7A4E0E;line-height:1.8;">
+            <b>تنبيه:</b> هذا المستخدم دخل من قبل ولديه حساب دخول فعّال بكلمة سر حقيقية منفصلة.
+            التغيير هنا يحدّث فقط القيمة المعروضة في هذه الشاشة، ولن يُغيّر كلمة السر الفعلية التي يدخل بها.
+            لتغيير كلمة السر الحقيقية، استخدم لوحة Supabase مباشرة (Authentication → Users → إعادة تعيين كلمة المرور).
+          </div>` : `
+          <div style="background:rgba(36,91,75,0.08);border:1px solid rgba(36,91,75,0.2);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:12.5px;color:#245B4B;line-height:1.8;">
+            هذا المستخدم لم يسجّل الدخول بعد، فكلمة المرور الجديدة هنا ستعمل فعليًا عند أول تسجيل دخول له.
+          </div>`}
           <div class="field"><label>كلمة المرور الجديدة</label><input type="text" class="meeting-input" id="newPwd"></div>
           <button class="btn btn-primary btn-sm" id="pwdSaveBtn" style="margin-top:10px;">حفظ</button>
         </div>
@@ -13935,6 +13946,7 @@ window.openChangePasswordModal = function(userId) {
   document.getElementById('pwdSaveBtn').addEventListener('click', async () => {
     const newPwd = document.getElementById('newPwd').value;
     if (!newPwd) { toast('اكتب كلمة مرور صحيحة', 'error'); return; }
+    if (hasAuthAccount && !(await customConfirm('هذا المستخدم لديه حساب دخول فعّال — هذا التغيير لن يعدّل كلمة السر الحقيقية. هل تريد المتابعة رغم ذلك؟'))) return;
     const { error } = await sb.from('users').update({ password_plain: newPwd }).eq('id', userId);
     if (error) { toast(error.message, 'error'); return; }
     await sb.from('user_activity_log').insert({ user_id: userId, action_text: 'تم تغيير كلمة المرور', created_by: CURRENT_USER.id });
@@ -14012,7 +14024,8 @@ window.openUserDetailModal = function(userId, editMode) {
             <span id="userPwReal_${u.id}" class="mono-num" style="display:none;">${esc(u.password_plain || 'غير متوفرة (تم تغييرها يدويًا)')}</span>
             <button type="button" title="إظهار/إخفاء" onclick="toggleUserPasswordView(${u.id})" style="background:none;border:none;cursor:pointer;color:var(--text-muted);"><span data-lucide="eye" id="userPwEyeIcon_${u.id}" style="width:14px;height:14px;"></span></button>
             ${u.password_plain ? `<button type="button" title="نسخ" onclick="copyUserPassword('${esc(u.password_plain).replace(/'/g,"")}')" style="background:none;border:none;cursor:pointer;color:var(--text-muted);"><span data-lucide="copy" style="width:14px;height:14px;"></span></button>` : ''}
-          </span></div>` : ''}
+          </span></div>
+          ${u.auth_id ? `<p style="font-size:11px;color:#7A4E0E;background:rgba(214,164,55,0.12);border-radius:8px;padding:6px 10px;margin:4px 0 0;">⚠️ هذا المستخدم دخل من قبل وله كلمة سر حقيقية منفصلة قد لا تطابق القيمة أعلاه — استخدم لوحة Supabase لإعادة تعيينها فعليًا.</p>` : ''}` : ''}
         </div>
       </div>
     </div>
