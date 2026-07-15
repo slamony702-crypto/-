@@ -1411,6 +1411,121 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
 .badge-status:hover, .status-pill:hover { transform: scale(1.04); }
 
 .nav-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: #3a2c00; font-size: 10.5px; font-weight: 700; margin-right: auto; }
+.nav-badge-soon { background: linear-gradient(135deg, #8B5CF6 0%, #34D399 100%); color: #fff; font-size: 9.5px; padding: 0 7px; height: 17px; letter-spacing: 0.3px; }
+.sidebar.collapsed .nav-badge-soon { display: none !important; }
+
+/* ═══════ صفحات المديولات القادمة (HR / Accounting / Operations) ═══════ */
+.mod-hero {
+  position: relative; border-radius: 20px; padding: 28px 26px 26px;
+  margin-bottom: 22px; overflow: hidden;
+  background: linear-gradient(135deg, #123F32 0%, #245B4B 55%, #6D28D9 130%);
+  color: #fff; box-shadow: 0 12px 30px rgba(18,55,47,0.20);
+}
+.mod-hero::before, .mod-hero::after {
+  content: ''; position: absolute; border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(255,255,255,0.14), transparent 65%);
+  pointer-events: none;
+}
+.mod-hero::before { width: 260px; height: 260px; top: -60px; left: -40px; }
+.mod-hero::after  { width: 200px; height: 200px; bottom: -60px; right: -60px; background: radial-gradient(circle at center, rgba(139,92,246,0.30), transparent 70%); }
+.mod-hero-top { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; position: relative; z-index: 1; }
+.mod-hero-icon {
+  width: 60px; height: 60px; border-radius: 16px;
+  background: rgba(255,255,255,0.14); backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid rgba(255,255,255,0.22); flex-shrink: 0;
+}
+.mod-hero-icon [data-lucide] { width: 30px; height: 30px; color: #fff; }
+.mod-hero-title { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }
+.mod-hero-sub { margin: 4px 0 0; font-size: 13px; opacity: 0.88; line-height: 1.65; max-width: 640px; }
+.mod-hero-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; position: relative; z-index: 1; }
+.mod-hero-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 999px; font-size: 11.5px; font-weight: 700;
+  background: rgba(255,255,255,0.14); color: #fff;
+  border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(6px);
+}
+.mod-hero-badge.hb-soon { background: rgba(139,92,246,0.35); border-color: rgba(139,92,246,0.55); }
+.mod-hero-badge.hb-scope { background: rgba(255,255,255,0.10); }
+
+.mod-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 22px; }
+@media (max-width: 900px) { .mod-stats { grid-template-columns: repeat(2, 1fr); } }
+.mod-stat {
+  background: var(--surface); border-radius: 14px; padding: 14px 16px;
+  border: 1.5px solid transparent;
+  background-image: linear-gradient(var(--surface), var(--surface)), linear-gradient(135deg, #10B981 0%, #34D399 45%, #8B5CF6 100%);
+  background-origin: border-box; background-clip: padding-box, border-box;
+}
+.mod-stat-val { font-size: 26px; font-weight: 800; color: #123F32; line-height: 1; font-variant-numeric: tabular-nums; }
+.mod-stat-lbl { font-size: 11.5px; color: var(--text-muted); margin-top: 6px; font-weight: 600; }
+
+.mod-section-title { display: flex; align-items: center; gap: 10px; margin: 24px 0 14px; font-size: 15px; font-weight: 800; color: #123F32; }
+.mod-section-title::before { content: ''; width: 4px; height: 18px; background: linear-gradient(135deg, #10B981, #8B5CF6); border-radius: 2px; }
+
+.mod-feat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 22px; }
+.mod-feat-card {
+  background: var(--surface); border-radius: 14px; padding: 16px;
+  border: 1.5px solid var(--border); transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  display: flex; gap: 12px; align-items: flex-start;
+}
+.mod-feat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 22px rgba(18,55,47,0.10); border-color: transparent;
+  background-image: linear-gradient(var(--surface), var(--surface)), linear-gradient(135deg, #10B981, #8B5CF6);
+  background-origin: border-box; background-clip: padding-box, border-box;
+}
+.mod-feat-icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  background: linear-gradient(135deg, rgba(16,185,129,0.10), rgba(139,92,246,0.10));
+  color: #123F32; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.mod-feat-icon [data-lucide] { width: 20px; height: 20px; }
+.mod-feat-body { flex: 1; min-width: 0; }
+.mod-feat-title { margin: 0; font-size: 13.5px; font-weight: 700; color: #0F172A; }
+.mod-feat-desc { margin: 4px 0 0; font-size: 12px; color: var(--text-muted); line-height: 1.65; }
+
+.mod-roadmap { display: flex; flex-direction: column; gap: 0; margin-bottom: 22px; padding: 4px 0; }
+.mod-phase {
+  display: grid; grid-template-columns: 44px 1fr auto; gap: 14px; align-items: center;
+  padding: 14px 16px; background: var(--surface); border-radius: 12px;
+  border: 1px solid var(--border); margin-bottom: 8px; position: relative;
+}
+.mod-phase-num {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(18,55,47,0.08); color: #123F32;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums;
+}
+.mod-phase.active .mod-phase-num { background: linear-gradient(135deg, #10B981, #8B5CF6); color: #fff; box-shadow: 0 4px 12px rgba(139,92,246,0.25); }
+.mod-phase-body { min-width: 0; }
+.mod-phase-title { font-size: 13.5px; font-weight: 700; color: #0F172A; }
+.mod-phase-sub { font-size: 11.5px; color: var(--text-muted); margin-top: 3px; }
+.mod-phase-status {
+  font-size: 10.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px;
+  background: rgba(148,163,184,0.15); color: #64748B; white-space: nowrap;
+}
+.mod-phase.active .mod-phase-status { background: rgba(139,92,246,0.15); color: #6D28D9; }
+.mod-phase.done .mod-phase-status { background: rgba(16,185,129,0.15); color: #047857; }
+
+.mod-cta {
+  margin-top: 20px; border-radius: 16px; padding: 20px 22px;
+  background: linear-gradient(135deg, rgba(16,185,129,0.06), rgba(139,92,246,0.06));
+  border: 1.5px solid transparent;
+  background-image: linear-gradient(rgba(246,251,248,1), rgba(246,251,248,1)), linear-gradient(135deg, #10B981, #8B5CF6);
+  background-origin: border-box; background-clip: padding-box, border-box;
+  display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+}
+.mod-cta-icon { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #10B981, #8B5CF6); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.mod-cta-body { flex: 1; min-width: 200px; }
+.mod-cta-title { font-size: 14px; font-weight: 800; color: #123F32; }
+.mod-cta-desc { font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.7; }
+
+@media (max-width: 640px) {
+  .mod-hero { padding: 22px 18px; border-radius: 16px; }
+  .mod-hero-title { font-size: 18px; }
+  .mod-hero-sub { font-size: 12px; }
+  .mod-hero-icon { width: 50px; height: 50px; }
+  .mod-hero-icon [data-lucide] { width: 24px; height: 24px; }
+  .mod-stat-val { font-size: 22px; }
+}
 
 .panel-header { position: relative; }
 .panel-header h3 { position: relative; padding-right: 12px; }
@@ -4475,7 +4590,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v75-2026-07-15-fusha-arabic';
+const APP_VERSION = 'v76-2026-07-16-modules-preview';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -7061,6 +7176,11 @@ const MENU_GROUPS = [
   { key: '__ops', label: 'العمليات والجودة', icon: 'wrench', defaultOpen: false, items: [
     { key: 'maintenance', label: 'الصيانة', icon: 'wrench' },
     { key: 'quality', label: 'الجودة', icon: 'shield-check' },
+    { key: 'operations', label: 'تشغيل المطاعم', icon: 'chef-hat', badge: 'قريبًا' },
+  ]},
+  { key: '__erp', label: 'الإدارة المؤسسية', icon: 'briefcase', defaultOpen: false, items: [
+    { key: 'hr', label: 'الموارد البشرية', icon: 'users-round', badge: 'قريبًا' },
+    { key: 'accounting', label: 'الحسابات والمالية', icon: 'landmark', badge: 'قريبًا' },
   ]},
   { key: '__cafe', label: 'ركن الكافيه', icon: 'coffee', defaultOpen: false, items: [
     { key: 'cafe', label: 'ركن الكافيه', icon: 'coffee' },
@@ -7079,7 +7199,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', accounting: 'الحسابات والمالية', operations: 'تشغيل المطاعم', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -11315,7 +11435,8 @@ async function renderShellOnce() {
     }
   } catch (e) { /* تجاهل بصمت لو فشل الحساب */ }
 
-  const ALWAYS_VISIBLE = []; // install_app انتقلت لقائمة ⋯ في التوب بار
+  // المديولات القادمة (Placeholder Overview) — تظهر للجميع لأنها صفحات عرض فقط
+  const ALWAYS_VISIBLE = ['hr', 'accounting', 'operations'];
   const openGroupsRaw = localStorage.getItem('sidebar_open_groups');
   const openGroups = openGroupsRaw ? JSON.parse(openGroupsRaw) : null;
   function isGroupOpen(g) { return openGroups ? openGroups.includes(g.key) : g.defaultOpen; }
@@ -11326,7 +11447,12 @@ async function renderShellOnce() {
     if (!visibleItems.length) return '';
     const isOpen = isGroupOpen(group) || (groupContainingCurrent && groupContainingCurrent.key === group.key);
     const itemsHtml = visibleItems.map(item => {
-      const badge = (item.key === 'conversations' && unreadMsgCount > 0) ? `<span class="nav-badge">${unreadMsgCount > 9 ? '9+' : unreadMsgCount}</span>` : '';
+      let badge = '';
+      if (item.key === 'conversations' && unreadMsgCount > 0) {
+        badge = `<span class="nav-badge">${unreadMsgCount > 9 ? '9+' : unreadMsgCount}</span>`;
+      } else if (item.badge) {
+        badge = `<span class="nav-badge nav-badge-soon">${item.badge}</span>`;
+      }
       return `<a href="#${item.key}" class="${item.key === page ? 'active' : ''}" data-tooltip="${item.label}"><span data-lucide="${item.icon}" style="width:18px;height:18px;flex-shrink:0;"></span><span class="label">${item.label}</span>${badge}</a>`;
     }).join('');
     return `
@@ -11630,6 +11756,9 @@ async function route() {
     if (page === 'dashboard') await pageDashboard(body);
     else if (page === 'myday') await pageMyDay(body);
     else if (page === 'vision') await pageVision(body, param);
+    else if (page === 'hr') await pageComingSoonModule(body, 'hr');
+    else if (page === 'accounting') await pageComingSoonModule(body, 'accounting');
+    else if (page === 'operations') await pageComingSoonModule(body, 'operations');
     else if (page === 'meetings') await pageMeetings(body, query);
     else if (page === 'meetings_calendar') await pageMeetingsCalendar(body, query);
     else if (page === 'meeting_detail') await pageMeetingDetail(body, param, query);
@@ -15022,6 +15151,184 @@ function deptStyle(name) {
 
 let __visionPeriodRefDate = new Date();
 let __visionActiveTab = 'month';
+
+// ═══════════════════════════════════════════════════════════
+// كتالوج المديولات القادمة (HR / Accounting / Operations)
+// صفحات Overview فقط — لا يوجد جداول ولا Backend حتى الآن.
+// المصدر: التقرير التحليلي الشامل للمرحلة الأولى.
+// ═══════════════════════════════════════════════════════════
+const COMING_SOON_MODULES = {
+  hr: {
+    title: 'الموارد البشرية',
+    subtitle: 'منظومة متكاملة لإدارة دورة حياة الموظف من التخطيط والاستقطاب وحتى إنهاء الخدمة، مربوطة بالتشغيل والمالية والجودة.',
+    icon: 'users-round',
+    stats: [
+      { val: '25', lbl: 'موديول رئيسي' },
+      { val: '+40', lbl: 'جدول قاعدة بيانات' },
+      { val: '9', lbl: 'أدوار متخصصة' },
+      { val: 'RTL', lbl: 'واجهة عربية كاملة' }
+    ],
+    features: [
+      { icon: 'user-square', title: 'ملف الموظف الموحد', desc: 'كل بيانات الموظف الوظيفية والشخصية والمهارية والمالية في مكان واحد.' },
+      { icon: 'network', title: 'الهيكل التنظيمي والوظائف', desc: 'كيانات، فروع، أقسام، مناصب، درجات، ووصف وظيفي معتمد بإصدارات.' },
+      { icon: 'calendar-clock', title: 'الحضور والورديات', desc: 'ورديات مرنة، بصمة وGPS، سجلات خام ومحرك احتساب يومي واعتمادات.' },
+      { icon: 'palm-tree', title: 'الإجازات والغياب', desc: 'أنواع مخصصة، أرصدة تراكمية، مسارات موافقات، بدائل وتغطيات.' },
+      { icon: 'banknote', title: 'الرواتب Payroll', desc: 'محرك مستقل بعناصر بتاريخ سريان، مسير شهري، قسائم، وقيود GL آلية.' },
+      { icon: 'briefcase', title: 'الاستقطاب والتوظيف ATS', desc: 'شواغر، مرشحون، Pipeline، مقابلات، عروض، تحويل إلى Onboarding.' },
+      { icon: 'file-signature', title: 'العقود والانضمام', desc: 'قوالب حسب الدرجة والنوع، توقيع إلكتروني، وخطة أول أسبوع للموظف.' },
+      { icon: 'target', title: 'إدارة الأداء والأهداف', desc: 'OKRs وKPIs، تقييم 360، Check-ins، وخطط تحسين PIP.' },
+      { icon: 'graduation-cap', title: 'التعلم والمهارات', desc: 'كتالوج دورات، مسارات إلزامية، شهادات، ومصفوفة مهارات.' },
+      { icon: 'trending-up', title: 'المسار الوظيفي والتعاقب', desc: 'مسارات ترقي، 9-Box، خطط تطوير، وتحديد بدائل للوظائف الحرجة.' },
+      { icon: 'gift', title: 'المزايا والعهد', desc: 'تأمين طبي، سكن، تذاكر، عهد أجهزة وسيارات بتتبع كامل.' },
+      { icon: 'plane', title: 'السفر والمصروفات', desc: 'رحلات، بدل يومي، مصروفات بإيصالات، وسلف بأقساط راتب.' },
+      { icon: 'shield-alert', title: 'العلاقات والسلامة', desc: 'شكاوى سرية، تحقيقات، حوادث، مخاطر عمل، وإجراءات وقائية.' },
+      { icon: 'file-check', title: 'الوثائق والامتثال', desc: 'هويات، إقامات، شهادات صحية بتنبيهات انتهاء 90/60/30/7 يومًا.' },
+      { icon: 'user-x', title: 'إنهاء الخدمة والمخالصة', desc: 'استقالة، تسليم عهد، تسوية إجازات، مقابلة خروج، ومخالصة نهائية.' },
+      { icon: 'bar-chart-3', title: 'تحليلات الأفراد', desc: 'Headcount، Turnover، تكلفة العمالة، احتفاظ، وامتثال بلوحات تفاعلية.' }
+    ],
+    roadmap: [
+      { title: 'المرحلة 1 — Core HR', sub: 'ملف الموظف • الهيكل التنظيمي • الوثائق والامتثال', status: 'الأولى' },
+      { title: 'المرحلة 2 — الحضور والإجازات', sub: 'الورديات • البصمة • الأرصدة والطلبات', status: 'قيد التخطيط' },
+      { title: 'المرحلة 3 — الرواتب', sub: 'محرك الرواتب • قسائم • قيود محاسبية آلية', status: 'قيد التخطيط' },
+      { title: 'المرحلة 4 — التوظيف والأداء', sub: 'ATS • العقود • الأهداف والتقييمات', status: 'مقرَّرة' },
+      { title: 'المرحلة 5 — التطوير والامتثال', sub: 'التعلم • المسار الوظيفي • السلامة والعلاقات', status: 'مقرَّرة' }
+    ]
+  },
+  accounting: {
+    title: 'الحسابات والمالية',
+    subtitle: 'دورة مالية متكاملة تربط كل حدث تشغيلي بمستند واعتماد وقيد محاسبي مطابق للفوترة الإلكترونية ومعايير المحاسبة السعودية.',
+    icon: 'landmark',
+    stats: [
+      { val: '20', lbl: 'فصل محاسبي' },
+      { val: '+25', lbl: 'جدول قاعدة بيانات' },
+      { val: '15%', lbl: 'ضريبة القيمة المضافة' },
+      { val: 'ZATCA', lbl: 'فوترة إلكترونية' }
+    ],
+    features: [
+      { icon: 'book-open', title: 'دليل الحسابات', desc: 'دليل قياسي جاهز للمطاعم قابل للتوسع من الواجهة دون تعديل كود.' },
+      { icon: 'layers', title: 'مراكز التكلفة الهرمية', desc: 'كل فرع مركز رئيسي، وتحته المطبخ والصالة والتوصيل والإدارة.' },
+      { icon: 'receipt', title: 'قيود اليومية', desc: 'قيود يدوية وآلية بمراجع مستندية، مع فرض توازن مدين ودائن.' },
+      { icon: 'truck', title: 'المشتريات والموردون', desc: 'دورة كاملة: طلب شراء ← أمر ← استلام ← فاتورة ← دفع.' },
+      { icon: 'package', title: 'المخزون وتكلفة المطاعم', desc: 'أرصدة الكميات، حركة، تقييم بتكلفة، وربط بتكلفة المبيعات.' },
+      { icon: 'wallet', title: 'الخزينة والبنوك', desc: 'حسابات بنكية، صناديق نقدية، عهد، وتسويات بنكية شهرية.' },
+      { icon: 'credit-card', title: 'المصروفات والموافقات', desc: 'مطالبات مصروفات، سلف، أقساط راتب، ومسارات اعتماد بالقيمة.' },
+      { icon: 'file-text', title: 'فواتير العملاء AR', desc: 'فوترة المبيعات وتحصيل الذمم مع تقارير أعمار الديون.' },
+      { icon: 'file-check-2', title: 'فواتير الموردين AP', desc: 'مطابقة ثلاثية (طلب/استلام/فاتورة) قبل الدفع وأعمار موردين.' },
+      { icon: 'building-2', title: 'الأصول الثابتة', desc: 'تسجيل، تصنيف، إهلاك تلقائي، وحركات الأصول والمشروعات.' },
+      { icon: 'file-badge', title: 'الفوترة الإلكترونية ZATCA', desc: 'QR Code، XML موقّع، Cryptographic Stamp، وتكامل ZATCA Phase 2.' },
+      { icon: 'percent', title: 'ضريبة القيمة المضافة', desc: 'حساب VAT تلقائي، إقرار ربع سنوي، وتقارير مطابقة زاتكا.' },
+      { icon: 'calendar-check', title: 'الإقفال الشهري والسنوي', desc: 'تسويات، قيود إقفال، ترحيل، وحماية الفترة بعد الاعتماد.' },
+      { icon: 'file-bar-chart', title: 'القوائم المالية', desc: 'المركز المالي، الدخل، التدفقات النقدية، والتغيرات في حقوق الملكية.' },
+      { icon: 'wallet-cards', title: 'الموازنات والتنبؤ', desc: 'موازنة سنوية، مقارنة الفعلي بالمعتمد، وتوقع التدفق النقدي.' },
+      { icon: 'shield-check', title: 'الرقابة الداخلية', desc: 'فصل المهام، سجل تدقيق كامل، وكشف الاختلافات آليًا.' }
+    ],
+    roadmap: [
+      { title: 'المرحلة 1 — الأساس المحاسبي', sub: 'دليل الحسابات • مراكز التكلفة • القيود اليدوية', status: 'الأولى' },
+      { title: 'المرحلة 2 — الموردون والمشتريات', sub: 'دورة P2P • فواتير الموردين • الدفع', status: 'قيد التخطيط' },
+      { title: 'المرحلة 3 — الخزينة والبنوك', sub: 'حسابات بنكية • تسويات • عهد • مصروفات', status: 'قيد التخطيط' },
+      { title: 'المرحلة 4 — الأصول والمخزون', sub: 'الأصول الثابتة • الإهلاك • تكلفة المخزون', status: 'مقرَّرة' },
+      { title: 'المرحلة 5 — VAT والفوترة الإلكترونية', sub: 'ZATCA Phase 2 • QR • XML موقّع', status: 'مقرَّرة' },
+      { title: 'المرحلة 6 — الإقفال والقوائم المالية', sub: 'الإقفال الشهري والسنوي • القوائم • الموازنات', status: 'مقرَّرة' }
+    ]
+  },
+  operations: {
+    title: 'تشغيل المطاعم',
+    subtitle: 'مركز موحد لتشغيل كل الفروع لحظيًا، من التخطيط قبل الافتتاح وحتى تسليم الوردية، مع ربط تلقائي بالجودة والصيانة والمهام.',
+    icon: 'chef-hat',
+    stats: [
+      { val: '13', lbl: 'موديول تشغيلي' },
+      { val: '+15', lbl: 'جدول قاعدة بيانات' },
+      { val: 'Real-time', lbl: 'متابعة لحظية' },
+      { val: 'Mobile', lbl: 'مصمَّم للميدان' }
+    ],
+    features: [
+      { icon: 'monitor-dot', title: 'مركز متابعة الفروع', desc: 'صورة لحظية لحالة كل فرع مع خريطة مخاطر ومقارنة أداء.' },
+      { icon: 'sunrise', title: 'التشغيل اليومي', desc: 'قوائم افتتاح، متابعة أثناء اليوم، إغلاق، وتقرير يومي معتمد.' },
+      { icon: 'arrow-right-left', title: 'الورديات والتسليم', desc: 'انتقال المسؤولية بين الورديات بتوثيق كامل للعهدة والمهام المفتوحة.' },
+      { icon: 'users', title: 'توزيع العمل والمحطات', desc: 'جدولة يومية للمحطات، مع منع محطة حساسة دون مهارة أو شهادة.' },
+      { icon: 'utensils', title: 'التحضير والإنتاج', desc: 'خطة تحضير من توقع الطلب، مقارنة المخطط بالفعلي، ومنع النقص.' },
+      { icon: 'clipboard-check', title: 'الطلبات ومستوى الخدمة', desc: 'أحجام الطلبات، سرعة التجهيز، الأخطاء، وقنوات الطلب.' },
+      { icon: 'boxes', title: 'المخزون التشغيلي', desc: 'أرصدة يومية، تحويلات بين الفروع، ونواقص قبل تحوّلها لتوقف.' },
+      { icon: 'trash-2', title: 'الهدر والتالف', desc: 'تسجيل بالسبب والمحطة والوردية، اعتماد، وربط بالتكلفة.' },
+      { icon: 'alert-triangle', title: 'المشكلات والتصعيد', desc: 'قناة موحدة لأي عائق تشغيلي مع مسارات إسناد وتصعيد وSLA.' },
+      { icon: 'shield-check', title: 'الجودة (مربوط بالحالي)', desc: 'يستدعي موديول الجودة الحالي دون تكرار، ويربط النتائج بالتشغيل.' },
+      { icon: 'wrench', title: 'الصيانة (مربوط بالحالي)', desc: 'عرض جاهزية المعدات ومزامنة مع الصيانة الوقائية والطارئة.' },
+      { icon: 'file-line-chart', title: 'التقارير التشغيلية', desc: 'تقارير على مستوى الفرع والشركة مع Drill-down للتفاصيل.' },
+      { icon: 'sliders-horizontal', title: 'إعدادات وقوالب التشغيل', desc: 'قوالب افتتاح وإغلاق، حدود، وأوقات تصعيد قابلة للتخصيص لكل فرع.' }
+    ],
+    roadmap: [
+      { title: 'المرحلة 1 — مركز متابعة الفروع', sub: 'اللوحة اللحظية • خريطة المخاطر • مقارنة الفروع', status: 'الأولى' },
+      { title: 'المرحلة 2 — التشغيل اليومي والورديات', sub: 'قوائم الافتتاح والإغلاق • تسليم الوردية', status: 'قيد التخطيط' },
+      { title: 'المرحلة 3 — التحضير والهدر', sub: 'خطط التحضير • تسجيل الهدر • تحليل الأسباب', status: 'قيد التخطيط' },
+      { title: 'المرحلة 4 — المشكلات والتقارير', sub: 'قناة المشكلات • التصعيد • التقارير التشغيلية', status: 'مقرَّرة' }
+    ]
+  }
+};
+
+async function pageComingSoonModule(body, key) {
+  const m = COMING_SOON_MODULES[key];
+  if (!m) { body.innerHTML = '<p class="empty-state">الموديول غير موجود</p>'; return; }
+  body.innerHTML = `
+    <div class="mod-hero">
+      <div class="mod-hero-top">
+        <div class="mod-hero-icon"><span data-lucide="${m.icon}"></span></div>
+        <div>
+          <h2 class="mod-hero-title">${esc(m.title)}</h2>
+          <p class="mod-hero-sub">${esc(m.subtitle)}</p>
+        </div>
+      </div>
+      <div class="mod-hero-badges">
+        <span class="mod-hero-badge hb-soon"><span data-lucide="sparkles" style="width:12px;height:12px;"></span> قريبًا — قيد التطوير</span>
+        <span class="mod-hero-badge hb-scope"><span data-lucide="layers" style="width:12px;height:12px;"></span> جزء من رؤية النظام كـ ERP متكامل</span>
+      </div>
+    </div>
+
+    <div class="mod-stats">
+      ${m.stats.map(s => `
+        <div class="mod-stat">
+          <div class="mod-stat-val">${esc(s.val)}</div>
+          <div class="mod-stat-lbl">${esc(s.lbl)}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="mod-section-title"><span data-lucide="grid-3x3" style="width:16px;height:16px;"></span> الوظائف الرئيسية</div>
+    <div class="mod-feat-grid">
+      ${m.features.map(f => `
+        <div class="mod-feat-card">
+          <div class="mod-feat-icon"><span data-lucide="${f.icon}"></span></div>
+          <div class="mod-feat-body">
+            <p class="mod-feat-title">${esc(f.title)}</p>
+            <p class="mod-feat-desc">${esc(f.desc)}</p>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="mod-section-title"><span data-lucide="route" style="width:16px;height:16px;"></span> خارطة الطريق</div>
+    <div class="mod-roadmap">
+      ${m.roadmap.map((p, i) => `
+        <div class="mod-phase ${i === 0 ? 'active' : ''}">
+          <div class="mod-phase-num">${i + 1}</div>
+          <div class="mod-phase-body">
+            <div class="mod-phase-title">${esc(p.title)}</div>
+            <div class="mod-phase-sub">${esc(p.sub)}</div>
+          </div>
+          <div class="mod-phase-status">${esc(p.status)}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="mod-cta">
+      <div class="mod-cta-icon"><span data-lucide="rocket" style="width:22px;height:22px;"></span></div>
+      <div class="mod-cta-body">
+        <div class="mod-cta-title">هذا القسم قيد التطوير — سيتم إطلاقه على مراحل مدروسة</div>
+        <div class="mod-cta-desc">نبني هذا الموديول بمعايير مؤسسية: قاعدة بيانات محكمة، صلاحيات دقيقة، تكامل مع باقي أقسام النظام، ودعم كامل للأنظمة السعودية.</div>
+      </div>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+}
 
 async function pageVision(body, deptParam) {
   if (deptParam) { await pageDepartmentGoals(body, Number(deptParam)); return; }
@@ -21186,6 +21493,9 @@ function openMobileMoreSheet() {
             { key:'conversations', hash:'#conversations', icon:'message-circle', label:'التواصل الداخلي' },
             { key:'cafe', hash:'#cafe', icon:'coffee', label:'ركن الكافيه' },
             { key:'reports', hash:'#reports', icon:'bar-chart-3', label:'التقارير' },
+            { key:'operations', hash:'#operations', icon:'chef-hat', label:'تشغيل المطاعم' },
+            { key:'hr', hash:'#hr', icon:'users-round', label:'الموارد البشرية' },
+            { key:'accounting', hash:'#accounting', icon:'landmark', label:'الحسابات والمالية' },
             { key:'emergency', hash:'#emergency', icon:'siren', label:'تواصل طارئ' },
             { key:'myday', hash:'#myday', icon:'sun', label:'أعمالي اليوم' },
             { key:'vision', hash:'#vision', icon:'compass', label:'رؤية الشركة' },
@@ -21284,6 +21594,7 @@ function openMobileCustomizeSheet() {
     decisions: ['القرارات','gavel'], maintenance: ['الصيانة','wrench'],
     quality: ['الجودة','shield-check'], conversations: ['التواصل','message-circle'],
     cafe: ['ركن الكافيه','coffee'], reports: ['التقارير','bar-chart-3'],
+    operations: ['تشغيل المطاعم','chef-hat'], hr: ['الموارد البشرية','users-round'], accounting: ['الحسابات والمالية','landmark'],
     emergency: ['تواصل طارئ','siren'], myday: ['أعمالي اليوم','sun'],
     vision: ['رؤية الشركة','compass'], analytics: ['تحليلات الأداء','trending-up'],
     invite: ['دعوة موظفين','user-plus'],
@@ -21679,6 +21990,12 @@ async function renderMobileHome(body) {
       title:'ركن الكافيه',  sub:'اطلب مشروبك واستمتع', badge:null },
     { key:'reports',   href:'#reports',   tint:'t-peach-2',     icon:'bar-chart-3',
       title:'التقارير',     sub:'إحصائيات وأداء الفريق', badge:null },
+    { key:'operations',href:'#operations',tint:'t-mint-2',     icon:'chef-hat',
+      title:'تشغيل المطاعم', sub:'مركز موحد لتشغيل الفروع لحظيًا', badge:'قريبًا' },
+    { key:'hr',        href:'#hr',        tint:'t-lavender-2', icon:'users-round',
+      title:'الموارد البشرية', sub:'دورة حياة الموظف كاملة', badge:'قريبًا' },
+    { key:'accounting',href:'#accounting',tint:'t-aqua-2',     icon:'landmark',
+      title:'الحسابات والمالية', sub:'دورة مالية متكاملة مع ZATCA', badge:'قريبًا' },
     { key:'emergency', href:'#emergency', tint:'t-peach',       icon:'siren',
       title:'تواصل طارئ',   sub:'تنبيهات عاجلة للفريق', badge:null },
     { key:'myday',     href:'#myday',     tint:'t-mint-2',      icon:'sun',
@@ -21702,17 +22019,22 @@ async function renderMobileHome(body) {
     try {
       const v = JSON.parse(localStorage.getItem('mHomeTilesVisible') || 'null');
       if (Array.isArray(v)) {
-        // ترحيل: قسم "مهام وتكليفات" اتضاف بعد ما بعض المستخدمين حفظوا تفضيلاتهم —
-        // نضيفه مرة واحدة عشان ميختفيش عنهم القسم الجديد
+        // ترحيل مستمر لأي قسم جديد يُضاف بعدما حفظ المستخدم تفضيلاته
+        let changed = false;
         if (!v.includes('department_tasks')) {
           v.splice(v.includes('meetings') ? v.indexOf('meetings') + 1 : 0, 0, 'department_tasks');
-          try { localStorage.setItem('mHomeTilesVisible', JSON.stringify(v)); } catch (e) {}
+          changed = true;
         }
+        // المديولات الجديدة (Overview): تظهر افتراضيًا للجميع لعرض رؤية النظام كـ ERP متكامل
+        ['operations','hr','accounting'].forEach(k => {
+          if (!v.includes(k)) { v.push(k); changed = true; }
+        });
+        if (changed) { try { localStorage.setItem('mHomeTilesVisible', JSON.stringify(v)); } catch (e) {} }
         return v;
       }
     } catch {}
     // افتراضي: الأقسام الأساسية على الرئيسية، والباقي (شغلي اليوم/الرؤية/التحليلات/الدعوة/المستخدمون...) في More
-    return ['meetings','department_tasks','tasks','decisions','maintenance','quality','conversations','emergency','cafe','reports'];
+    return ['meetings','department_tasks','tasks','decisions','maintenance','quality','conversations','operations','hr','accounting','emergency','cafe','reports'];
   })();
   const byKey = Object.fromEntries(defaultTiles.map(t => [t.key, t]));
   const visibleTiles = [
