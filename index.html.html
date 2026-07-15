@@ -4475,7 +4475,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v74-2026-07-15-mobile-parity';
+const APP_VERSION = 'v75-2026-07-15-fusha-arabic';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -6546,7 +6546,7 @@ function renderSignupRequestPage() {
           <span class="login-logo-tagline">لتطوير وإدارة المطاعم</span>
         </div>
         <h1>طلب انضمام جديد</h1>
-        <p class="subtitle">عبّي بياناتك وهنراجعها ونتواصل معاك</p>
+        <p class="subtitle">أدخل بياناتك وسنراجعها ونتواصل معك</p>
         <div class="login-error" id="srError"><span data-lucide="alert-circle"></span><span id="srErrorText"></span></div>
         <form id="signupRequestForm">
           <div class="login-field">
@@ -6772,7 +6772,7 @@ function renderPendingApprovalScreen() {
           <div class="pnd-prayers hidden" id="pndPrayers"></div>
           <div class="pnd-msg-card">
             <div class="pnd-msg-icon"><span data-lucide="hourglass" style="width:22px;height:22px;"></span></div>
-            <div class="pnd-msg-title">أهلًا ${esc(firstName)} 🌿 طلبك بين أيدٍ أمينة</div>
+            <div class="pnd-msg-title">أهلًا بك ${esc(firstName)} 🌿 طلبك بين أيدٍ أمينة</div>
             <div class="pnd-msg-body">يقوم قسم الموارد البشرية بمراجعة طلب انضمامك الآن، وسيتم تفعيل حسابك خلال <b>يوم عمل كحد أقصى</b>. لحظة القبول سيفتح النظام أمامك تلقائيًا — لا تحتاج لفعل أي شيء.</div>
           </div>
           <button type="button" class="login-submit-btn" id="pndCheckBtn" style="margin-top:16px;">
@@ -7048,7 +7048,7 @@ async function logout() {
 // عناصر القائمة الجانبية — منظمة في مجموعات قابلة للطي
 const MENU_GROUPS = [
   { key: '__main', label: 'الأساسيات', icon: 'home', defaultOpen: true, items: [
-    { key: 'myday', label: 'شغلي اليوم', icon: 'sun' },
+    { key: 'myday', label: 'أعمالي اليوم', icon: 'sun' },
     { key: 'dashboard', label: 'لوحة التحكم', icon: 'layout-dashboard' },
     { key: 'vision', label: 'رؤية الشركة', icon: 'compass' },
   ]},
@@ -7079,7 +7079,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -11892,7 +11892,7 @@ function wireEmptyStateActions(host, actions) {
 // UX #5: Command Palette — Ctrl+K / Cmd+K للأدمن والباقي
 // ═══════════════════════════════════════════════════════════
 const CMD_PALETTE_ITEMS = [
-  { label: 'شغلي اليوم', icon: 'sun', hash: '#myday', keys: ['myday','اليوم','شغلي','مهامي'] },
+  { label: 'أعمالي اليوم', icon: 'sun', hash: '#myday', keys: ['myday','اليوم','شغلي','مهامي','أعمالي'] },
   { label: 'تحليلات الأداء', icon: 'trending-up', hash: '#analytics', keys: ['analytics','تحليل','مخططات','أداء','إحصاء'] },
   { label: 'تقويم الاجتماعات', icon: 'calendar', hash: '#meetings_calendar', keys: ['تقويم','calendar','شهر','جدول شهري'] },
   { label: 'دعوة موظفين (QR/واتساب)', icon: 'user-plus', hash: '#invite', keys: ['invite','دعوة','QR','مشاركة','واتساب'] },
@@ -12038,8 +12038,8 @@ async function checkCustomChatsForArchive() {
       if (!firstSent) {
         if (ownerId) {
           await sb.from('notifications').insert({
-            user_id: ownerId, title: 'هل تود أرشفة هذا الشات؟',
-            body: `الشات "${c.title||'مخصص'}" لم يشهد نشاطًا منذ ${CUSTOM_CHAT_INACTIVITY_DAYS} أيام. افتحه للاحتفاظ به أو لأرشفته.`,
+            user_id: ownerId, title: 'هل تود أرشفة هذه المحادثة؟',
+            body: `المحادثة "${c.title||'مخصصة'}" لم تشهد نشاطًا منذ ${CUSTOM_CHAT_INACTIVITY_DAYS} أيام. افتحها للاحتفاظ بها أو أرشفتها.`,
             link: '#custom_chat/' + c.id
           }).catch(()=>{});
         }
@@ -12047,8 +12047,8 @@ async function checkCustomChatsForArchive() {
       } else if (!secondSent && (now - firstSent) >= secondReminderMs) {
         if (ownerId) {
           await sb.from('notifications').insert({
-            user_id: ownerId, title: 'تذكير أخير — أرشفة الشات',
-            body: `الشات "${c.title||'مخصص'}" لم يُستخدم بعد. سيتم أرشفته تلقائيًا إن لم تتخذ إجراءً.`,
+            user_id: ownerId, title: 'تذكير أخير — أرشفة المحادثة',
+            body: `المحادثة "${c.title||'مخصصة'}" لم تُستخدم بعد، وستُؤرشف تلقائيًا إن لم تتخذ إجراءً.`,
             link: '#custom_chat/' + c.id
           }).catch(()=>{});
         }
@@ -12057,8 +12057,8 @@ async function checkCustomChatsForArchive() {
         await sb.from('conversations').update({ is_archived: true, archived_at: new Date().toISOString() }).eq('id', c.id);
         if (ownerId) {
           await sb.from('notifications').insert({
-            user_id: ownerId, title: 'تم أرشفة الشات المخصص',
-            body: `تمت أرشفة "${c.title||'مخصص'}" تلقائيًا بسبب عدم النشاط.`,
+            user_id: ownerId, title: 'تمت أرشفة المحادثة',
+            body: `تمت أرشفة "${c.title||'مخصصة'}" تلقائيًا لعدم وجود نشاط.`,
             link: '#custom_chat/' + c.id
           }).catch(()=>{});
         }
@@ -12146,7 +12146,7 @@ async function pageConversations(body, query) {
       <button class="pill-tab" data-tab="myconvs"><span data-lucide="message-circle" style="width:13px;height:13px;"></span> محادثاتي</button>
       <button class="pill-tab" data-tab="meetings"><span data-lucide="calendar" style="width:13px;height:13px;"></span> محادثات الاجتماعات</button>
       <button class="pill-tab" data-tab="tasks"><span data-lucide="check-circle-2" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;color:var(--success);"></span> محادثات المهام</button>
-      <button class="pill-tab" data-tab="custom"><span data-lucide="message-square-plus" style="width:13px;height:13px;"></span> الشات المخصص${activeCustom.length?` <span class="ft-badge" style="background:#245B4B;color:#fff;">${activeCustom.length}</span>`:''}</button>
+      <button class="pill-tab" data-tab="custom"><span data-lucide="message-square-plus" style="width:13px;height:13px;"></span> محادثات مخصصة${activeCustom.length?` <span class="ft-badge" style="background:#245B4B;color:#fff;">${activeCustom.length}</span>`:''}</button>
       <button class="pill-tab" data-tab="archive"><span data-lucide="archive" style="width:13px;height:13px;"></span> الأرشيف${archivedCustom.length?` (${archivedCustom.length})`:''}</button>
     </div>
 
@@ -12547,7 +12547,7 @@ window.openQuickAddTaskModal = async function(prefillUserId, prefillUserName, pr
         body: `${created.title} — من ${CURRENT_USER.full_name} — الموعد النهائي: ${fmtDateAr(created.due_datetime)}`,
         link: '#department_tasks'
       });
-      toast('تم إسناد المهمة بنجاح — تلاقيها في مهام وتكليفات', 'success');
+      toast('تم إسناد المهمة بنجاح — ستجدها في «مهام وتكليفات»', 'success');
       close();
       if (location.hash.startsWith('#department_tasks') || location.hash.startsWith('#tasks')) renderApp();
     } catch (err) {
@@ -12678,7 +12678,7 @@ function openCreateCustomChatModal(allUsers, departments) {
         <button class="modal-close-x" id="cccClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
       </div>
       <div class="panel-body" style="display:grid;gap:14px;">
-        <div class="form-field"><label>اسم الشات *</label><input type="text" id="cccName" class="form-input" placeholder="مثال: متابعة تجهيز تقرير الجودة"></div>
+        <div class="form-field"><label>اسم المحادثة *</label><input type="text" id="cccName" class="form-input" placeholder="مثال: متابعة تجهيز تقرير الجودة"></div>
         <div class="form-field">
           <label>اختر قسمًا لإضافة أعضاء منه</label>
           <select id="cccDeptPicker" class="form-select">
@@ -12697,7 +12697,7 @@ function openCreateCustomChatModal(allUsers, departments) {
         <div class="error-msg" id="cccError"></div>
         <div style="display:flex; gap:8px; justify-content:flex-end;">
           <button type="button" class="btn btn-outline" id="cccCancel">إلغاء</button>
-          <button type="button" class="btn" id="cccCreate" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;"><span data-lucide="send" style="width:13px;height:13px;"></span> إنشاء الشات</button>
+          <button type="button" class="btn" id="cccCreate" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;"><span data-lucide="send" style="width:13px;height:13px;"></span> إنشاء المحادثة</button>
         </div>
       </div>
     </div>`;
@@ -12755,7 +12755,7 @@ function openCreateCustomChatModal(allUsers, departments) {
     errBox.classList.remove('show');
     const name = document.getElementById('cccName').value.trim();
     const missing = [];
-    if (!name) missing.push({ id: 'cccName', label: 'اسم الشات', message: 'اكتب اسمًا للشات.' });
+    if (!name) missing.push({ id: 'cccName', label: 'اسم المحادثة', message: 'اكتب اسمًا للمحادثة.' });
     if (selected.size === 0) missing.push({ id: 'cccDeptPicker', label: 'الأعضاء', message: 'اختر عضوًا واحدًا على الأقل.' });
     if (missing.length) { showRequiredFieldsAlert(missing); return; }
     try {
@@ -12773,10 +12773,10 @@ function openCreateCustomChatModal(allUsers, departments) {
         })));
       }
       close();
-      toast('تم إنشاء الشات المخصص', 'success');
+      toast('تم إنشاء المحادثة بنجاح', 'success');
       location.hash = '#custom_chat/' + newConv.id;
     } catch (err) {
-      errBox.textContent = err.message || 'تعذّر إنشاء الشات';
+      errBox.textContent = err.message || 'تعذّر إنشاء المحادثة';
       errBox.classList.add('show');
     }
   });
@@ -12792,7 +12792,7 @@ async function pageCustomChat(body, convId) {
     sb.from('conversation_members').select('user_id, users(id, full_name, position_title, department_id, last_active_at)').eq('conversation_id', cid),
     sb.from('users').select('id, full_name, department_id').eq('is_active', true)
   ]);
-  if (!conv || conv.conversation_type !== 'custom') { body.innerHTML = '<p class="empty-state">الشات غير موجود</p>'; return; }
+  if (!conv || conv.conversation_type !== 'custom') { body.innerHTML = '<p class="empty-state">المحادثة غير موجودة</p>'; return; }
   const isOwner = conv.created_by === CURRENT_USER.id || CURRENT_USER.role === 'admin';
   const members = (memRows||[]).map(m => m.users).filter(Boolean);
 
@@ -12845,7 +12845,7 @@ async function pageCustomChat(body, convId) {
 
   // إجراءات المالك
   document.getElementById('cchEditName')?.addEventListener('click', async () => {
-    const newName = await customPrompt('اسم الشات الجديد:', conv.title || '');
+    const newName = await customPrompt('اسم المحادثة الجديد:', conv.title || '');
     if (!newName || !newName.trim() || newName === conv.title) return;
     const { error } = await sb.from('conversations').update({ title: newName.trim() }).eq('id', cid);
     if (error) { toast('تعذّر تحديث الاسم: ' + error.message, 'error'); return; }
@@ -12853,16 +12853,16 @@ async function pageCustomChat(body, convId) {
     renderApp();
   });
   document.getElementById('cchArchive')?.addEventListener('click', async () => {
-    if (!(await customConfirm('أرشفة الشات؟'))) return;
+    if (!(await customConfirm('هل تريد أرشفة المحادثة؟'))) return;
     const { error } = await sb.from('conversations').update({ is_archived: true, archived_at: new Date().toISOString(), archived_by: CURRENT_USER.id }).eq('id', cid);
-    if (error) { toast('تعذّر أرشفة الشات: ' + error.message, 'error'); return; }
-    toast('تم أرشفة الشات', 'success');
+    if (error) { toast('تعذّر أرشفة المحادثة: ' + error.message, 'error'); return; }
+    toast('تمت أرشفة المحادثة', 'success');
     location.hash = '#conversations';
   });
   document.getElementById('cchUnarchive')?.addEventListener('click', async () => {
     const { error } = await sb.from('conversations').update({ is_archived: false, archived_at: null, archived_by: null }).eq('id', cid);
-    if (error) { toast('تعذّر استعادة الشات: ' + error.message, 'error'); return; }
-    toast('تمت استعادة الشات', 'success');
+    if (error) { toast('تعذّر استعادة المحادثة: ' + error.message, 'error'); return; }
+    toast('تمت استعادة المحادثة', 'success');
     renderApp();
   });
   body.querySelectorAll('[data-remove-member]').forEach(btn => btn.addEventListener('click', async () => {
@@ -12870,7 +12870,7 @@ async function pageCustomChat(body, convId) {
     const member = members.find(m => m.id === userId);
     const name = member?.full_name || 'العضو';
     undoableAction({
-      message: `تمت إزالة "${name}" من الشات — تراجع خلال 5 ثوانٍ`,
+      message: `تمت إزالة "${name}" من المحادثة — تراجع خلال 5 ثوانٍ`,
       action: () => sb.from('conversation_members').delete().eq('conversation_id', cid).eq('user_id', userId),
       undo: async () => {
         await sb.from('conversation_members').insert({ conversation_id: cid, user_id: userId });
@@ -14421,7 +14421,7 @@ window.deleteUserPermanently = async function(userId) {
     },
     timeout: 6000
   });
-  toast('تم تعطيل المستخدم مؤقتًا. لحذفه نهائيًا اضغط زر الحذف مرة تانية بعد التعطيل.', 'warning');
+  toast('تم تعطيل المستخدم مؤقتًا. لحذفه نهائيًا اضغط زر الحذف مرة أخرى بعد التعطيل.', 'warning');
   setTimeout(() => renderApp(), 300);
 };
 
@@ -14713,7 +14713,7 @@ async function renderPermissionsSection() {
     <div class="panel">
       <div class="panel-header"><h3><span data-lucide="shield" style="width:15px;height:15px;vertical-align:-2px;margin-left:5px;"></span>صلاحيات الأدوار (تُطبَّق فورًا على كل المنصة)</h3></div>
       <div class="panel-body">
-        <p style="font-size:12px; color:var(--text-muted); margin-bottom:14px;">أي تغيير هنا بيتفعّل تلقائيًا لكل المستخدمين بنفس الدور من أول تسجيل دخول تالي لهم. <span data-lucide="check-circle-2" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;color:var(--success);"></span> = يقدر يشوف القسم فقط · <span data-lucide="wrench" style="width:13px;height:13px;"></span> = يقدر يشوف ويدير (يضيف/يعدّل/يحذف)</p>
+        <p style="font-size:12px; color:var(--text-muted); margin-bottom:14px;">أي تعديل هنا يُطبَّق تلقائيًا على جميع المستخدمين بهذا الدور عند تسجيل دخولهم التالي. <span data-lucide="check-circle-2" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;color:var(--success);"></span> = يقدر يشوف القسم فقط · <span data-lucide="wrench" style="width:13px;height:13px;"></span> = يقدر يشوف ويدير (يضيف/يعدّل/يحذف)</p>
         <div style="overflow-x:auto;">
         <table class="adv-table" style="font-size:12px;">
           <thead><tr>
@@ -15473,7 +15473,7 @@ async function pageMyDay(body) {
 
   // تحيّة حسب الوقت
   const h = today.getHours();
-  const greeting = h < 5 ? 'ليلة هادئة' : h < 12 ? 'صباح الخير' : h < 17 ? 'مساء النور' : h < 20 ? 'مساء الخير' : 'ليلة سعيدة';
+  const greeting = h < 5 ? 'ليلة هادئة' : h < 12 ? 'صباح الخير' : h < 17 ? 'نهارك سعيد' : h < 20 ? 'مساء الخير' : 'ليلة سعيدة';
   const firstName = (CURRENT_USER.full_name || '').split(' ')[0] || 'يا صديق';
 
   body.innerHTML = `
@@ -15482,7 +15482,7 @@ async function pageMyDay(body) {
         <div class="myday-time-icon"><span data-lucide="sun" style="width:26px;height:26px;"></span></div>
         <div>
           <h2 style="margin:0;font-size:19px;font-weight:800;color:#123F32;">${esc(greeting)}، ${esc(firstName)}</h2>
-          <p style="margin:4px 0 0;font-size:12.5px;color:#64748B;">${fmtDateAr(todayISO)} · نظرة سريعة على شغلك النهارده</p>
+          <p style="margin:4px 0 0;font-size:12.5px;color:#64748B;">${fmtDateAr(todayISO)} · نظرة سريعة على أعمالك اليوم</p>
         </div>
       </div>
       <div class="myday-quick-stats" id="mydayStats"><div class="myday-stat-loading">جاري التحميل...</div></div>
@@ -15564,7 +15564,7 @@ async function pageMyDay(body) {
             </a>`;
         }).join('')}
       </div>
-    ` : premiumEmptyState({ icon:'coffee', title:'مافيش اجتماعات النهارده', subtitle:'يوم هادي، استغله في التنفيذ.', actions:[] }))}
+    ` : premiumEmptyState({ icon:'coffee', title:'لا اجتماعات اليوم', subtitle:'يومٌ هادئ — استثمره في الإنجاز.', actions:[] }))}
 
     ${myDaySection('mydaySecTasks', 'check-square', 'مهامك', overdueTasks.length + todayTasks.length + upcomingTasks.length, (overdueTasks.length + todayTasks.length + upcomingTasks.length) ? `
       ${overdueTasks.length ? `
@@ -15579,7 +15579,7 @@ async function pageMyDay(body) {
         <div class="myday-subheader md-muted"><span data-lucide="calendar-clock" style="width:14px;height:14px;"></span> غدًا (${upcomingTasks.length})</div>
         <div class="myday-list">${upcomingTasks.map(t => myDayTaskItem(t, 'upcoming')).join('')}</div>
       ` : ''}
-    ` : premiumEmptyState({ icon:'check-circle-2', title:'لا مهام مستحقة اليوم أو الغد', subtitle:'شغلك تحت السيطرة. أحسنت!', actions:[] }))}
+    ` : premiumEmptyState({ icon:'check-circle-2', title:'لا مهام مستحقة اليوم أو الغد', subtitle:'كل شيء تحت السيطرة — أحسنت!', actions:[] }))}
 
     ${myDaySection('mydaySecDecs', 'pin', 'قراراتك النشطة', (decsRes.data||[]).length, (decsRes.data||[]).length ? `
       ${overdueDecs.length ? `<div class="myday-subheader md-danger"><span data-lucide="alert-triangle" style="width:14px;height:14px;"></span> متأخرة (${overdueDecs.length})</div>` : ''}
@@ -15613,7 +15613,7 @@ async function pageMyDay(body) {
           </a>`).join('')}
         ${maints.length > 8 ? `<a href="#maintenance" class="myday-more">عرض كل الطلبات (${maints.length}) →</a>` : ''}
       </div>
-    ` : premiumEmptyState({ icon:'shield-check', title:'لا طلبات صيانة معلقة', subtitle:'كل حاجة تمام.', actions:[] }))}
+    ` : premiumEmptyState({ icon:'shield-check', title:'لا طلبات صيانة معلقة', subtitle:'كل شيء على ما يرام.', actions:[] }))}
 
     ${notifs.length ? myDaySection('mydaySecNotifs', 'bell', 'إشعارات لم تُقرأ', notifs.length, `
       <div class="myday-list">
@@ -15748,7 +15748,7 @@ async function pageDashboard(body) {
 
   // Hero greeting بالوقت
   const _h = new Date().getHours();
-  const _greeting = _h < 5 ? 'ليلة هادئة' : _h < 12 ? 'صباح الخير' : _h < 17 ? 'مساء النور' : _h < 20 ? 'مساء الخير' : 'ليلة سعيدة';
+  const _greeting = _h < 5 ? 'ليلة هادئة' : _h < 12 ? 'صباح الخير' : _h < 17 ? 'نهارك سعيد' : _h < 20 ? 'مساء الخير' : 'ليلة سعيدة';
   const _firstName = (CURRENT_USER.full_name || '').split(' ')[0] || 'يا صديق';
   const _dateAr = new Date().toLocaleDateString('ar-SA', { weekday: 'long', day: 'numeric', month: 'long' });
   const _completionRate = (tasks || []).length ? Math.round(tasksCompleted / (tasks || []).length * 100) : 0;
@@ -21187,7 +21187,7 @@ function openMobileMoreSheet() {
             { key:'cafe', hash:'#cafe', icon:'coffee', label:'ركن الكافيه' },
             { key:'reports', hash:'#reports', icon:'bar-chart-3', label:'التقارير' },
             { key:'emergency', hash:'#emergency', icon:'siren', label:'تواصل طارئ' },
-            { key:'myday', hash:'#myday', icon:'sun', label:'شغلي اليوم' },
+            { key:'myday', hash:'#myday', icon:'sun', label:'أعمالي اليوم' },
             { key:'vision', hash:'#vision', icon:'compass', label:'رؤية الشركة' },
             { key:'analytics', hash:'#analytics', icon:'trending-up', label:'تحليلات الأداء' },
             { key:'invite', hash:'#invite', icon:'user-plus', label:'دعوة موظفين' },
@@ -21284,7 +21284,7 @@ function openMobileCustomizeSheet() {
     decisions: ['القرارات','gavel'], maintenance: ['الصيانة','wrench'],
     quality: ['الجودة','shield-check'], conversations: ['التواصل','message-circle'],
     cafe: ['ركن الكافيه','coffee'], reports: ['التقارير','bar-chart-3'],
-    emergency: ['تواصل طارئ','siren'], myday: ['شغلي اليوم','sun'],
+    emergency: ['تواصل طارئ','siren'], myday: ['أعمالي اليوم','sun'],
     vision: ['رؤية الشركة','compass'], analytics: ['تحليلات الأداء','trending-up'],
     invite: ['دعوة موظفين','user-plus'],
     users: ['المستخدمون','users'], my_profile: ['ملفي الشخصي','user'],
@@ -21682,7 +21682,7 @@ async function renderMobileHome(body) {
     { key:'emergency', href:'#emergency', tint:'t-peach',       icon:'siren',
       title:'تواصل طارئ',   sub:'تنبيهات عاجلة للفريق', badge:null },
     { key:'myday',     href:'#myday',     tint:'t-mint-2',      icon:'sun',
-      title:'شغلي اليوم',   sub:'ملخص يومك في مكان واحد', badge:null },
+      title:'أعمالي اليوم', sub:'ملخص يومك في مكان واحد', badge:null },
     { key:'vision',    href:'#vision',    tint:'t-lavender-2',  icon:'compass',
       title:'رؤية الشركة',  sub:'الرؤية والأهداف', badge:null },
     { key:'analytics', href:'#analytics', tint:'t-aqua-2',      icon:'trending-up',
