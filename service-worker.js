@@ -7,7 +7,7 @@
 //   (1) استبدال أي SW قديم على أجهزة المستخدمين ثم إلغاء نفسه
 //   (2) توفير endpoint خفيف للفحص الدوري لإصدار التطبيق
 // ═══════════════════════════════════════════════════════════
-const SW_VERSION = 'v79-2026-07-16-hr-organization-attendance';
+const SW_VERSION = 'v80-2026-07-16-hr-leaves-payroll';
 
 self.addEventListener('install', () => {
   // اتخطَّ الانتظار وابدأ التنشيط فوراً

@@ -4784,7 +4784,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v79-2026-07-16-hr-organization-attendance';
+const APP_VERSION = 'v80-2026-07-16-hr-leaves-payroll';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -7798,7 +7798,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', accounting: 'الحسابات والمالية', operations: 'تشغيل المطاعم', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', operations: 'تشغيل المطاعم', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -12360,6 +12360,8 @@ async function route() {
     else if (page === 'hr_employee') await pageHrEmployeeDetail(body, param);
     else if (page === 'hr_organization') await pageHrOrganization(body, query);
     else if (page === 'hr_attendance') await pageHrAttendance(body, query);
+    else if (page === 'hr_leaves') await pageHrLeaves(body, query);
+    else if (page === 'hr_payroll') await pageHrPayroll(body, query);
     else if (page === 'accounting') await pageComingSoonModule(body, 'accounting');
     else if (page === 'operations') await pageComingSoonModule(body, 'operations');
     else if (page === 'meetings') await pageMeetings(body, query);
@@ -15806,6 +15808,12 @@ async function pageHrDashboard(body) {
         <a href="#hr_attendance" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;">
           <span data-lucide="calendar-check" style="width:12px;height:12px;"></span> الحضور والانصراف
         </a>
+        <a href="#hr_leaves" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;">
+          <span data-lucide="palm-tree" style="width:12px;height:12px;"></span> الإجازات
+        </a>
+        <a href="#hr_payroll" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;">
+          <span data-lucide="banknote" style="width:12px;height:12px;"></span> الرواتب
+        </a>
         ${canManage ? `<span class="mod-hero-badge hb-scope"><span data-lucide="shield-check" style="width:12px;height:12px;"></span> صلاحية إدارة كاملة</span>` : ''}
       </div>
     </div>
@@ -17153,6 +17161,660 @@ async function openHrAttendanceModal(prefUserId, prefDate) {
     toast(existing ? 'تم حفظ التعديلات' : 'تم تسجيل الحضور', 'success');
     close();
     renderHrAttendanceGrid();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// HR MODULE — Leaves & Payroll (v80 — Step 1.4c)
+// ═══════════════════════════════════════════════════════════════════════
+
+function isPayrollAuthorized() {
+  return CURRENT_USER && ['admin', 'company_manager', 'hr_manager', 'payroll_officer'].includes(CURRENT_USER.role);
+}
+
+const HrLeavesState = { statusFilter: '', typeFilter: '', userFilter: '' };
+
+// ─── صفحة الإجازات ────────────────────────────────────────────────
+async function pageHrLeaves(body, urlQuery) {
+  const canApproveAny = isHrAdmin();
+  if (urlQuery && urlQuery.status) HrLeavesState.statusFilter = urlQuery.status;
+
+  body.innerHTML = `
+    <a href="#hr" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الموارد البشرية</a>
+
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="palm-tree" style="width:22px;height:22px;color:#123F32;"></span> الإجازات</h2>
+        <p>إدارة طلبات الإجازة والموافقة عليها ومتابعة الأرصدة السنوية.</p>
+      </div>
+      <button type="button" class="btn" id="hrLvNewBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;">
+        <span data-lucide="plus" style="width:14px;height:14px;"></span> طلب إجازة جديد
+      </button>
+    </div>
+
+    <div id="hrLvBalance"></div>
+
+    <div class="panel"><div class="panel-body">
+      <div class="hr-toolbar">
+        <div class="filter-select-wrap"><span class="fsw-icon" data-lucide="check-circle-2" style="width:15px;height:15px;"></span>
+          <select id="hrLvStatus">
+            <option value="">كل الحالات</option>
+            <option value="pending"   ${HrLeavesState.statusFilter === 'pending'   ? 'selected' : ''}>معلقة</option>
+            <option value="approved"  ${HrLeavesState.statusFilter === 'approved'  ? 'selected' : ''}>موافقة</option>
+            <option value="rejected"  ${HrLeavesState.statusFilter === 'rejected'  ? 'selected' : ''}>مرفوضة</option>
+            <option value="cancelled" ${HrLeavesState.statusFilter === 'cancelled' ? 'selected' : ''}>ملغاة</option>
+          </select>
+        </div>
+        <div class="filter-select-wrap"><span class="fsw-icon" data-lucide="tag" style="width:15px;height:15px;"></span>
+          <select id="hrLvType"><option value="">كل الأنواع</option></select>
+        </div>
+        <button type="button" class="reset-filters-btn" id="hrLvReset"><span data-lucide="refresh-cw"></span> إعادة التصفية</button>
+      </div>
+      <div id="hrLvTableBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
+    </div></div>
+
+    <div id="hrLvModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  // Populate leave types filter
+  const { data: types } = await HR.leaveTypes.list();
+  const typeSel = document.getElementById('hrLvType');
+  if (typeSel) typeSel.innerHTML = '<option value="">كل الأنواع</option>' + (types || []).map(t => `<option value="${t.id}" ${String(t.id) === String(HrLeavesState.typeFilter) ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
+
+  // Balance panel (visible for everyone — shows THEIR balance)
+  await renderHrLeaveBalance(types);
+
+  document.getElementById('hrLvStatus').addEventListener('change', (e) => { HrLeavesState.statusFilter = e.target.value; renderHrLeavesTable(); });
+  document.getElementById('hrLvType').addEventListener('change', (e) => { HrLeavesState.typeFilter = e.target.value; renderHrLeavesTable(); });
+  document.getElementById('hrLvReset').addEventListener('click', () => {
+    HrLeavesState.statusFilter = ''; HrLeavesState.typeFilter = '';
+    document.getElementById('hrLvStatus').value = '';
+    document.getElementById('hrLvType').value = '';
+    renderHrLeavesTable();
+  });
+  document.getElementById('hrLvNewBtn').addEventListener('click', () => openHrLeaveModal(null));
+
+  await renderHrLeavesTable();
+}
+
+async function renderHrLeaveBalance(types) {
+  const box = document.getElementById('hrLvBalance');
+  if (!box || !CURRENT_USER) return;
+  // Get balance for each paid type
+  const paidTypes = (types || []).filter(t => t.is_paid && Number(t.annual_balance_days) > 0);
+  if (!paidTypes.length) return;
+  const balances = await Promise.all(paidTypes.map(async t => {
+    const b = await HR.leaves.balance(CURRENT_USER.id, t.id);
+    return { type: t, ...b };
+  }));
+  box.innerHTML = `
+    <div class="mod-stats" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:16px;">
+      ${balances.map(b => `
+        <div class="mod-stat">
+          <div class="mod-stat-val" style="font-size:22px;">${b.balance} <span style="font-size:12px;color:var(--text-muted);font-weight:600;">/ ${b.annual}</span></div>
+          <div class="mod-stat-lbl">رصيد ${esc(b.type.name)} — استخدمت ${b.used}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+async function renderHrLeavesTable() {
+  const box = document.getElementById('hrLvTableBody');
+  if (!box) return;
+  const filters = { status: HrLeavesState.statusFilter || null };
+  const { data: leaves, error } = await HR.leaves.list(filters);
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  let rows = leaves || [];
+  if (HrLeavesState.typeFilter) rows = rows.filter(l => String(l.leave_type_id) === String(HrLeavesState.typeFilter));
+
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="palm-tree"></span><p class="hr-empty-title">لا توجد طلبات إجازة</p><p class="hr-empty-sub">اضغط "طلب إجازة جديد" لتقديم أول طلب.</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+
+  const statusLbl = { pending: 'معلقة', approved: 'موافقة', rejected: 'مرفوضة', cancelled: 'ملغاة' };
+  const statusCls = { pending: 'st-late', approved: 'st-present', rejected: 'st-absent', cancelled: 'st-empty' };
+  const canApproveAny = isHrAdmin();
+
+  box.innerHTML = `
+    <div style="overflow-x:auto;">
+      <table class="hr-emp-table">
+        <thead><tr><th>الموظف</th><th>النوع</th><th>من</th><th>إلى</th><th>الأيام</th><th>الحالة</th><th>السبب</th><th style="width:150px;">إجراءات</th></tr></thead>
+        <tbody>
+          ${rows.map(l => {
+            const isSelf = CURRENT_USER && l.user_id === CURRENT_USER.id;
+            const canApprove = canApproveAny && l.status === 'pending';
+            const canCancel = isSelf && l.status === 'pending';
+            return `<tr>
+              <td>${esc(l.users?.full_name || '—')}<div style="font-size:10.5px;color:var(--text-muted);">${esc(l.users?.departments?.name || '')}</div></td>
+              <td>${esc(l.hr_leave_types?.name || '—')}</td>
+              <td class="mono-num">${esc(l.start_date)}</td>
+              <td class="mono-num">${esc(l.end_date)}</td>
+              <td class="mono-num">${esc(String(l.days_count))}</td>
+              <td><span class="hr-att-cell ${statusCls[l.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(statusLbl[l.status] || l.status)}</span></td>
+              <td style="max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-muted);">${esc(l.reason || '—')}${l.rejection_reason ? '<br><span style="color:#B91C1C;font-size:11px;">' + esc(l.rejection_reason) + '</span>' : ''}</td>
+              <td>
+                <div class="hr-emp-actions">
+                  <button type="button" title="تفاصيل" data-lv-view="${l.id}"><span data-lucide="eye" style="width:14px;height:14px;"></span></button>
+                  ${canApprove ? `<button type="button" title="موافقة" data-lv-approve="${l.id}"><span data-lucide="check" style="width:14px;height:14px;color:#047857;"></span></button>` : ''}
+                  ${canApprove ? `<button type="button" title="رفض" data-lv-reject="${l.id}"><span data-lucide="x" style="width:14px;height:14px;color:#B91C1C;"></span></button>` : ''}
+                  ${canCancel ? `<button type="button" title="إلغاء الطلب" data-lv-cancel="${l.id}"><span data-lucide="ban" style="width:14px;height:14px;color:#64748B;"></span></button>` : ''}
+                </div>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  box.querySelectorAll('[data-lv-view]').forEach(b => b.addEventListener('click', () => openHrLeaveDetail(Number(b.dataset.lvView))));
+  box.querySelectorAll('[data-lv-approve]').forEach(b => b.addEventListener('click', async () => {
+    if (!(await customConfirm('الموافقة على طلب الإجازة؟'))) return;
+    const { error } = await HR.leaves.approve(Number(b.dataset.lvApprove));
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تمت الموافقة', 'success'); renderHrLeavesTable();
+  }));
+  box.querySelectorAll('[data-lv-reject]').forEach(b => b.addEventListener('click', async () => {
+    const reason = await customPrompt('سبب الرفض:', '');
+    if (reason === null || !reason.trim()) return;
+    const { error } = await HR.leaves.reject(Number(b.dataset.lvReject), reason);
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم رفض الطلب', 'success'); renderHrLeavesTable();
+  }));
+  box.querySelectorAll('[data-lv-cancel]').forEach(b => b.addEventListener('click', async () => {
+    if (!(await customConfirm('إلغاء طلب الإجازة؟'))) return;
+    const { error } = await HR.leaves.cancel(Number(b.dataset.lvCancel));
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم إلغاء الطلب', 'success'); renderHrLeavesTable();
+  }));
+}
+
+async function openHrLeaveDetail(leaveId) {
+  const { data: rows } = await HR.leaves.list({});
+  const l = (rows || []).find(x => x.id === leaveId);
+  if (!l) return;
+  const statusLbl = { pending: 'معلقة', approved: 'موافقة', rejected: 'مرفوضة', cancelled: 'ملغاة' };
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:520px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="palm-tree" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> تفاصيل طلب الإجازة</h3>
+        <button class="modal-close-x" id="hrLvVwClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="hr-info-grid">
+          ${_hrInfo('الموظف', l.users?.full_name)}
+          ${_hrInfo('القسم', l.users?.departments?.name)}
+          ${_hrInfo('نوع الإجازة', l.hr_leave_types?.name)}
+          ${_hrInfo('الحالة', statusLbl[l.status])}
+          ${_hrInfo('من', l.start_date)}
+          ${_hrInfo('إلى', l.end_date)}
+          ${_hrInfo('عدد الأيام', String(l.days_count))}
+          ${_hrInfo('مدفوعة؟', l.hr_leave_types?.is_paid ? 'نعم' : 'لا')}
+          ${_hrInfo('السبب', l.reason)}
+          ${_hrInfo('المعتمِد', l.approver?.full_name)}
+          ${_hrInfo('تاريخ القرار', l.approved_at ? fmtDateAr(l.approved_at) : '')}
+          ${l.rejection_reason ? _hrInfo('سبب الرفض', l.rejection_reason) : ''}
+          ${l.attachment_url ? `<div class="hr-info-item full"><div class="hr-info-label">المرفق</div><div class="hr-info-value"><a href="${esc(l.attachment_url)}" target="_blank" style="color:#12372F;">فتح المرفق</a></div></div>` : ''}
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
+          <button type="button" class="btn btn-outline" id="hrLvVwOk">إغلاق</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#hrLvVwClose').addEventListener('click', close);
+  host.querySelector('#hrLvVwOk').addEventListener('click', close);
+}
+
+async function openHrLeaveModal(leaveId) {
+  const canPickEmp = isHrAdmin();
+  const [{ data: users }, { data: types }] = await Promise.all([
+    canPickEmp ? sb.from('users').select('id, full_name').eq('is_active', true).order('full_name') : { data: null },
+    HR.leaveTypes.list()
+  ]);
+
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:520px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> طلب إجازة جديد</h3>
+        <button class="modal-close-x" id="hrLvClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="hrLvErr"></div>
+        <form id="hrLvForm" class="hr-form-grid">
+          ${canPickEmp ? `
+            <div class="form-field full"><label>الموظف *</label>
+              <select class="form-select" name="user_id" required>
+                <option value="">اختر الموظف</option>
+                ${(users || []).map(u => `<option value="${u.id}" ${u.id === CURRENT_USER.id ? 'selected' : ''}>${esc(u.full_name)}</option>`).join('')}
+              </select>
+            </div>` : `<input type="hidden" name="user_id" value="${CURRENT_USER.id}">`}
+          <div class="form-field full"><label>نوع الإجازة *</label>
+            <select class="form-select" name="leave_type_id" required id="hrLvTypeSel">
+              <option value="">اختر النوع</option>
+              ${(types || []).map(t => `<option value="${t.id}" data-requires-att="${t.requires_attachment ? '1' : ''}">${esc(t.name)}${t.is_paid ? '' : ' (بدون راتب)'}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>من *</label><input class="form-input" type="date" name="start_date" required id="hrLvStart"></div>
+          <div class="form-field"><label>إلى *</label><input class="form-input" type="date" name="end_date" required id="hrLvEnd"></div>
+          <div class="form-field"><label>عدد الأيام (يُحسب تلقائيًا)</label><input class="form-input mono-num" type="number" step="0.5" min="0.5" name="days_count" required id="hrLvDays"></div>
+          <div class="form-field" id="hrLvAttWrap" style="display:none;"><label>رابط المرفق (شهادة/إثبات)</label><input class="form-input" type="url" name="attachment_url" placeholder="https://..."></div>
+          <div class="form-field full"><label>السبب</label><textarea class="form-input" name="reason" rows="2"></textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="hrLvCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">إرسال الطلب</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#hrLvClose').addEventListener('click', close);
+  host.querySelector('#hrLvCancel').addEventListener('click', close);
+
+  const startEl = document.getElementById('hrLvStart');
+  const endEl = document.getElementById('hrLvEnd');
+  const daysEl = document.getElementById('hrLvDays');
+  function recalcDays() {
+    if (startEl.value && endEl.value && endEl.value >= startEl.value) {
+      const s = new Date(startEl.value), e = new Date(endEl.value);
+      const diff = Math.round((e - s) / 86400000) + 1;
+      daysEl.value = diff;
+    }
+  }
+  startEl.addEventListener('change', recalcDays);
+  endEl.addEventListener('change', recalcDays);
+
+  document.getElementById('hrLvTypeSel').addEventListener('change', (e) => {
+    const opt = e.target.selectedOptions[0];
+    document.getElementById('hrLvAttWrap').style.display = opt?.dataset.requiresAtt === '1' ? '' : 'none';
+  });
+
+  host.querySelector('#hrLvForm').addEventListener('submit', async (evt) => {
+    evt.preventDefault();
+    const errBox = document.getElementById('hrLvErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(evt.target);
+    const payload = {
+      user_id: Number(fd.get('user_id')),
+      leave_type_id: Number(fd.get('leave_type_id')),
+      start_date: fd.get('start_date'),
+      end_date: fd.get('end_date'),
+      days_count: Number(fd.get('days_count')),
+      reason: (fd.get('reason') || '').trim() || null,
+      attachment_url: (fd.get('attachment_url') || '').trim() || null
+    };
+    const { error } = await HR.leaves.create(payload);
+    if (error) { errBox.textContent = error.message; errBox.classList.add('show'); return; }
+    toast('تم إرسال طلب الإجازة', 'success');
+    close();
+    renderHrLeavesTable();
+    // تحديث الرصيد لو الطلب لصاحبه
+    const { data: types } = await HR.leaveTypes.list();
+    if (payload.user_id === CURRENT_USER.id) renderHrLeaveBalance(types);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// HR — Payroll page
+// ═══════════════════════════════════════════════════════════════════════
+const HrPayrollState = { year: new Date().getFullYear(), month: new Date().getMonth() + 1, statusFilter: '' };
+
+async function pageHrPayroll(body, urlQuery) {
+  const canManage = isPayrollAuthorized();
+  if (!canManage && CURRENT_USER) {
+    // A regular employee sees only their own payslips — a lightweight self-view
+    body.innerHTML = `
+      <a href="#hr" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الموارد البشرية</a>
+      <div class="mt-hero-header">
+        <div>
+          <h2><span class="mt-accent"></span><span data-lucide="banknote" style="width:22px;height:22px;color:#123F32;"></span> كشوف رواتبي</h2>
+          <p>عرض كشوف الرواتب الخاصة بك عبر السنوات.</p>
+        </div>
+      </div>
+      <div class="panel"><div class="panel-body" id="hrPrSelfBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    `;
+    if (window.lucide) lucide.createIcons();
+    const { data } = await HR.payroll.list({ user_id: CURRENT_USER.id });
+    const box = document.getElementById('hrPrSelfBody');
+    if (!data || !data.length) {
+      box.innerHTML = `<div class="hr-empty"><span data-lucide="banknote"></span><p class="hr-empty-title">لا توجد كشوف رواتب بعد</p><p class="hr-empty-sub">تظهر هنا كشوف رواتبك المعتمدة من الإدارة.</p></div>`;
+      if (window.lucide) lucide.createIcons();
+      return;
+    }
+    const statusLbl = { draft: 'مسودة', approved: 'معتمد', paid: 'مدفوع', cancelled: 'ملغي' };
+    const monthName = m => ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'][m - 1];
+    const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    box.innerHTML = `
+      <div style="overflow-x:auto;"><table class="hr-emp-table">
+        <thead><tr><th>الفترة</th><th>الأساسي</th><th>البدلات</th><th>الخصومات</th><th>الصافي</th><th>الحالة</th><th></th></tr></thead>
+        <tbody>
+          ${data.map(p => {
+            const allowances = Number(p.housing_allowance || 0) + Number(p.transport_allowance || 0) + Number(p.other_allowances || 0) + Number(p.overtime_amount || 0) + Number(p.bonus || 0);
+            return `<tr>
+              <td>${esc(monthName(p.period_month))} ${p.period_year}</td>
+              <td class="mono-num">${money(p.basic_salary)}</td>
+              <td class="mono-num">${money(allowances)}</td>
+              <td class="mono-num">${money(p.deductions)}</td>
+              <td class="mono-num" style="font-weight:800;color:#123F32;">${money(p.net_salary)} ر.س</td>
+              <td><span class="hr-pill hr-pill-${p.status === 'paid' || p.status === 'approved' ? 'active' : 'inactive'}">${esc(statusLbl[p.status])}</span></td>
+              <td><button type="button" class="btn btn-outline btn-sm" data-pr-view="${p.id}"><span data-lucide="eye" style="width:13px;height:13px;"></span> عرض</button></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table></div>
+    `;
+    if (window.lucide) lucide.createIcons();
+    box.querySelectorAll('[data-pr-view]').forEach(b => b.addEventListener('click', () => openHrPayrollDetail(Number(b.dataset.prView))));
+    return;
+  }
+
+  // Full management view
+  body.innerHTML = `
+    <a href="#hr" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الموارد البشرية</a>
+
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="banknote" style="width:22px;height:22px;color:#123F32;"></span> الرواتب</h2>
+        <p>كشوف الرواتب الشهرية للموظفين — إنشاء واعتماد وصرف.</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn btn-outline" id="hrPrGenBtn"><span data-lucide="zap" style="width:14px;height:14px;"></span> توليد كشوف الشهر</button>
+        <button type="button" class="btn" id="hrPrNewBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">
+          <span data-lucide="plus" style="width:14px;height:14px;"></span> كشف يدوي
+        </button>
+      </div>
+    </div>
+
+    <div class="hr-att-controls">
+      <div class="hr-att-month">
+        <button type="button" id="hrPrPrev" title="الشهر السابق"><span data-lucide="chevron-right" style="width:14px;height:14px;"></span></button>
+        <span class="hr-att-month-label" id="hrPrLabel">—</span>
+        <button type="button" id="hrPrNext" title="الشهر التالي"><span data-lucide="chevron-left" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="filter-select-wrap" style="min-width:150px;">
+        <span class="fsw-icon" data-lucide="check-circle-2" style="width:15px;height:15px;"></span>
+        <select id="hrPrStatus">
+          <option value="">كل الحالات</option>
+          <option value="draft">مسودة</option>
+          <option value="approved">معتمد</option>
+          <option value="paid">مدفوع</option>
+          <option value="cancelled">ملغي</option>
+        </select>
+      </div>
+      <button type="button" class="btn btn-outline btn-sm" id="hrPrToday"><span data-lucide="calendar" style="width:13px;height:13px;"></span> الشهر الحالي</button>
+    </div>
+
+    <div class="hr-att-summary" id="hrPrSummary"></div>
+    <div id="hrPrTableBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
+    <div id="hrPrModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  document.getElementById('hrPrPrev').addEventListener('click', () => {
+    HrPayrollState.month--;
+    if (HrPayrollState.month < 1) { HrPayrollState.month = 12; HrPayrollState.year--; }
+    renderHrPayrollTable();
+  });
+  document.getElementById('hrPrNext').addEventListener('click', () => {
+    HrPayrollState.month++;
+    if (HrPayrollState.month > 12) { HrPayrollState.month = 1; HrPayrollState.year++; }
+    renderHrPayrollTable();
+  });
+  document.getElementById('hrPrToday').addEventListener('click', () => {
+    const n = new Date();
+    HrPayrollState.year = n.getFullYear(); HrPayrollState.month = n.getMonth() + 1;
+    renderHrPayrollTable();
+  });
+  document.getElementById('hrPrStatus').addEventListener('change', (e) => {
+    HrPayrollState.statusFilter = e.target.value;
+    renderHrPayrollTable();
+  });
+  document.getElementById('hrPrGenBtn').addEventListener('click', () => generateMonthlyPayrolls());
+  document.getElementById('hrPrNewBtn').addEventListener('click', () => openHrPayrollEdit(null));
+
+  await renderHrPayrollTable();
+}
+
+async function renderHrPayrollTable() {
+  const label = document.getElementById('hrPrLabel');
+  const tableBox = document.getElementById('hrPrTableBody');
+  const sumBox = document.getElementById('hrPrSummary');
+  if (!tableBox) return;
+  const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  if (label) label.textContent = `${monthNames[HrPayrollState.month - 1]} ${HrPayrollState.year}`;
+
+  const filters = { period_year: HrPayrollState.year, period_month: HrPayrollState.month };
+  if (HrPayrollState.statusFilter) filters.status = HrPayrollState.statusFilter;
+  const { data: rows, error } = await HR.payroll.list(filters);
+  if (error) { tableBox.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+
+  // Summary cards
+  const totals = { count: rows.length, net: 0, paid: 0, remaining: 0 };
+  rows.forEach(r => {
+    totals.net += Number(r.net_salary || 0);
+    if (r.status === 'paid') totals.paid += Number(r.net_salary || 0);
+    else if (r.status !== 'cancelled') totals.remaining += Number(r.net_salary || 0);
+  });
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (sumBox) {
+    sumBox.innerHTML = `
+      <div class="hr-att-sum-card"><div class="hr-att-sum-icon st-present"><span data-lucide="file-text" style="width:17px;height:17px;"></span></div><div><div class="hr-att-sum-val">${totals.count}</div><div class="hr-att-sum-lbl">عدد الكشوف</div></div></div>
+      <div class="hr-att-sum-card"><div class="hr-att-sum-icon st-leave"><span data-lucide="wallet" style="width:17px;height:17px;"></span></div><div><div class="hr-att-sum-val" style="font-size:16px;">${money(totals.net)}</div><div class="hr-att-sum-lbl">إجمالي الصافي (ر.س)</div></div></div>
+      <div class="hr-att-sum-card"><div class="hr-att-sum-icon st-present"><span data-lucide="check-check" style="width:17px;height:17px;"></span></div><div><div class="hr-att-sum-val" style="font-size:16px;">${money(totals.paid)}</div><div class="hr-att-sum-lbl">مدفوع (ر.س)</div></div></div>
+      <div class="hr-att-sum-card"><div class="hr-att-sum-icon st-late"><span data-lucide="clock" style="width:17px;height:17px;"></span></div><div><div class="hr-att-sum-val" style="font-size:16px;">${money(totals.remaining)}</div><div class="hr-att-sum-lbl">متبقي للصرف (ر.س)</div></div></div>
+    `;
+    if (window.lucide) lucide.createIcons();
+  }
+
+  if (!rows.length) {
+    tableBox.innerHTML = `<div class="hr-empty"><span data-lucide="banknote"></span><p class="hr-empty-title">لا توجد كشوف لهذا الشهر</p><p class="hr-empty-sub">استخدم زر "توليد كشوف الشهر" لإنشاء كشوف مسودة لكل الموظفين ذوي البروفايل.</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+
+  const statusLbl = { draft: 'مسودة', approved: 'معتمد', paid: 'مدفوع', cancelled: 'ملغي' };
+  const statusCls = { draft: 'st-empty', approved: 'st-leave', paid: 'st-present', cancelled: 'st-absent' };
+
+  tableBox.innerHTML = `
+    <div class="panel"><div class="panel-body" style="padding:0;">
+      <div style="overflow-x:auto;">
+        <table class="hr-emp-table">
+          <thead><tr><th>الموظف</th><th>القسم</th><th>الأساسي</th><th>البدلات</th><th>الخصومات</th><th>الصافي</th><th>الحالة</th><th style="width:180px;">إجراءات</th></tr></thead>
+          <tbody>
+            ${rows.map(p => {
+              const allowances = Number(p.housing_allowance || 0) + Number(p.transport_allowance || 0) + Number(p.other_allowances || 0) + Number(p.overtime_amount || 0) + Number(p.bonus || 0);
+              return `<tr>
+                <td>${esc(p.users?.full_name || '—')}</td>
+                <td>${esc(p.users?.departments?.name || '—')}</td>
+                <td class="mono-num">${money(p.basic_salary)}</td>
+                <td class="mono-num">${money(allowances)}</td>
+                <td class="mono-num">${money(p.deductions)}</td>
+                <td class="mono-num" style="font-weight:800;color:#123F32;">${money(p.net_salary)}</td>
+                <td><span class="hr-att-cell ${statusCls[p.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(statusLbl[p.status])}</span></td>
+                <td>
+                  <div class="hr-emp-actions">
+                    <button type="button" title="تفاصيل / تعديل" data-pr-edit="${p.id}"><span data-lucide="pencil" style="width:14px;height:14px;"></span></button>
+                    ${p.status === 'draft'    ? `<button type="button" title="اعتماد" data-pr-approve="${p.id}"><span data-lucide="check-check" style="width:14px;height:14px;color:#047857;"></span></button>` : ''}
+                    ${p.status === 'approved' ? `<button type="button" title="تسجيل الصرف" data-pr-pay="${p.id}"><span data-lucide="banknote" style="width:14px;height:14px;color:#6D28D9;"></span></button>` : ''}
+                    ${p.status !== 'paid' && p.status !== 'cancelled' ? `<button type="button" title="إلغاء" data-pr-cancel="${p.id}"><span data-lucide="ban" style="width:14px;height:14px;color:#64748B;"></span></button>` : ''}
+                  </div>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  tableBox.querySelectorAll('[data-pr-edit]').forEach(b => b.addEventListener('click', () => openHrPayrollEdit(Number(b.dataset.prEdit))));
+  tableBox.querySelectorAll('[data-pr-approve]').forEach(b => b.addEventListener('click', async () => {
+    if (!(await customConfirm('اعتماد كشف الراتب؟ لن يمكن تعديله بعد الاعتماد.'))) return;
+    const { error } = await HR.payroll.approve(Number(b.dataset.prApprove));
+    if (error) { toast('تعذّر الاعتماد: ' + error.message, 'error'); return; }
+    toast('تم اعتماد الكشف', 'success'); renderHrPayrollTable();
+  }));
+  tableBox.querySelectorAll('[data-pr-pay]').forEach(b => b.addEventListener('click', async () => {
+    if (!(await customConfirm('تسجيل صرف هذا الكشف؟'))) return;
+    const { error } = await HR.payroll.markPaid(Number(b.dataset.prPay));
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم تسجيل الصرف', 'success'); renderHrPayrollTable();
+  }));
+  tableBox.querySelectorAll('[data-pr-cancel]').forEach(b => b.addEventListener('click', async () => {
+    if (!(await customConfirm('إلغاء هذا الكشف؟'))) return;
+    const { error } = await HR.payroll.cancel(Number(b.dataset.prCancel));
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم الإلغاء', 'success'); renderHrPayrollTable();
+  }));
+}
+
+// توليد كشوف الشهر لكل الموظفين اللي عندهم بروفايل بروفايل + راتب > 0
+async function generateMonthlyPayrolls() {
+  if (!(await customConfirm(`توليد كشوف مسودة لكل الموظفين لشهر ${HrPayrollState.month}/${HrPayrollState.year}؟ لن يتم استبدال أي كشف موجود.`))) return;
+  const { data: profiles } = await sb.from('hr_employee_profile').select('user_id, base_salary').is('deleted_at', null);
+  const eligible = (profiles || []).filter(p => Number(p.base_salary) > 0);
+  if (!eligible.length) { toast('لا يوجد موظفون مؤهلون (يحتاجون بروفايل HR مع راتب أساسي > 0)', 'warning'); return; }
+
+  let created = 0, skipped = 0, failed = 0;
+  for (const p of eligible) {
+    const { error } = await HR.payroll.generateFromProfile(p.user_id, HrPayrollState.year, HrPayrollState.month);
+    if (!error) created++;
+    else if (/duplicate|unique/i.test(error.message)) skipped++;
+    else failed++;
+  }
+  toast(`تم إنشاء ${created} كشف${skipped ? ' — تخطي ' + skipped + ' موجود مسبقًا' : ''}${failed ? ' — فشل ' + failed : ''}`, failed ? 'warning' : 'success');
+  renderHrPayrollTable();
+}
+
+// عرض كشف واحد (self-view للموظف)
+async function openHrPayrollDetail(id) { return openHrPayrollEdit(id, true); }
+
+async function openHrPayrollEdit(payrollId, readOnly) {
+  const isEdit = !!payrollId;
+  const canManage = isPayrollAuthorized();
+  const [{ data: payroll }, { data: users }] = await Promise.all([
+    isEdit ? HR.payroll.get(payrollId) : { data: null },
+    canManage && !isEdit ? sb.from('users').select('id, full_name').eq('is_active', true).order('full_name') : { data: null }
+  ]);
+  const p = payroll || { period_year: HrPayrollState.year, period_month: HrPayrollState.month, currency: 'SAR', status: 'draft' };
+  const items = p.items || [];
+  const locked = p.status && ['approved', 'paid'].includes(p.status);
+  const showRO = readOnly || locked || !canManage;
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:720px;max-width:96%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="banknote" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ${isEdit ? (showRO ? 'كشف راتب' : 'تعديل كشف') : 'كشف راتب يدوي'}</h3>
+        <button class="modal-close-x" id="hrPrClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="hrPrErr"></div>
+        <form id="hrPrForm" class="hr-form-grid">
+          ${isEdit ? `<div class="form-field full"><label>الموظف</label><input class="form-input" value="${esc(p.users?.full_name || '—')}" disabled></div>` : `
+            <div class="form-field full"><label>الموظف *</label>
+              <select class="form-select" name="user_id" required>
+                <option value="">اختر الموظف</option>
+                ${(users || []).map(u => `<option value="${u.id}">${esc(u.full_name)}</option>`).join('')}
+              </select>
+            </div>`}
+          <div class="form-field"><label>السنة *</label><input class="form-input" type="number" name="period_year" min="2000" max="2100" value="${esc(p.period_year)}" ${isEdit ? 'disabled' : 'required'}></div>
+          <div class="form-field"><label>الشهر *</label>
+            <select class="form-select" name="period_month" ${isEdit ? 'disabled' : 'required'}>
+              ${Array.from({ length: 12 }, (_, i) => i + 1).map(m => `<option value="${m}" ${m === p.period_month ? 'selected' : ''}>${['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'][m - 1]}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>الأساسي (ر.س) *</label><input class="form-input mono-num" type="number" step="0.01" min="0" name="basic_salary" required value="${esc(p.basic_salary || 0)}" ${showRO ? 'disabled' : ''}></div>
+          <div class="form-field"><label>بدل السكن</label><input class="form-input mono-num" type="number" step="0.01" min="0" name="housing_allowance" value="${esc(p.housing_allowance || 0)}" ${showRO ? 'disabled' : ''}></div>
+          <div class="form-field"><label>بدل النقل</label><input class="form-input mono-num" type="number" step="0.01" min="0" name="transport_allowance" value="${esc(p.transport_allowance || 0)}" ${showRO ? 'disabled' : ''}></div>
+          <div class="form-field"><label>بدلات أخرى</label><input class="form-input mono-num" type="number" step="0.01" min="0" name="other_allowances" value="${esc(p.other_allowances || 0)}" ${showRO ? 'disabled' : ''}></div>
+          <div class="form-field"><label>مبلغ الإضافي</label><input class="form-input mono-num" type="number" step="0.01" min="0" name="overtime_amount" value="${esc(p.overtime_amount || 0)}" ${showRO ? 'disabled' : ''}></div>
+          <div class="form-field"><label>مكافأة</label><input class="form-input mono-num" type="number" step="0.01" min="0" name="bonus" value="${esc(p.bonus || 0)}" ${showRO ? 'disabled' : ''}></div>
+          <div class="form-field"><label>الخصومات</label><input class="form-input mono-num" type="number" step="0.01" min="0" name="deductions" value="${esc(p.deductions || 0)}" ${showRO ? 'disabled' : ''}></div>
+          <div class="form-field full" style="background:linear-gradient(135deg,rgba(16,185,129,0.10),rgba(139,92,246,0.10));padding:12px 14px;border-radius:10px;">
+            <label style="color:#123F32;">الصافي (يُحسب تلقائيًا)</label>
+            <div class="mono-num" style="font-size:22px;font-weight:800;color:#123F32;" id="hrPrNet">${money(p.net_salary || (Number(p.basic_salary) + Number(p.housing_allowance || 0) + Number(p.transport_allowance || 0) + Number(p.other_allowances || 0) + Number(p.overtime_amount || 0) + Number(p.bonus || 0) - Number(p.deductions || 0)))} ر.س</div>
+          </div>
+          <div class="form-field full"><label>ملاحظات</label><textarea class="form-input" name="notes" rows="2" ${showRO ? 'disabled' : ''}>${esc(p.notes || '')}</textarea></div>
+        </form>
+
+        ${isEdit && items.length ? `
+          <div class="hr-section-heading"><span class="icon" data-lucide="list"></span> البنود الإضافية</div>
+          <div style="overflow-x:auto;"><table class="hr-emp-table"><thead><tr><th>النوع</th><th>البند</th><th>المبلغ</th><th>ملاحظات</th></tr></thead><tbody>
+            ${items.map(it => {
+              const typeLbl = { allowance: 'بدل', deduction: 'خصم', bonus: 'مكافأة', overtime: 'إضافي' }[it.item_type] || it.item_type;
+              return `<tr><td>${esc(typeLbl)}</td><td>${esc(it.item_name)}</td><td class="mono-num">${money(it.amount)}</td><td>${esc(it.notes || '—')}</td></tr>`;
+            }).join('')}
+          </tbody></table></div>
+        ` : ''}
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap;">
+          <button type="button" class="btn btn-outline" id="hrPrCancel">إغلاق</button>
+          ${!showRO ? `<button type="button" class="btn" id="hrPrSaveBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;"><span data-lucide="save" style="width:13px;height:13px;"></span> ${isEdit ? 'حفظ' : 'إنشاء'}</button>` : ''}
+        </div>
+        ${locked ? `<p style="text-align:center;color:var(--text-muted);font-size:12px;margin-top:8px;">هذا الكشف ${p.status === 'paid' ? 'مدفوع' : 'معتمد'} — لا يمكن تعديله.</p>` : ''}
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#hrPrClose').addEventListener('click', close);
+  host.querySelector('#hrPrCancel').addEventListener('click', close);
+
+  const form = host.querySelector('#hrPrForm');
+  const netBox = host.querySelector('#hrPrNet');
+  function recalc() {
+    const fd = new FormData(form);
+    const val = k => Number(fd.get(k) || 0);
+    const net = val('basic_salary') + val('housing_allowance') + val('transport_allowance') + val('other_allowances') + val('overtime_amount') + val('bonus') - val('deductions');
+    netBox.textContent = money(net) + ' ر.س';
+  }
+  form.querySelectorAll('input[type=number]').forEach(el => el.addEventListener('input', recalc));
+
+  host.querySelector('#hrPrSaveBtn')?.addEventListener('click', async () => {
+    const errBox = host.querySelector('#hrPrErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(form);
+    const payload = {
+      basic_salary: Number(fd.get('basic_salary') || 0),
+      housing_allowance: Number(fd.get('housing_allowance') || 0),
+      transport_allowance: Number(fd.get('transport_allowance') || 0),
+      other_allowances: Number(fd.get('other_allowances') || 0),
+      overtime_amount: Number(fd.get('overtime_amount') || 0),
+      bonus: Number(fd.get('bonus') || 0),
+      deductions: Number(fd.get('deductions') || 0),
+      notes: (fd.get('notes') || '').trim() || null
+    };
+    let res;
+    if (isEdit) {
+      res = await HR.payroll.update(payrollId, payload);
+    } else {
+      payload.user_id = Number(fd.get('user_id'));
+      payload.period_year = Number(fd.get('period_year'));
+      payload.period_month = Number(fd.get('period_month'));
+      payload.currency = 'SAR';
+      res = await HR.payroll.create(payload);
+    }
+    if (res.error) { errBox.textContent = res.error.message; errBox.classList.add('show'); return; }
+    toast(isEdit ? 'تم حفظ التعديلات' : 'تم إنشاء كشف الراتب', 'success');
+    close();
+    renderHrPayrollTable();
   });
 }
 
