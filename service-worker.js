@@ -7,7 +7,7 @@
 //   (1) استبدال أي SW قديم على أجهزة المستخدمين ثم إلغاء نفسه
 //   (2) توفير endpoint خفيف للفحص الدوري لإصدار التطبيق
 // ═══════════════════════════════════════════════════════════
-const SW_VERSION = 'v57-2026-07-15-maint-notif-admin-only';
+const SW_VERSION = 'v58-2026-07-15-panel-border-visibility';
 
 self.addEventListener('install', () => {
   // اتخطَّ الانتظار وابدأ التنشيط فوراً
