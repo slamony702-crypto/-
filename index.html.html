@@ -4590,7 +4590,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v76-2026-07-16-modules-preview';
+const APP_VERSION = 'v77-2026-07-16-hr-data-layer';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -4788,8 +4788,413 @@ async function loadPermissions() {
 // كأقرب تطبيق آمن لمعنى "يشوف نطاقه فقط".
 const NEW_ROLE_DEFAULT_PERMS = {
   branch_manager: { dashboard: 'view', meetings: 'manage', tasks: 'manage', department_tasks: 'manage', maintenance: 'manage', quality: 'manage', conversations: 'view' },
-  deputy_manager: { dashboard: 'view', meetings: 'view', tasks: 'manage', department_tasks: 'manage', maintenance: 'manage', quality: 'manage', conversations: 'view' }
+  deputy_manager: { dashboard: 'view', meetings: 'view', tasks: 'manage', department_tasks: 'manage', maintenance: 'manage', quality: 'manage', conversations: 'view' },
+  // Roles added for HR module (v77+)
+  hr_manager:      { dashboard: 'view', hr: 'manage', conversations: 'view', users: 'view' },
+  payroll_officer: { dashboard: 'view', hr: 'view',   conversations: 'view' }
 };
+
+// ═══════════════════════════════════════════════════════════════════════
+// HR MODULE — Data Access Layer (v1.0 — 2026-07-16)
+// ─────────────────────────────────────────────────────────────────────
+// طبقة رقيقة فوق Supabase تجمع كل عمليات CRUD الخاصة بمديول الموارد
+// البشرية في مكان واحد، مع Validation موحد و Error handling ثابت.
+// كل دالة ترجع { data, error } (أو { data, error, count, page, pageSize }
+// للقوائم بترقيم). قواعد الرؤية والصلاحية مطبَّقة على مستوى قاعدة
+// البيانات عبر RLS (hr-schema.sql) — لا تُكرَّر هنا.
+// نمط الاستخدام:
+//   const { data, error } = await HR.employees.list({ search: 'محمد' });
+//   if (error) return toast(error.message, 'error');
+// ═══════════════════════════════════════════════════════════════════════
+const HR = {
+
+  // ─── Validators ────────────────────────────────────────────────────
+  // كل دالة ترجع مصفوفة رسائل خطأ بالعربية (فارغة = صالح)
+  validate: {
+    employee(data) {
+      const errors = [];
+      if (!data.full_name || !data.full_name.trim()) errors.push('الاسم الكامل مطلوب');
+      if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) errors.push('صيغة البريد الإلكتروني غير صحيحة');
+      if (data.mobile_number) {
+        const norm = (typeof normalizeWhatsAppPhone === 'function') ? normalizeWhatsAppPhone(data.mobile_number) : data.mobile_number.replace(/[^0-9]/g, '');
+        if (!/^\d{8,15}$/.test(norm)) errors.push('رقم الجوال غير صحيح');
+      }
+      if (data.iban && data.iban.trim()) {
+        const iban = data.iban.replace(/\s/g, '').toUpperCase();
+        if (!/^SA\d{22}$/.test(iban)) errors.push('رقم الآيبان السعودي يبدأ بـ SA ويتكوّن من 24 خانة');
+      }
+      if (data.base_salary != null && Number(data.base_salary) < 0) errors.push('الراتب الأساسي لا يمكن أن يكون سالبًا');
+      if (data.contract_start_date && data.contract_end_date && data.contract_end_date < data.contract_start_date) {
+        errors.push('تاريخ انتهاء العقد قبل تاريخ بدايته');
+      }
+      return errors;
+    },
+    position(data) {
+      const errors = [];
+      if (!data.department_id) errors.push('القسم مطلوب');
+      if (!data.name || !data.name.trim()) errors.push('اسم المنصب مطلوب');
+      if (data.min_salary != null && data.max_salary != null && Number(data.min_salary) > Number(data.max_salary)) {
+        errors.push('الحد الأدنى للراتب أكبر من الحد الأقصى');
+      }
+      return errors;
+    },
+    attendance(data) {
+      const errors = [];
+      if (!data.user_id) errors.push('الموظف مطلوب');
+      if (!data.attendance_date) errors.push('التاريخ مطلوب');
+      const valid = ['present', 'absent', 'late', 'leave', 'holiday', 'sick', 'remote'];
+      if (!valid.includes(data.status)) errors.push('حالة الحضور غير صحيحة');
+      if (data.check_in && data.check_out && new Date(data.check_out) < new Date(data.check_in)) {
+        errors.push('وقت الانصراف قبل وقت الحضور');
+      }
+      return errors;
+    },
+    leave(data) {
+      const errors = [];
+      if (!data.user_id) errors.push('الموظف مطلوب');
+      if (!data.leave_type_id) errors.push('نوع الإجازة مطلوب');
+      if (!data.start_date) errors.push('تاريخ بداية الإجازة مطلوب');
+      if (!data.end_date) errors.push('تاريخ نهاية الإجازة مطلوب');
+      if (data.start_date && data.end_date && data.end_date < data.start_date) errors.push('تاريخ نهاية الإجازة قبل بدايتها');
+      if (!(Number(data.days_count) > 0)) errors.push('عدد أيام الإجازة يجب أن يكون أكبر من صفر');
+      return errors;
+    },
+    payroll(data) {
+      const errors = [];
+      if (!data.user_id) errors.push('الموظف مطلوب');
+      if (!data.period_year || data.period_year < 2000 || data.period_year > 2100) errors.push('السنة غير صحيحة');
+      if (!data.period_month || data.period_month < 1 || data.period_month > 12) errors.push('الشهر غير صحيح');
+      if (data.basic_salary == null || Number(data.basic_salary) < 0) errors.push('الراتب الأساسي مطلوب ولا يمكن أن يكون سالبًا');
+      return errors;
+    }
+  },
+
+  // مساعد داخلي: يلفّ ردود الأخطاء بصيغة موحّدة
+  _err(msg) { return { data: null, error: { message: msg } }; },
+
+  // ─── Employees ─────────────────────────────────────────────────────
+  // الموظف = صف في users + صف اختياري في hr_employee_profile (1:1)
+  employees: {
+    // filters: { department_id, branch_id, is_active, search, page, pageSize }
+    async list(filters = {}) {
+      const page = Math.max(1, filters.page || 1);
+      const size = Math.min(100, Math.max(10, filters.pageSize || 25));
+      const from = (page - 1) * size, to = from + size - 1;
+      let q = sb.from('users')
+        .select('id, full_name, username, email, mobile_number, role, department_id, position_title, joining_date, is_active, status, branch_id, direct_manager_id, avatar_url, departments(id, name), branches(id, name), hr_employee_profile(employee_number, position_id, contract_type, base_salary, iqama_expiry)', { count: 'exact' })
+        .order('full_name', { ascending: true })
+        .range(from, to);
+      if (filters.department_id) q = q.eq('department_id', filters.department_id);
+      if (filters.branch_id)     q = q.eq('branch_id', filters.branch_id);
+      if (filters.is_active != null) q = q.eq('is_active', filters.is_active);
+      if (filters.search) {
+        const s = filters.search.trim().replace(/[%,]/g, '');
+        q = q.or(`full_name.ilike.%${s}%,username.ilike.%${s}%,email.ilike.%${s}%,mobile_number.ilike.%${s}%`);
+      }
+      const { data, count, error } = await q;
+      return { data: data || [], count: count || 0, page, pageSize: size, error };
+    },
+    async get(userId) {
+      const { data, error } = await sb.from('users')
+        .select('*, departments(id, name), branches(id, name), manager:direct_manager_id(id, full_name), hr_employee_profile(*)')
+        .eq('id', userId).maybeSingle();
+      return { data, error };
+    },
+    // يحفظ (upsert) بيانات user + بيانات hr_employee_profile في نداء واحد
+    async saveProfile(userId, payload) {
+      const errors = HR.validate.employee(payload);
+      if (errors.length) return HR._err(errors.join('؛ '));
+      const USER_FIELDS = ['full_name', 'email', 'mobile_number', 'role', 'department_id', 'position_title', 'joining_date', 'direct_manager_id', 'branch_id', 'nationality', 'is_active', 'status', 'avatar_url'];
+      const PROFILE_FIELDS = ['employee_number', 'national_id', 'iqama_number', 'iqama_expiry', 'passport_number', 'passport_expiry', 'birth_date', 'gender', 'marital_status', 'blood_type', 'home_address', 'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relation', 'bank_name', 'iban', 'position_id', 'contract_type', 'contract_start_date', 'contract_end_date', 'probation_end_date', 'working_hours_per_week', 'base_salary', 'housing_allowance', 'transport_allowance', 'other_allowances', 'notes'];
+      const userUpd = {};
+      USER_FIELDS.forEach(k => { if (payload[k] !== undefined) userUpd[k] = payload[k]; });
+      if (Object.keys(userUpd).length) {
+        const { error: uErr } = await sb.from('users').update(userUpd).eq('id', userId);
+        if (uErr) return { data: null, error: uErr };
+      }
+      const profUpd = { user_id: userId };
+      PROFILE_FIELDS.forEach(k => { if (payload[k] !== undefined) profUpd[k] = payload[k]; });
+      if (profUpd.iban) profUpd.iban = profUpd.iban.replace(/\s/g, '').toUpperCase();
+      const { data: profile, error: pErr } = await sb.from('hr_employee_profile').upsert(profUpd, { onConflict: 'user_id' }).select().maybeSingle();
+      if (pErr) return { data: null, error: pErr };
+      return { data: { userId, profile }, error: null };
+    },
+    // نستخدم status/is_active كـ Soft Delete — لا نحذف users فعليًا حفاظًا على التاريخ
+    async deactivate(userId) {
+      const { error } = await sb.from('users').update({ status: 'inactive', is_active: false }).eq('id', userId);
+      return { error };
+    },
+    async reactivate(userId) {
+      const { error } = await sb.from('users').update({ status: 'active', is_active: true }).eq('id', userId);
+      return { error };
+    }
+  },
+
+  // ─── Positions ─────────────────────────────────────────────────────
+  positions: {
+    async list(departmentId = null) {
+      let q = sb.from('hr_positions').select('*, departments(id, name)').is('deleted_at', null).order('name', { ascending: true });
+      if (departmentId) q = q.eq('department_id', departmentId);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('hr_positions').select('*, departments(id, name)').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      const errs = HR.validate.position(payload);
+      if (errs.length) return HR._err(errs.join('؛ '));
+      const { data, error } = await sb.from('hr_positions').insert(payload).select().single();
+      return { data, error };
+    },
+    async update(id, payload) {
+      const errs = HR.validate.position(payload);
+      if (errs.length) return HR._err(errs.join('؛ '));
+      const { data, error } = await sb.from('hr_positions').update(payload).eq('id', id).select().single();
+      return { data, error };
+    },
+    async remove(id) {
+      const { error } = await sb.from('hr_positions').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+      return { error };
+    }
+  },
+
+  // ─── Attendance ────────────────────────────────────────────────────
+  attendance: {
+    // filters: { user_id, from_date, to_date, status }
+    async list(filters = {}) {
+      let q = sb.from('hr_attendance').select('*, users(id, full_name)').is('deleted_at', null).order('attendance_date', { ascending: false });
+      if (filters.user_id)   q = q.eq('user_id', filters.user_id);
+      if (filters.from_date) q = q.gte('attendance_date', filters.from_date);
+      if (filters.to_date)   q = q.lte('attendance_date', filters.to_date);
+      if (filters.status)    q = q.eq('status', filters.status);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    // اختصار مفيد للشاشة الشهرية
+    async forMonth(userId, year, month) {
+      const mm = String(month).padStart(2, '0');
+      const lastDay = new Date(year, month, 0).getDate();
+      return HR.attendance.list({
+        user_id: userId,
+        from_date: `${year}-${mm}-01`,
+        to_date:   `${year}-${mm}-${String(lastDay).padStart(2, '0')}`
+      });
+    },
+    // upsert = يستبدل أي سجل موجود لنفس (الموظف، اليوم) بدل ما يعمل duplicate
+    async upsert(payload) {
+      const errs = HR.validate.attendance(payload);
+      if (errs.length) return HR._err(errs.join('؛ '));
+      if (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) payload.recorded_by = CURRENT_USER.id;
+      const { data, error } = await sb.from('hr_attendance').upsert(payload, { onConflict: 'user_id,attendance_date' }).select().single();
+      return { data, error };
+    },
+    async remove(id) {
+      const { error } = await sb.from('hr_attendance').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+      return { error };
+    }
+  },
+
+  // ─── Leave Types ───────────────────────────────────────────────────
+  leaveTypes: {
+    async list() {
+      const { data, error } = await sb.from('hr_leave_types').select('*').eq('is_active', true).order('name');
+      return { data: data || [], error };
+    },
+    async create(payload) {
+      if (!payload.name || !payload.name.trim()) return HR._err('اسم نوع الإجازة مطلوب');
+      const { data, error } = await sb.from('hr_leave_types').insert(payload).select().single();
+      return { data, error };
+    },
+    async update(id, payload) {
+      const { data, error } = await sb.from('hr_leave_types').update(payload).eq('id', id).select().single();
+      return { data, error };
+    }
+  },
+
+  // ─── Leaves ────────────────────────────────────────────────────────
+  leaves: {
+    // filters: { user_id, status, from_date, to_date }
+    async list(filters = {}) {
+      let q = sb.from('hr_leaves')
+        .select('*, users(id, full_name, department_id, departments(name)), hr_leave_types(name, code, is_paid), approver:approved_by(full_name)')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+      if (filters.user_id)   q = q.eq('user_id', filters.user_id);
+      if (filters.status)    q = q.eq('status', filters.status);
+      if (filters.from_date) q = q.gte('start_date', filters.from_date);
+      if (filters.to_date)   q = q.lte('end_date', filters.to_date);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async create(payload) {
+      const errs = HR.validate.leave(payload);
+      if (errs.length) return HR._err(errs.join('؛ '));
+      payload.status = payload.status || 'pending';
+      const { data, error } = await sb.from('hr_leaves').insert(payload).select().single();
+      return { data, error };
+    },
+    async approve(id) {
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('hr_leaves').update({
+        status: 'approved', approved_by: uid, approved_at: new Date().toISOString()
+      }).eq('id', id).select('*, users(id, full_name)').single();
+      return { data, error };
+    },
+    async reject(id, reason) {
+      if (!reason || !reason.trim()) return HR._err('سبب الرفض مطلوب');
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('hr_leaves').update({
+        status: 'rejected', approved_by: uid, approved_at: new Date().toISOString(), rejection_reason: reason.trim()
+      }).eq('id', id).select('*, users(id, full_name)').single();
+      return { data, error };
+    },
+    async cancel(id) {
+      const { data, error } = await sb.from('hr_leaves').update({ status: 'cancelled' }).eq('id', id).select().single();
+      return { data, error };
+    },
+    // رصيد بسيط للـ MVP: annual_balance_days - مجموع أيام المعتَمَد للسنة الحالية
+    async balance(userId, leaveTypeId) {
+      const year = new Date().getFullYear();
+      const { data: type } = await sb.from('hr_leave_types').select('annual_balance_days, name').eq('id', leaveTypeId).maybeSingle();
+      if (!type) return { balance: 0, used: 0, annual: 0 };
+      const { data: rows } = await sb.from('hr_leaves')
+        .select('days_count')
+        .eq('user_id', userId).eq('leave_type_id', leaveTypeId).eq('status', 'approved')
+        .gte('start_date', `${year}-01-01`).lte('start_date', `${year}-12-31`)
+        .is('deleted_at', null);
+      const used = (rows || []).reduce((s, r) => s + Number(r.days_count || 0), 0);
+      const annual = Number(type.annual_balance_days || 0);
+      return { balance: annual - used, used, annual };
+    }
+  },
+
+  // ─── Payroll ───────────────────────────────────────────────────────
+  payroll: {
+    // filters: { user_id, period_year, period_month, status }
+    async list(filters = {}) {
+      let q = sb.from('hr_payroll')
+        .select('*, users(id, full_name, department_id, departments(name))')
+        .is('deleted_at', null)
+        .order('period_year', { ascending: false })
+        .order('period_month', { ascending: false });
+      if (filters.user_id)      q = q.eq('user_id', filters.user_id);
+      if (filters.period_year)  q = q.eq('period_year', filters.period_year);
+      if (filters.period_month) q = q.eq('period_month', filters.period_month);
+      if (filters.status)       q = q.eq('status', filters.status);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('hr_payroll')
+        .select('*, users(id, full_name), approver:approved_by(full_name), items:hr_payroll_items(*)')
+        .eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      const errs = HR.validate.payroll(payload);
+      if (errs.length) return HR._err(errs.join('؛ '));
+      payload.currency = payload.currency || 'SAR';
+      payload.status = payload.status || 'draft';
+      const { data, error } = await sb.from('hr_payroll').insert(payload).select().single();
+      return { data, error };
+    },
+    async update(id, payload) {
+      // منع تعديل كشف معتمد أو مدفوع من الواجهة — أمان تشغيلي
+      const { data: current } = await sb.from('hr_payroll').select('status').eq('id', id).maybeSingle();
+      if (current && ['approved', 'paid'].includes(current.status)) {
+        return HR._err('لا يمكن تعديل كشف راتب معتمد أو مدفوع');
+      }
+      const { data, error } = await sb.from('hr_payroll').update(payload).eq('id', id).select().single();
+      return { data, error };
+    },
+    async approve(id) {
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('hr_payroll').update({
+        status: 'approved', approved_by: uid, approved_at: new Date().toISOString()
+      }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async markPaid(id) {
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('hr_payroll').update({
+        status: 'paid', paid_by: uid, paid_at: new Date().toISOString()
+      }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async cancel(id) {
+      const { data, error } = await sb.from('hr_payroll').update({ status: 'cancelled' }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async items(payrollId) {
+      const { data, error } = await sb.from('hr_payroll_items').select('*').eq('payroll_id', payrollId).order('created_at');
+      return { data: data || [], error };
+    },
+    async addItem(payrollId, item) {
+      if (!item.item_name || !item.item_name.trim()) return HR._err('اسم البند مطلوب');
+      if (!['allowance', 'deduction', 'bonus', 'overtime'].includes(item.item_type)) return HR._err('نوع البند غير صحيح');
+      const payload = { payroll_id: payrollId, ...item };
+      const { data, error } = await sb.from('hr_payroll_items').insert(payload).select().single();
+      return { data, error };
+    },
+    async removeItem(itemId) {
+      const { error } = await sb.from('hr_payroll_items').delete().eq('id', itemId);
+      return { error };
+    },
+    // توليد كشف جديد من الرواتب المعتمدة في بروفايل الموظف
+    async generateFromProfile(userId, year, month) {
+      const { data: profile } = await sb.from('hr_employee_profile').select('*').eq('user_id', userId).maybeSingle();
+      if (!profile) return HR._err('لا يوجد بروفايل موارد بشرية لهذا الموظف — أضف بروفايله أولًا');
+      return HR.payroll.create({
+        user_id: userId,
+        period_year: year,
+        period_month: month,
+        currency: 'SAR',
+        basic_salary: profile.base_salary || 0,
+        housing_allowance: profile.housing_allowance || 0,
+        transport_allowance: profile.transport_allowance || 0,
+        other_allowances: profile.other_allowances || 0,
+        status: 'draft'
+      });
+    }
+  },
+
+  // ─── Dashboard aggregates (KPIs للوحة HR) ─────────────────────────
+  dashboard: {
+    async summary() {
+      const today = new Date().toISOString().slice(0, 10);
+      const now = new Date();
+      const year = now.getFullYear(), month = now.getMonth() + 1;
+      const [emp, present, pendingLeaves, monthPayroll] = await Promise.all([
+        sb.from('users').select('id', { count: 'exact', head: true }).eq('is_active', true),
+        sb.from('hr_attendance').select('id', { count: 'exact', head: true }).eq('attendance_date', today).eq('status', 'present').is('deleted_at', null),
+        sb.from('hr_leaves').select('id', { count: 'exact', head: true }).eq('status', 'pending').is('deleted_at', null),
+        sb.from('hr_payroll').select('net_salary').eq('period_year', year).eq('period_month', month).in('status', ['approved', 'paid']).is('deleted_at', null)
+      ]);
+      const totalNet = (monthPayroll.data || []).reduce((s, r) => s + Number(r.net_salary || 0), 0);
+      return {
+        totalEmployees: emp.count || 0,
+        presentToday:  present.count || 0,
+        pendingLeaves: pendingLeaves.count || 0,
+        monthlyPayrollNet: totalNet,
+        error: emp.error || present.error || pendingLeaves.error || monthPayroll.error || null
+      };
+    },
+    // توزيع الموظفين حسب القسم (للرسم البياني)
+    async employeesByDepartment() {
+      const { data, error } = await sb.from('users').select('department_id, departments(name)').eq('is_active', true);
+      if (error) return { data: [], error };
+      const counts = {};
+      (data || []).forEach(u => {
+        const key = u.departments?.name || 'بدون قسم';
+        counts[key] = (counts[key] || 0) + 1;
+      });
+      return { data: Object.entries(counts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count), error: null };
+    }
+  }
+};
+window.HR = HR;
 
 // scope(sectionKey) -> 'company_wide' | 'own_department'
 function scope(sectionKey) {
@@ -4829,7 +5234,7 @@ function can(sectionKey, mode = 'view') {
 
 // ============ ترجمة القيم ============
 const LABELS = {
-  role: { admin: 'مدير النظام', company_manager: 'مدير الشركة', department_manager: 'مدير قسم', projects_manager: 'مدير مشاريع', development_manager: 'مدير تطوير', meeting_organizer: 'منظم اجتماع', branch_manager: 'مدير مطعم', deputy_manager: 'نائب مدير', employee: 'موظف عادي', maintenance_officer: 'مسؤول الصيانة', operations_manager: 'مدير التشغيل', finance: 'المالية' },
+  role: { admin: 'مدير النظام', company_manager: 'مدير الشركة', department_manager: 'مدير قسم', projects_manager: 'مدير مشاريع', development_manager: 'مدير تطوير', meeting_organizer: 'منظم اجتماع', branch_manager: 'مدير مطعم', deputy_manager: 'نائب مدير', employee: 'موظف عادي', maintenance_officer: 'مسؤول الصيانة', operations_manager: 'مدير التشغيل', finance: 'المالية', hr_manager: 'مدير الموارد البشرية', payroll_officer: 'مسؤول الرواتب' },
   maint_severity: { emergency: 'طارئ', urgent: 'عاجل', normal: 'عادي', preventive: 'وقائي' },
   maint_priority: { low: 'منخفض', medium: 'متوسط', high: 'عالي', critical: 'حرج' },
   // القيم القديمة تبقى للسجلات السابقة فقط — التصنيف الجديد يبدأ من electricity
@@ -14631,7 +15036,7 @@ const PERMISSION_SECTIONS = [
   { key: 'settings', label: 'الإعدادات' },
   { key: 'task_projects', label: 'مشاريع المهام' },
 ];
-const PERMISSION_ROLES = ['admin','company_manager','department_manager','projects_manager','development_manager','meeting_organizer','branch_manager','deputy_manager','employee'];
+const PERMISSION_ROLES = ['admin','company_manager','department_manager','projects_manager','development_manager','meeting_organizer','branch_manager','deputy_manager','hr_manager','payroll_officer','employee'];
 
 // ═══════════════════════════════════════════════════════════
 // توزيع الإشعارات الجماعية (غير الشخصية) على الأدوار — بدون جدول قاعدة بيانات
