@@ -4407,7 +4407,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v58-2026-07-15-panel-border-visibility';
+const APP_VERSION = 'v59-2026-07-15-notif-routing-settings';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -14182,6 +14182,26 @@ const PERMISSION_SECTIONS = [
 ];
 const PERMISSION_ROLES = ['admin','company_manager','department_manager','projects_manager','development_manager','meeting_organizer','branch_manager','deputy_manager','employee'];
 
+// ═══════════════════════════════════════════════════════════
+// توزيع الإشعارات الجماعية (غير الشخصية) على الأدوار — بدون جدول قاعدة بيانات
+// جديد: نعيد استخدام جدول role_permissions الموجود بالفعل (section_key حر
+// نصيًا وغير مقيّد بقيمة ثابتة)، ونضيف مفاتيح وهمية بادئتها notif_ لتخزين
+// "هذا الدور يستقبل هذا النوع من الإشعارات" في عمود can_view. هذا يتيح شاشة
+// إعدادات كاملة بدون أي تعديل على قاعدة البيانات نفسها.
+// ═══════════════════════════════════════════════════════════
+const NOTIF_TYPES = [
+  { key: 'notif_maintenance_new', label: 'طلب صيانة جديد (يدوي أو تلقائي من الجودة)', defaultRoles: ['admin'] },
+  { key: 'notif_maintenance_finance', label: 'طلب موافقة مالية على الصيانة', defaultRoles: ['finance', 'admin', 'company_manager'] },
+  { key: 'notif_cafe_order', label: 'طلب جديد من ركن الكافيه', defaultRoles: ['admin', 'company_manager'] },
+];
+async function getNotifTargetRoles(notifKey, defaultRoles) {
+  try {
+    const { data } = await sb.from('role_permissions').select('role').eq('section_key', notifKey).eq('can_view', true);
+    if (data && data.length) return data.map(r => r.role);
+  } catch (e) {}
+  return defaultRoles || [];
+}
+
 // ============ ملفي الشخصي ============
 async function pageMyProfile(body) {
   const uid = CURRENT_USER.id;
@@ -14431,6 +14451,32 @@ async function renderPermissionsSection() {
     </div>
 
     <div class="panel">
+      <div class="panel-header"><h3><span data-lucide="bell" style="width:15px;height:15px;vertical-align:-2px;margin-left:5px;"></span>توزيع الإشعارات الجماعية</h3></div>
+      <div class="panel-body">
+        <p style="font-size:12px; color:var(--text-muted); margin-bottom:14px;">حدّد أي الأدوار تستقبل كل نوع من الإشعارات التالية (تُطبَّق فورًا). هذا لا يشمل الإشعارات الشخصية (مثل "تم إسناد مهمة لك") التي تصل دائمًا للشخص المعني مباشرة.</p>
+        <div style="overflow-x:auto;">
+        <table class="adv-table" style="font-size:12px;">
+          <thead><tr>
+            <th style="position:sticky; right:0; background:var(--bg); z-index:2;">نوع الإشعار</th>
+            ${PERMISSION_ROLES.map(r => `<th style="text-align:center;">${label('role', r)}</th>`).join('')}
+          </tr></thead>
+          <tbody>
+            ${NOTIF_TYPES.map(nt => `
+              <tr>
+                <td style="font-weight:600; position:sticky; right:0; background:var(--surface);">${esc(nt.label)}</td>
+                ${PERMISSION_ROLES.map(role => {
+                  const isDefaultChecked = permFor(role, nt.key).can_view;
+                  return `<td style="text-align:center;"><input type="checkbox" class="notifCheck" data-role="${role}" data-notif="${nt.key}" ${isDefaultChecked ? 'checked' : ''}></td>`;
+                }).join('')}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
       <div class="panel-header"><h3><span data-lucide="user" style="width:15px;height:15px;vertical-align:-2px;margin-left:5px;"></span>استثناءات فردية (لموظف/مسؤول محدد)</h3></div>
       <div class="panel-body">
         <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">تُستخدم عندما تريد منح موظف معيّن صلاحية أعلى أو أقل من صلاحية دوره الافتراضية، دون التأثير على بقية زملائه من نفس الدور.</p>
@@ -14455,6 +14501,18 @@ async function renderPermissionsSection() {
       if (error) { toast(error.message, 'error'); cb.checked = !cb.checked; return; }
       toast(`تم تحديث صلاحية "${label('role', role)}" فورًا`, 'success');
       if (role === CURRENT_USER.role) await loadPermissions(); // تحديث فوري لو المستخدم عدّل صلاحية دوره هو نفسه
+    });
+  });
+
+  document.querySelectorAll('.notifCheck').forEach(cb => {
+    cb.addEventListener('change', async () => {
+      const role = cb.dataset.role, notifKey = cb.dataset.notif;
+      const { error } = await sb.from('role_permissions').upsert(
+        { role, section_key: notifKey, can_view: cb.checked },
+        { onConflict: 'role,section_key' }
+      );
+      if (error) { toast(error.message, 'error'); cb.checked = !cb.checked; return; }
+      toast(`تم تحديث توزيع الإشعار فورًا`, 'success');
     });
   });
 
@@ -16914,7 +16972,8 @@ async function pageQualityVisitNew(body, param) {
             const { data: created } = await sb.from('maintenance_requests').insert(maintPayload).select('id').single();
             if (created?.id) {
               logMaintTimeline(created.id, 'created', null, 'new', `طلب صيانة تلقائي من زيارة الجودة #${visitId}`);
-              const { data: maintUsers } = await sb.from('users').select('id').eq('role', 'admin').eq('is_active', true);
+              const notifRoles = await getNotifTargetRoles('notif_maintenance_new', ['admin']);
+              const { data: maintUsers } = await sb.from('users').select('id').in('role', notifRoles).eq('is_active', true);
               if (maintUsers?.length) {
                 notifyMaintUsers(
                   maintUsers.map(u => u.id),
@@ -18143,7 +18202,8 @@ async function pageMaintenanceNew(body, param) {
       try { await sb.from('maintenance_attachments').insert({ request_id: created.id, stage: 'request', file_url: payload.attachment_url, file_name: 'مرفق (رابط)', uploaded_by: CURRENT_USER.id }); } catch (e) {}
     }
     if (!isDraft) {
-      const { data: staff } = await sb.from('users').select('id').eq('role', 'admin').eq('is_active', true);
+      const notifRoles = await getNotifTargetRoles('notif_maintenance_new', ['admin']);
+      const { data: staff } = await sb.from('users').select('id').in('role', notifRoles).eq('is_active', true);
       await notifyMaintUsers((staff||[]).map(u => u.id), '🔧 طلب صيانة جديد', `${created.request_no || '#'+created.id} — ${created.issue_title || ''}`, '#maintenance_detail/' + created.id);
     }
     toast(isDraft ? 'تم حفظ المسودة' : `تم رفع الطلب بنجاح — ${created.request_no || '#'+created.id}`, 'success');
@@ -18523,7 +18583,8 @@ async function selectMaintQuote(req, quoteId, price) {
     if (req.status === 'awaiting_quotes') upd.status = 'awaiting_finance';
     await sb.from('maintenance_requests').update(upd).eq('id', req.id);
     await logMaintTimeline(req.id, 'quote_selected', req.status, upd.status || req.status, 'تم اختيار العرض الفائز وإرساله للمالية');
-    const { data: fin } = await sb.from('users').select('id').in('role', ['finance','admin','company_manager']).eq('is_active', true);
+    const finNotifRoles = await getNotifTargetRoles('notif_maintenance_finance', ['finance', 'admin', 'company_manager']);
+    const { data: fin } = await sb.from('users').select('id').in('role', finNotifRoles).eq('is_active', true);
     await notifyMaintUsers((fin||[]).map(u => u.id), '💰 طلب موافقة مالية', `${req.request_no || '#'+req.id} — بانتظار اعتماد الصرف`, '#maintenance_detail/' + req.id);
     toast('تم اختيار العرض وإرساله للمالية', 'success');
     pageMaintenanceDetail(document.getElementById('pageBody'), req.id);
@@ -19784,7 +19845,8 @@ async function sendCafeOrder(items) {
     }
 
     // إشعار لموظف الكافيه/الأدمن
-    const { data: staff } = await sb.from('users').select('id').in('role', ['cafe_staff','admin','company_manager']).eq('is_active', true);
+    const cafeNotifRoles = await getNotifTargetRoles('notif_cafe_order', ['admin', 'company_manager']);
+    const { data: staff } = await sb.from('users').select('id').in('role', cafeNotifRoles).eq('is_active', true);
     if (staff && staff.length) {
       await sb.from('notifications').insert(staff.map(u => ({
         user_id: u.id, title: 'طلب جديد من ركن الكافيه',
