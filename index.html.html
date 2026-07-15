@@ -4820,7 +4820,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v82-2026-07-16-acct-phase-a-screens';
+const APP_VERSION = 'v83-2026-07-16-acct-ap-vendors-bills';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -5717,7 +5717,7 @@ const ACCT = {
     }
   },
 
-  // ─── Integrations: HR + Cafe (تستدعي RPC معرّفة في acct-schema.sql) ─
+  // ─── Integrations: HR + Cafe + AP (تستدعي RPC معرّفة في acct-schema*.sql) ─
   integrations: {
     async postPayrollJournal(payrollId) {
       const { data, error } = await sb.rpc('create_journal_for_payroll', { p_payroll_id: payrollId });
@@ -5725,6 +5725,203 @@ const ACCT = {
     },
     async postCafeOrderJournal(orderId) {
       const { data, error } = await sb.rpc('create_journal_for_cafe_order', { p_order_id: orderId });
+      return { data, error };
+    },
+    async postBillJournal(billId) {
+      const { data, error } = await sb.rpc('create_journal_for_bill', { p_bill_id: billId });
+      return { data, error };
+    },
+    async postPaymentJournal(paymentId) {
+      const { data, error } = await sb.rpc('create_journal_for_payment', { p_payment_id: paymentId });
+      return { data, error };
+    }
+  },
+
+  // ─── Vendors (AP — Phase 2.b) ──────────────────────────────────────
+  vendors: {
+    async list(filters = {}) {
+      let q = sb.from('acct_vendors').select('*').is('deleted_at', null).order('name');
+      if (filters.is_active != null) q = q.eq('is_active', filters.is_active);
+      if (filters.search) {
+        const s = filters.search.trim().replace(/[%,]/g, '');
+        q = q.or(`name.ilike.%${s}%,code.ilike.%${s}%,phone.ilike.%${s}%`);
+      }
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('acct_vendors').select('*').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      if (!payload.name || !payload.name.trim()) return ACCT._err('اسم المورد مطلوب');
+      const { data, error } = await sb.from('acct_vendors').insert(payload).select().single();
+      return { data, error };
+    },
+    async update(id, payload) {
+      const { data, error } = await sb.from('acct_vendors').update(payload).eq('id', id).select().single();
+      return { data, error };
+    },
+    async remove(id) {
+      const { data: used } = await sb.from('acct_bills').select('id').eq('vendor_id', id).limit(1);
+      if (used && used.length) return ACCT._err('لا يمكن حذف مورد له فواتير مسجَّلة — أوقفه بدلًا من الحذف');
+      const { error } = await sb.from('acct_vendors').update({ deleted_at: new Date().toISOString(), is_active: false }).eq('id', id);
+      return { error };
+    }
+  },
+
+  // ─── Purchase Orders ───────────────────────────────────────────────
+  purchaseOrders: {
+    async list(filters = {}) {
+      let q = sb.from('acct_purchase_orders').select('*, acct_vendors(name, code), lines:acct_purchase_order_lines(line_total)').is('deleted_at', null).order('order_date', { ascending: false });
+      if (filters.status) q = q.eq('status', filters.status);
+      if (filters.vendor_id) q = q.eq('vendor_id', filters.vendor_id);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('acct_purchase_orders').select('*, acct_vendors(name, code), lines:acct_purchase_order_lines(*, account:account_id(code, name))').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      if (!payload.vendor_id) return ACCT._err('المورد مطلوب');
+      const poNo = 'PO-' + Date.now().toString().slice(-8);
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_purchase_orders').insert({ ...payload, po_no: poNo, created_by: uid }).select().single();
+      return { data, error };
+    },
+    async addLine(poId, line) {
+      const { data: existing } = await sb.from('acct_purchase_order_lines').select('line_no').eq('po_id', poId).order('line_no', { ascending: false }).limit(1);
+      const nextNo = (existing && existing[0] ? existing[0].line_no : 0) + 1;
+      const { data, error } = await sb.from('acct_purchase_order_lines').insert({ po_id: poId, line_no: nextNo, ...line }).select().single();
+      return { data, error };
+    },
+    async approve(id) {
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_purchase_orders').update({ status: 'approved', approved_by: uid, approved_at: new Date().toISOString() }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async receive(id) {
+      const { data, error } = await sb.from('acct_purchase_orders').update({ status: 'received' }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async close(id) {
+      const { data, error } = await sb.from('acct_purchase_orders').update({ status: 'closed' }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async cancel(id) {
+      const { data, error } = await sb.from('acct_purchase_orders').update({ status: 'cancelled' }).eq('id', id).select().single();
+      return { data, error };
+    }
+  },
+
+  // ─── Bills (فواتير الموردين) ────────────────────────────────────────
+  bills: {
+    async list(filters = {}) {
+      let q = sb.from('acct_bills').select('*, acct_vendors(name, code)').is('deleted_at', null).order('bill_date', { ascending: false });
+      if (filters.status) q = q.eq('status', filters.status);
+      if (filters.vendor_id) q = q.eq('vendor_id', filters.vendor_id);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('acct_bills').select('*, acct_vendors(name, code), lines:acct_bill_lines(*, account:account_id(code, name))').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      if (!payload.vendor_id) return ACCT._err('المورد مطلوب');
+      const billNo = 'BILL-' + Date.now().toString().slice(-8);
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_bills').insert({ ...payload, bill_no: billNo, created_by: uid }).select().single();
+      return { data, error };
+    },
+    async addLine(billId, line) {
+      if (!line.account_id) return ACCT._err('الحساب مطلوب لكل سطر');
+      const { data: existing } = await sb.from('acct_bill_lines').select('line_no').eq('bill_id', billId).order('line_no', { ascending: false }).limit(1);
+      const nextNo = (existing && existing[0] ? existing[0].line_no : 0) + 1;
+      const { data, error } = await sb.from('acct_bill_lines').insert({ bill_id: billId, line_no: nextNo, ...line }).select().single();
+      if (!error) await ACCT.bills._recalcTotals(billId);
+      return { data, error };
+    },
+    async removeLine(lineId, billId) {
+      const { error } = await sb.from('acct_bill_lines').delete().eq('id', lineId);
+      if (!error) await ACCT.bills._recalcTotals(billId);
+      return { error };
+    },
+    async _recalcTotals(billId) {
+      const { data: lines } = await sb.from('acct_bill_lines').select('line_total, vat_applicable').eq('bill_id', billId);
+      const { data: settings } = await sb.from('acct_settings').select('vat_rate').eq('id', 1).maybeSingle();
+      const vatRate = settings ? Number(settings.vat_rate) / 100 : 0.15;
+      const subtotal = (lines || []).reduce((s, l) => s + Number(l.line_total || 0), 0);
+      const vatAmount = (lines || []).filter(l => l.vat_applicable).reduce((s, l) => s + Number(l.line_total || 0) * vatRate, 0);
+      await sb.from('acct_bills').update({ subtotal, vat_amount: vatAmount }).eq('id', billId);
+    },
+    // اعتماد عادي (لا يتجاوز حد الاعتماد المزدوج) — الترحيل يرفضه تلقائيًا لو تجاوز
+    async approve(id) {
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_bills').update({ status: 'approved', approved_by: uid, approved_at: new Date().toISOString() }).eq('id', id).select().single();
+      if (!error) { try { await ACCT.integrations.postBillJournal(id); } catch (e) { fwReport('postBillJournal', e); } }
+      return { data, error };
+    },
+    // موافقة ثانية (لمدير الشركة) على فاتورة تجاوزت حد الاعتماد المزدوج
+    async secondApprove(id) {
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_bills').update({ second_approved_by: uid, second_approved_at: new Date().toISOString() }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async markPaid(id) {
+      const { data, error } = await sb.from('acct_bills').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async cancel(id) {
+      const { data, error } = await sb.from('acct_bills').update({ status: 'cancelled' }).eq('id', id).select().single();
+      return { data, error };
+    }
+  },
+
+  // ─── Payments ────────────────────────────────────────────────────
+  payments: {
+    async list(filters = {}) {
+      let q = sb.from('acct_payments').select('*, acct_vendors(name, code), acct_bills(bill_no)').is('deleted_at', null).order('payment_date', { ascending: false });
+      if (filters.status) q = q.eq('status', filters.status);
+      if (filters.vendor_id) q = q.eq('vendor_id', filters.vendor_id);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('acct_payments').select('*, acct_vendors(name, code), acct_bills(bill_no, total)').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      if (!payload.vendor_id) return ACCT._err('المورد مطلوب');
+      if (!(Number(payload.amount) > 0)) return ACCT._err('المبلغ يجب أن يكون أكبر من صفر');
+      const payNo = 'PAY-' + Date.now().toString().slice(-8);
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_payments').insert({ ...payload, payment_no: payNo, created_by: uid }).select().single();
+      return { data, error };
+    },
+    async approve(id) {
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_payments').update({ status: 'approved', approved_by: uid, approved_at: new Date().toISOString() }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async secondApprove(id) {
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_payments').update({ second_approved_by: uid, second_approved_at: new Date().toISOString() }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async markPaid(id) {
+      const { data, error } = await sb.from('acct_payments').update({ status: 'paid' }).eq('id', id).select().single();
+      if (!error) {
+        try { await ACCT.integrations.postPaymentJournal(id); } catch (e) { fwReport('postPaymentJournal', e); }
+        // إغلاق الفاتورة المرتبطة تلقائيًا لو وجدت
+        const { data: pay } = await sb.from('acct_payments').select('bill_id').eq('id', id).maybeSingle();
+        if (pay && pay.bill_id) await ACCT.bills.markPaid(pay.bill_id);
+      }
+      return { data, error };
+    },
+    async cancel(id) {
+      const { data, error } = await sb.from('acct_payments').update({ status: 'cancelled' }).eq('id', id).select().single();
       return { data, error };
     }
   },
@@ -8160,7 +8357,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', operations: 'تشغيل المطاعم', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', operations: 'تشغيل المطاعم', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -12730,6 +12927,10 @@ async function route() {
     else if (page === 'acct_periods') await pageAcctPeriods(body);
     else if (page === 'acct_journal') await pageAcctJournal(body, query);
     else if (page === 'acct_journal_entry') await pageAcctJournalDetail(body, param);
+    else if (page === 'acct_vendors') await pageAcctVendors(body, query);
+    else if (page === 'acct_bills') await pageAcctBills(body, query);
+    else if (page === 'acct_bill') await pageAcctBillDetail(body, param);
+    else if (page === 'acct_payments') await pageAcctPayments(body, query);
     else if (page === 'operations') await pageComingSoonModule(body, 'operations');
     else if (page === 'meetings') await pageMeetings(body, query);
     else if (page === 'meetings_calendar') await pageMeetingsCalendar(body, query);
@@ -18216,6 +18417,9 @@ async function pageAcctDashboard(body) {
         <a href="#acct_cost_centers" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="layers" style="width:12px;height:12px;"></span> مراكز التكلفة</a>
         <a href="#acct_journal" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="book" style="width:12px;height:12px;"></span> القيود اليومية</a>
         <a href="#acct_periods" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="calendar-range" style="width:12px;height:12px;"></span> الفترات المالية</a>
+        <a href="#acct_vendors" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="truck" style="width:12px;height:12px;"></span> الموردون</a>
+        <a href="#acct_bills" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="file-text" style="width:12px;height:12px;"></span> فواتير الموردين</a>
+        <a href="#acct_payments" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="wallet" style="width:12px;height:12px;"></span> المدفوعات</a>
         ${canManage ? `<span class="mod-hero-badge hb-scope"><span data-lucide="shield-check" style="width:12px;height:12px;"></span> صلاحية إدارة كاملة</span>` : ''}
       </div>
     </div>
@@ -18970,6 +19174,549 @@ async function pageAcctJournalDetail(body, idParam) {
     toast('تم إلغاء القيد', 'success');
     location.hash = '#acct_journal';
     renderApp();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ACCOUNTING MODULE — Phase 2.b screens: Vendors, Bills, Payments (v83)
+// ═══════════════════════════════════════════════════════════════════════
+
+function isApOfficer() { return CURRENT_USER && ['admin', 'company_manager', 'finance_manager', 'ap_officer'].includes(CURRENT_USER.role); }
+
+// ─── الموردون ──────────────────────────────────────────────────────
+const AcctVendorsState = { search: '', is_active: 'active' };
+
+async function pageAcctVendors(body) {
+  const canManage = isApOfficer();
+  body.innerHTML = `
+    <a href="#accounting" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الحسابات</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="truck" style="width:22px;height:22px;color:#123F32;"></span> الموردون</h2>
+        <p>موردو الشركة — تشمل موردي الصيانة المرحّلين تلقائيًا من القسم القديم.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="acctAddVendorBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> إضافة مورد</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body">
+      <div class="hr-toolbar">
+        <div class="search-wrap"><input type="text" id="acctVenSearch" placeholder="بحث بالاسم أو الرمز أو الجوال..." value="${esc(AcctVendorsState.search)}"><span class="search-icon" data-lucide="search"></span></div>
+        <div class="filter-select-wrap"><span class="fsw-icon" data-lucide="check-circle-2" style="width:15px;height:15px;"></span>
+          <select id="acctVenStatus">
+            <option value="active"   ${AcctVendorsState.is_active === 'active' ? 'selected' : ''}>النشطون</option>
+            <option value="inactive" ${AcctVendorsState.is_active === 'inactive' ? 'selected' : ''}>الموقوفون</option>
+            <option value="">الكل</option>
+          </select>
+        </div>
+      </div>
+      <div id="acctVenTableBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
+    </div></div>
+    <div id="acctModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  document.getElementById('acctVenSearch').addEventListener('input', debounce(() => { AcctVendorsState.search = document.getElementById('acctVenSearch').value.trim(); renderAcctVendorsTable(); }, 300));
+  document.getElementById('acctVenStatus').addEventListener('change', (e) => { AcctVendorsState.is_active = e.target.value; renderAcctVendorsTable(); });
+  if (canManage) document.getElementById('acctAddVendorBtn').addEventListener('click', () => openAcctVendorModal(null));
+  await renderAcctVendorsTable();
+}
+
+async function renderAcctVendorsTable() {
+  const box = document.getElementById('acctVenTableBody');
+  if (!box) return;
+  const filters = { search: AcctVendorsState.search };
+  if (AcctVendorsState.is_active === 'active') filters.is_active = true;
+  else if (AcctVendorsState.is_active === 'inactive') filters.is_active = false;
+  const { data: rows, error } = await ACCT.vendors.list(filters);
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  const canManage = isApOfficer();
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="truck"></span><p class="hr-empty-title">لا يوجد موردون</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>الرمز</th><th>الاسم</th><th>النشاط</th><th>الجوال</th><th>التقييم</th><th>الحالة</th><th style="width:80px;">إجراءات</th></tr></thead>
+      <tbody>${rows.map(v => `<tr>
+        <td class="mono-num">${esc(v.code || '—')}</td>
+        <td><strong>${esc(v.name)}</strong>${v.legacy_maintenance_supplier_id ? ' <span style="font-size:10px;color:var(--text-muted);">(مرحّل من الصيانة)</span>' : ''}</td>
+        <td>${esc(v.activity || '—')}</td>
+        <td class="mono-num">${esc(v.phone || '—')}</td>
+        <td class="mono-num">${v.rating ? Number(v.rating).toFixed(1) : '—'}</td>
+        <td><span class="hr-pill hr-pill-${v.is_active ? 'active' : 'inactive'}">${v.is_active ? 'نشط' : 'موقوف'}</span></td>
+        <td>
+          <div class="hr-emp-actions">
+            ${canManage ? `<button type="button" title="تعديل" data-ven-edit="${v.id}"><span data-lucide="pencil" style="width:14px;height:14px;"></span></button>` : ''}
+            ${canManage ? `<button type="button" class="danger" title="إيقاف" data-ven-delete="${v.id}"><span data-lucide="trash-2" style="width:14px;height:14px;"></span></button>` : ''}
+          </div>
+        </td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) {
+    box.querySelectorAll('[data-ven-edit]').forEach(b => b.addEventListener('click', () => openAcctVendorModal(Number(b.dataset.venEdit))));
+    box.querySelectorAll('[data-ven-delete]').forEach(b => b.addEventListener('click', async () => {
+      if (!(await customConfirm('إيقاف هذا المورد؟'))) return;
+      const { error } = await ACCT.vendors.remove(Number(b.dataset.venDelete));
+      if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+      toast('تم إيقاف المورد', 'success');
+      renderAcctVendorsTable();
+    }));
+  }
+}
+
+async function openAcctVendorModal(vendorId) {
+  const isEdit = !!vendorId;
+  const v = isEdit ? (await ACCT.vendors.get(vendorId)).data || {} : {};
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:520px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="${isEdit ? 'pencil' : 'plus'}" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ${isEdit ? 'تعديل مورد' : 'إضافة مورد'}</h3>
+        <button class="modal-close-x" id="acctVenClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="acctVenErr"></div>
+        <form id="acctVenForm" class="hr-form-grid">
+          <div class="form-field full"><label>اسم المورد *</label><input class="form-input" name="name" required value="${esc(v.name || '')}"></div>
+          <div class="form-field"><label>النشاط</label><input class="form-input" name="activity" value="${esc(v.activity || '')}"></div>
+          <div class="form-field"><label>الجوال</label><input class="form-input" name="phone" value="${esc(v.phone || '')}"></div>
+          <div class="form-field"><label>البريد الإلكتروني</label><input class="form-input" type="email" name="email" value="${esc(v.email || '')}"></div>
+          <div class="form-field"><label>الرقم الضريبي</label><input class="form-input mono-num" name="tax_number" value="${esc(v.tax_number || '')}"></div>
+          <div class="form-field"><label>اسم البنك</label><input class="form-input" name="bank_name" value="${esc(v.bank_name || '')}"></div>
+          <div class="form-field full"><label>رقم الآيبان</label><input class="form-input mono-num" name="iban" value="${esc(v.iban || '')}"></div>
+          <div class="form-field full"><label>العنوان</label><input class="form-input" name="address" value="${esc(v.address || '')}"></div>
+          <div class="form-field full"><label>ملاحظات</label><textarea class="form-input" name="notes" rows="2">${esc(v.notes || '')}</textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="acctVenCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">${isEdit ? 'حفظ' : 'إضافة'}</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#acctVenClose').addEventListener('click', close);
+  host.querySelector('#acctVenCancel').addEventListener('click', close);
+  host.querySelector('#acctVenForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('acctVenErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {};
+    ['name', 'activity', 'phone', 'email', 'tax_number', 'bank_name', 'iban', 'address', 'notes'].forEach(k => { const val = (fd.get(k) || '').trim(); payload[k] = val || null; });
+    try {
+      const { error } = isEdit ? await ACCT.vendors.update(vendorId, payload) : await ACCT.vendors.create(payload);
+      if (error) throw error;
+      toast(isEdit ? 'تم حفظ التعديلات' : 'تم إضافة المورد', 'success');
+      close();
+      renderAcctVendorsTable();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ─── فواتير الموردين ───────────────────────────────────────────────
+const AcctBillsState = { statusFilter: '' };
+
+async function pageAcctBills(body, urlQuery) {
+  const canManage = isApOfficer();
+  if (urlQuery && urlQuery.status) AcctBillsState.statusFilter = urlQuery.status;
+  body.innerHTML = `
+    <a href="#accounting" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الحسابات</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="file-text" style="width:22px;height:22px;color:#123F32;"></span> فواتير الموردين</h2>
+        <p>فواتير الشراء — اعتماد وترحيل تلقائي، مع حماية اعتماد مزدوج فوق 10,000 ر.س.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="acctBillNewBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> فاتورة جديدة</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body">
+      <div class="hr-toolbar">
+        <div class="filter-select-wrap"><span class="fsw-icon" data-lucide="check-circle-2" style="width:15px;height:15px;"></span>
+          <select id="acctBillStatus">
+            <option value="">كل الحالات</option>
+            <option value="draft"             ${AcctBillsState.statusFilter === 'draft' ? 'selected' : ''}>مسودة</option>
+            <option value="pending_approval"  ${AcctBillsState.statusFilter === 'pending_approval' ? 'selected' : ''}>بانتظار الاعتماد</option>
+            <option value="approved"          ${AcctBillsState.statusFilter === 'approved' ? 'selected' : ''}>معتمدة</option>
+            <option value="paid"              ${AcctBillsState.statusFilter === 'paid' ? 'selected' : ''}>مدفوعة</option>
+            <option value="cancelled"         ${AcctBillsState.statusFilter === 'cancelled' ? 'selected' : ''}>ملغاة</option>
+          </select>
+        </div>
+      </div>
+      <div id="acctBillTableBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
+    </div></div>
+    <div id="acctModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  document.getElementById('acctBillStatus').addEventListener('change', (e) => { AcctBillsState.statusFilter = e.target.value; renderAcctBillsTable(); });
+  if (canManage) document.getElementById('acctBillNewBtn').addEventListener('click', () => openAcctBillCreateModal());
+  await renderAcctBillsTable();
+}
+
+async function renderAcctBillsTable() {
+  const box = document.getElementById('acctBillTableBody');
+  if (!box) return;
+  const filters = {};
+  if (AcctBillsState.statusFilter) filters.status = AcctBillsState.statusFilter;
+  const { data: rows, error } = await ACCT.bills.list(filters);
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="file-text"></span><p class="hr-empty-title">لا توجد فواتير</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const statusLbl = { draft: 'مسودة', pending_approval: 'بانتظار الاعتماد', approved: 'معتمدة', paid: 'مدفوعة', cancelled: 'ملغاة' };
+  const statusCls = { draft: 'st-empty', pending_approval: 'st-late', approved: 'st-leave', paid: 'st-present', cancelled: 'st-absent' };
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>رقم الفاتورة</th><th>المورد</th><th>التاريخ</th><th>الإجمالي</th><th>موافقة ثانية</th><th>الحالة</th></tr></thead>
+      <tbody>${rows.map(b => `<tr class="hr-emp-row" data-bill-id="${b.id}">
+        <td class="mono-num">${esc(b.bill_no)}</td>
+        <td>${esc(b.acct_vendors?.name || '—')}</td>
+        <td class="mono-num">${esc(b.bill_date)}</td>
+        <td class="mono-num">${money(b.total)}</td>
+        <td>${b.requires_second_approval ? (b.second_approved_by ? '<span style="color:#047857;">✓ تمت</span>' : '<span style="color:#B91C1C;">مطلوبة</span>') : '—'}</td>
+        <td><span class="hr-att-cell ${statusCls[b.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(statusLbl[b.status])}</span></td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  box.querySelectorAll('[data-bill-id]').forEach(el => el.addEventListener('click', () => { location.hash = '#acct_bill/' + el.dataset.billId; }));
+}
+
+async function openAcctBillCreateModal() {
+  const [{ data: vendors }, { data: accounts }, { data: costCenters }, { data: pos }] = await Promise.all([
+    ACCT.vendors.list({ is_active: true }),
+    ACCT.accounts.list({ leafOnly: true, is_active: true }),
+    ACCT.costCenters.list({ leafOnly: true }),
+    ACCT.purchaseOrders.list({ status: 'approved' })
+  ]);
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:760px;max-width:97%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> فاتورة مورد جديدة</h3>
+        <button class="modal-close-x" id="acctBillCrClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="acctBillCrErr"></div>
+        <div class="hr-form-grid" style="margin-bottom:12px;">
+          <div class="form-field"><label>المورد *</label>
+            <select class="form-select" id="acctBillVendor" required>
+              <option value="">اختر المورد</option>
+              ${(vendors || []).map(v => `<option value="${v.id}">${esc(v.code)} — ${esc(v.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>أمر الشراء (اختياري)</label>
+            <select class="form-select" id="acctBillPo">
+              <option value="">بدون</option>
+              ${(pos || []).map(p => `<option value="${p.id}">${esc(p.po_no)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>تاريخ الفاتورة *</label><input class="form-input" type="date" id="acctBillDate" value="${new Date().toISOString().slice(0,10)}"></div>
+          <div class="form-field"><label>تاريخ الاستحقاق</label><input class="form-input" type="date" id="acctBillDue"></div>
+          <div class="form-field full"><label>رقم فاتورة المورد (اختياري)</label><input class="form-input" id="acctBillVendorNo"></div>
+        </div>
+
+        <div class="hr-section-heading"><span class="icon" data-lucide="list"></span> بنود الفاتورة</div>
+        <div class="acct-je-lines" id="acctBillLinesBox"></div>
+        <button type="button" class="btn btn-outline btn-sm" id="acctBillAddLineBtn" style="margin-bottom:12px;"><span data-lucide="plus" style="width:13px;height:13px;"></span> إضافة بند</button>
+
+        <div class="acct-je-totals" id="acctBillTotals">الإجمالي قبل الضريبة: 0.00 ر.س</div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px;">
+          <button type="button" class="btn btn-outline" id="acctBillCrCancel">إلغاء</button>
+          <button type="button" class="btn" id="acctBillSaveBtn" style="background:var(--surface);border:1.5px solid var(--border);color:#0F172A;"><span data-lucide="save" style="width:13px;height:13px;"></span> حفظ كمسودة</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#acctBillCrClose').addEventListener('click', close);
+  host.querySelector('#acctBillCrCancel').addEventListener('click', close);
+
+  const linesBox = host.querySelector('#acctBillLinesBox');
+  const totalsBox = host.querySelector('#acctBillTotals');
+
+  function accOptions() { return `<option value="">اختر الحساب</option>` + (accounts || []).map(a => `<option value="${a.id}">${esc(a.code)} — ${esc(a.name)}</option>`).join(''); }
+  function ccOptions() { return `<option value="">بدون مركز تكلفة</option>` + (costCenters || []).map(c => `<option value="${c.id}">${esc(c.code)} — ${esc(c.name)}</option>`).join(''); }
+  function addLineRow() {
+    const row = document.createElement('div');
+    row.className = 'acct-je-line-row';
+    row.style.gridTemplateColumns = '2fr 1fr 1fr 90px 90px 70px 32px';
+    row.innerHTML = `
+      <input class="form-input bl-desc" placeholder="وصف البند">
+      <select class="form-select bl-account">${accOptions()}</select>
+      <select class="form-select bl-cc">${ccOptions()}</select>
+      <input class="form-input mono-num bl-qty" type="number" step="0.01" min="0.01" value="1" placeholder="الكمية">
+      <input class="form-input mono-num bl-price" type="number" step="0.01" min="0" placeholder="سعر الوحدة">
+      <label style="display:flex;align-items:center;gap:4px;font-size:11px;"><input type="checkbox" class="bl-vat"> VAT</label>
+      <button type="button" class="acct-je-line-del" title="حذف البند"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+    `;
+    linesBox.appendChild(row);
+    if (window.lucide) lucide.createIcons();
+    row.querySelector('.acct-je-line-del').addEventListener('click', () => { row.remove(); recalc(); });
+    row.querySelectorAll('.bl-qty, .bl-price, .bl-vat').forEach(el => el.addEventListener('input', recalc));
+  }
+  function recalc() {
+    let subtotal = 0, vat = 0;
+    linesBox.querySelectorAll('.acct-je-line-row').forEach(r => {
+      const qty = Number(r.querySelector('.bl-qty').value || 0);
+      const price = Number(r.querySelector('.bl-price').value || 0);
+      const lineTotal = qty * price;
+      subtotal += lineTotal;
+      if (r.querySelector('.bl-vat').checked) vat += lineTotal * 0.15;
+    });
+    totalsBox.textContent = `الإجمالي قبل الضريبة: ${subtotal.toFixed(2)} ر.س | ضريبة القيمة المضافة: ${vat.toFixed(2)} ر.س | الإجمالي: ${(subtotal + vat).toFixed(2)} ر.س`;
+  }
+  host.querySelector('#acctBillAddLineBtn').addEventListener('click', addLineRow);
+  addLineRow();
+
+  host.querySelector('#acctBillSaveBtn').addEventListener('click', async () => {
+    const errBox = host.querySelector('#acctBillCrErr');
+    errBox.classList.remove('show');
+    const vendorId = Number(host.querySelector('#acctBillVendor').value);
+    if (!vendorId) { errBox.textContent = 'اختر المورد'; errBox.classList.add('show'); return; }
+    const lineRows = [...linesBox.querySelectorAll('.acct-je-line-row')];
+    const lines = lineRows.map(r => ({
+      description: r.querySelector('.bl-desc').value.trim() || 'بند',
+      account_id: r.querySelector('.bl-account').value ? Number(r.querySelector('.bl-account').value) : null,
+      cost_center_id: r.querySelector('.bl-cc').value ? Number(r.querySelector('.bl-cc').value) : null,
+      quantity: Number(r.querySelector('.bl-qty').value || 1),
+      unit_price: Number(r.querySelector('.bl-price').value || 0),
+      vat_applicable: r.querySelector('.bl-vat').checked
+    })).filter(l => l.account_id && l.unit_price > 0);
+    if (!lines.length) { errBox.textContent = 'أضف بندًا واحدًا على الأقل بحساب وسعر صحيحين'; errBox.classList.add('show'); return; }
+
+    try {
+      const { data: bill, error: createErr } = await ACCT.bills.create({
+        vendor_id: vendorId,
+        po_id: host.querySelector('#acctBillPo').value ? Number(host.querySelector('#acctBillPo').value) : null,
+        bill_date: host.querySelector('#acctBillDate').value,
+        due_date: host.querySelector('#acctBillDue').value || null,
+        vendor_invoice_no: host.querySelector('#acctBillVendorNo').value.trim() || null
+      });
+      if (createErr) throw createErr;
+      for (const line of lines) {
+        const { error: lineErr } = await ACCT.bills.addLine(bill.id, line);
+        if (lineErr) throw lineErr;
+      }
+      toast('تم حفظ الفاتورة كمسودة', 'success');
+      close();
+      location.hash = '#acct_bill/' + bill.id;
+      renderApp();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function pageAcctBillDetail(body, idParam) {
+  const billId = Number(idParam);
+  if (!billId) { body.innerHTML = '<p class="error-msg show">معرف الفاتورة غير صحيح</p>'; return; }
+  const { data: bill, error } = await ACCT.bills.get(billId);
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!bill) { body.innerHTML = '<p class="empty-state">الفاتورة غير موجودة</p>'; return; }
+
+  const canManage = isApOfficer();
+  const canFinance = isFinanceManager();
+  const statusLbl = { draft: 'مسودة', pending_approval: 'بانتظار الاعتماد', approved: 'معتمدة', paid: 'مدفوعة', cancelled: 'ملغاة' };
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  body.innerHTML = `
+    <a href="#acct_bills" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لفواتير الموردين</a>
+    <div class="hr-emp-hero">
+      <div class="hr-emp-hero-content">
+        <div class="hr-emp-hero-avatar"><span data-lucide="file-text" style="width:28px;height:28px;"></span></div>
+        <div class="hr-emp-hero-info">
+          <h2 class="hr-emp-hero-name">${esc(bill.bill_no)}</h2>
+          <div class="hr-emp-hero-meta">
+            <span><span data-lucide="truck" style="width:13px;height:13px;"></span> ${esc(bill.acct_vendors?.name || '—')}</span>
+            <span><span data-lucide="calendar" style="width:13px;height:13px;"></span> ${esc(bill.bill_date)}</span>
+            <span><span data-lucide="info" style="width:13px;height:13px;"></span> ${esc(statusLbl[bill.status])}</span>
+            ${bill.requires_second_approval ? `<span><span data-lucide="shield-alert" style="width:13px;height:13px;"></span> ${bill.second_approved_by ? 'موافقة ثانية: تمت' : 'تحتاج موافقة ثانية'}</span>` : ''}
+          </div>
+        </div>
+        <div class="hr-emp-hero-actions">
+          ${canManage && bill.status === 'draft' ? `<button type="button" class="hr-emp-hero-btn" id="acctBillApproveBtn"><span data-lucide="check-check" style="width:13px;height:13px;"></span> اعتماد</button>` : ''}
+          ${canFinance && bill.requires_second_approval && !bill.second_approved_by ? `<button type="button" class="hr-emp-hero-btn" id="acctBillSecondApproveBtn"><span data-lucide="shield-check" style="width:13px;height:13px;"></span> موافقة ثانية</button>` : ''}
+          ${canManage && bill.status === 'approved' ? `<button type="button" class="hr-emp-hero-btn" id="acctBillPayBtn"><span data-lucide="banknote" style="width:13px;height:13px;"></span> تسجيل دفعة</button>` : ''}
+          ${canManage && bill.status === 'draft' ? `<button type="button" class="hr-emp-hero-btn" id="acctBillCancelBtn"><span data-lucide="ban" style="width:13px;height:13px;"></span> إلغاء</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="hr-info-grid" style="margin-bottom:20px;">
+      ${_hrInfo('رقم فاتورة المورد', bill.vendor_invoice_no)}
+      ${_hrInfo('تاريخ الاستحقاق', bill.due_date)}
+      ${_hrInfo('الإجمالي قبل الضريبة', money(bill.subtotal) + ' ر.س')}
+      ${_hrInfo('ضريبة القيمة المضافة', money(bill.vat_amount) + ' ر.س')}
+      ${_hrInfo('الإجمالي', money(bill.total) + ' ر.س')}
+    </div>
+
+    <div class="hr-section-heading"><span class="icon" data-lucide="list"></span> بنود الفاتورة</div>
+    <div style="overflow-x:auto;">
+      <table class="hr-emp-table">
+        <thead><tr><th>الوصف</th><th>الحساب</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي</th><th>VAT</th></tr></thead>
+        <tbody>${(bill.lines || []).sort((a,b)=>a.line_no-b.line_no).map(l => `<tr>
+          <td>${esc(l.description)}</td>
+          <td>${esc(l.account?.code || '')} — ${esc(l.account?.name || '')}</td>
+          <td class="mono-num">${esc(String(l.quantity))}</td>
+          <td class="mono-num">${money(l.unit_price)}</td>
+          <td class="mono-num">${money(l.line_total)}</td>
+          <td>${l.vat_applicable ? '✓' : '—'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  document.getElementById('acctBillApproveBtn')?.addEventListener('click', async () => {
+    if (!(await customConfirm('اعتماد هذه الفاتورة؟ سيتم إنشاء قيد يومية مسودة تلقائيًا.'))) return;
+    const { error } = await ACCT.bills.approve(billId);
+    if (error) { toast('تعذّر الاعتماد: ' + error.message, 'error'); return; }
+    toast('تم اعتماد الفاتورة', 'success');
+    renderApp();
+  });
+  document.getElementById('acctBillSecondApproveBtn')?.addEventListener('click', async () => {
+    if (!(await customConfirm('تسجيل موافقتك الثانية على هذه الفاتورة؟'))) return;
+    const { error } = await ACCT.bills.secondApprove(billId);
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم تسجيل الموافقة الثانية', 'success');
+    renderApp();
+  });
+  document.getElementById('acctBillPayBtn')?.addEventListener('click', () => openAcctPaymentModal(bill));
+  document.getElementById('acctBillCancelBtn')?.addEventListener('click', async () => {
+    if (!(await customConfirm('إلغاء هذه الفاتورة؟'))) return;
+    const { error } = await ACCT.bills.cancel(billId);
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم الإلغاء', 'success');
+    location.hash = '#acct_bills';
+    renderApp();
+  });
+}
+
+// ─── المدفوعات ─────────────────────────────────────────────────────
+async function pageAcctPayments(body) {
+  const canManage = isApOfficer();
+  body.innerHTML = `
+    <a href="#accounting" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الحسابات</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="wallet" style="width:22px;height:22px;color:#123F32;"></span> المدفوعات</h2>
+        <p>مدفوعات الموردين — تسجّل عادة من داخل صفحة الفاتورة.</p>
+      </div>
+    </div>
+    <div id="acctPayTableBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  const { data: rows, error } = await ACCT.payments.list({});
+  const box = document.getElementById('acctPayTableBody');
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="wallet"></span><p class="hr-empty-title">لا توجد مدفوعات بعد</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const statusLbl = { draft: 'مسودة', approved: 'معتمدة', paid: 'مدفوعة', cancelled: 'ملغاة' };
+  const statusCls = { draft: 'st-empty', approved: 'st-leave', paid: 'st-present', cancelled: 'st-absent' };
+  const methodLbl = { bank: 'بنك', cash: 'نقدًا', check: 'شيك' };
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  box.innerHTML = `
+    <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>رقم الدفعة</th><th>المورد</th><th>الفاتورة</th><th>التاريخ</th><th>المبلغ</th><th>الطريقة</th><th>الحالة</th><th style="width:150px;">إجراءات</th></tr></thead>
+      <tbody>${rows.map(p => `<tr>
+        <td class="mono-num">${esc(p.payment_no)}</td>
+        <td>${esc(p.acct_vendors?.name || '—')}</td>
+        <td>${esc(p.acct_bills?.bill_no || '—')}</td>
+        <td class="mono-num">${esc(p.payment_date)}</td>
+        <td class="mono-num">${money(p.amount)}</td>
+        <td>${esc(methodLbl[p.method] || p.method)}</td>
+        <td><span class="hr-att-cell ${statusCls[p.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(statusLbl[p.status])}</span></td>
+        <td>
+          <div class="hr-emp-actions">
+            ${canManage && p.status === 'draft'    ? `<button type="button" title="اعتماد" data-pay-approve="${p.id}"><span data-lucide="check" style="width:14px;height:14px;color:#047857;"></span></button>` : ''}
+            ${canManage && p.status === 'approved' ? `<button type="button" title="تسجيل الصرف" data-pay-mark="${p.id}"><span data-lucide="banknote" style="width:14px;height:14px;color:#6D28D9;"></span></button>` : ''}
+          </div>
+        </td>
+      </tr>`).join('')}</tbody>
+    </table></div></div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  box.querySelectorAll('[data-pay-approve]').forEach(b => b.addEventListener('click', async () => {
+    if (!(await customConfirm('اعتماد هذه الدفعة؟'))) return;
+    const { error } = await ACCT.payments.approve(Number(b.dataset.payApprove));
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم الاعتماد', 'success'); pageAcctPayments(document.getElementById('pageBody'));
+  }));
+  box.querySelectorAll('[data-pay-mark]').forEach(b => b.addEventListener('click', async () => {
+    if (!(await customConfirm('تسجيل صرف هذه الدفعة؟ سيُنشأ قيد يومية تلقائيًا وتُغلق الفاتورة المرتبطة.'))) return;
+    const { error } = await ACCT.payments.markPaid(Number(b.dataset.payMark));
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم تسجيل الصرف', 'success'); pageAcctPayments(document.getElementById('pageBody'));
+  }));
+}
+
+async function openAcctPaymentModal(bill) {
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:460px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="banknote" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> تسجيل دفعة للمورد</h3>
+        <button class="modal-close-x" id="acctPayClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="acctPayErr"></div>
+        <form id="acctPayForm" style="display:grid;gap:12px;">
+          <div class="form-field"><label>المبلغ *</label><input class="form-input mono-num" type="number" step="0.01" min="0.01" name="amount" required value="${esc(bill.total)}"></div>
+          <div class="form-field"><label>تاريخ الدفع *</label><input class="form-input" type="date" name="payment_date" required value="${new Date().toISOString().slice(0,10)}"></div>
+          <div class="form-field"><label>طريقة الدفع</label>
+            <select class="form-select" name="method">
+              <option value="bank">تحويل بنكي</option>
+              <option value="cash">نقدًا</option>
+              <option value="check">شيك</option>
+            </select>
+          </div>
+          <div class="form-field"><label>مرجع الدفع (رقم تحويل/شيك)</label><input class="form-input" name="reference"></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="acctPayCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">تسجيل الدفعة</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#acctPayClose').addEventListener('click', close);
+  host.querySelector('#acctPayCancel').addEventListener('click', close);
+  host.querySelector('#acctPayForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('acctPayErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    try {
+      const { error } = await ACCT.payments.create({
+        vendor_id: bill.vendor_id, bill_id: bill.id,
+        amount: Number(fd.get('amount')), payment_date: fd.get('payment_date'),
+        method: fd.get('method'), reference: (fd.get('reference') || '').trim() || null
+      });
+      if (error) throw error;
+      toast('تم إنشاء الدفعة كمسودة — اعتمدها من صفحة المدفوعات', 'success');
+      close();
+      location.hash = '#acct_payments';
+      renderApp();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
   });
 }
 
