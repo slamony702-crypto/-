@@ -4475,7 +4475,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v73-2026-07-15-mobile-dept-tasks';
+const APP_VERSION = 'v74-2026-07-15-mobile-parity';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -21186,6 +21186,11 @@ function openMobileMoreSheet() {
             { key:'conversations', hash:'#conversations', icon:'message-circle', label:'التواصل الداخلي' },
             { key:'cafe', hash:'#cafe', icon:'coffee', label:'ركن الكافيه' },
             { key:'reports', hash:'#reports', icon:'bar-chart-3', label:'التقارير' },
+            { key:'emergency', hash:'#emergency', icon:'siren', label:'تواصل طارئ' },
+            { key:'myday', hash:'#myday', icon:'sun', label:'شغلي اليوم' },
+            { key:'vision', hash:'#vision', icon:'compass', label:'رؤية الشركة' },
+            { key:'analytics', hash:'#analytics', icon:'trending-up', label:'تحليلات الأداء' },
+            { key:'invite', hash:'#invite', icon:'user-plus', label:'دعوة موظفين' },
             { key:'users', hash:'#users', icon:'users', label:'المستخدمون' },
             { key:'my_profile', hash:'#my_profile', icon:'user', label:'ملفي الشخصي' },
             { key:'settings', hash:'#settings', icon:'settings', label:'الإعدادات' }
@@ -21279,6 +21284,9 @@ function openMobileCustomizeSheet() {
     decisions: ['القرارات','gavel'], maintenance: ['الصيانة','wrench'],
     quality: ['الجودة','shield-check'], conversations: ['التواصل','message-circle'],
     cafe: ['ركن الكافيه','coffee'], reports: ['التقارير','bar-chart-3'],
+    emergency: ['تواصل طارئ','siren'], myday: ['شغلي اليوم','sun'],
+    vision: ['رؤية الشركة','compass'], analytics: ['تحليلات الأداء','trending-up'],
+    invite: ['دعوة موظفين','user-plus'],
     users: ['المستخدمون','users'], my_profile: ['ملفي الشخصي','user'],
     settings: ['الإعدادات','settings']
   };
@@ -21671,6 +21679,16 @@ async function renderMobileHome(body) {
       title:'ركن الكافيه',  sub:'اطلب مشروبك واستمتع', badge:null },
     { key:'reports',   href:'#reports',   tint:'t-peach-2',     icon:'bar-chart-3',
       title:'التقارير',     sub:'إحصائيات وأداء الفريق', badge:null },
+    { key:'emergency', href:'#emergency', tint:'t-peach',       icon:'siren',
+      title:'تواصل طارئ',   sub:'تنبيهات عاجلة للفريق', badge:null },
+    { key:'myday',     href:'#myday',     tint:'t-mint-2',      icon:'sun',
+      title:'شغلي اليوم',   sub:'ملخص يومك في مكان واحد', badge:null },
+    { key:'vision',    href:'#vision',    tint:'t-lavender-2',  icon:'compass',
+      title:'رؤية الشركة',  sub:'الرؤية والأهداف', badge:null },
+    { key:'analytics', href:'#analytics', tint:'t-aqua-2',      icon:'trending-up',
+      title:'تحليلات الأداء', sub:'مؤشرات الفريق والإنجاز', badge:null },
+    { key:'invite',    href:'#invite',    tint:'t-peach-2',     icon:'user-plus',
+      title:'دعوة موظفين',  sub:'شارك رابط الانضمام', badge:null },
     { key:'users',     href:'#users',     tint:'t-lavender',    icon:'users',
       title:'المستخدمون',   sub:'الفريق والصلاحيات', badge:null },
     { key:'my_profile',href:'#my_profile',tint:'t-mint',        icon:'user',
@@ -21693,8 +21711,8 @@ async function renderMobileHome(body) {
         return v;
       }
     } catch {}
-    // افتراضي: الأقسام الأساسية على الرئيسية، والباقي (users/my_profile/settings) في More
-    return ['meetings','department_tasks','tasks','decisions','maintenance','quality','conversations','cafe','reports'];
+    // افتراضي: الأقسام الأساسية على الرئيسية، والباقي (شغلي اليوم/الرؤية/التحليلات/الدعوة/المستخدمون...) في More
+    return ['meetings','department_tasks','tasks','decisions','maintenance','quality','conversations','emergency','cafe','reports'];
   })();
   const byKey = Object.fromEntries(defaultTiles.map(t => [t.key, t]));
   const visibleTiles = [
