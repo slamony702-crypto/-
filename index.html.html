@@ -4475,7 +4475,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v71-2026-07-15-quick-task-dept';
+const APP_VERSION = 'v72-2026-07-15-visibility-audit';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -7123,7 +7123,11 @@ async function pageMeetingsCalendar(body, urlQuery) {
     const startISO = first.toISOString();
     const endISO = new Date(st.year, st.month - 1, last.getDate(), 23, 59, 59).toISOString();
     let q = sb.from('meetings').select('id, title, meeting_datetime, meeting_type, status, department_id, organizer_id, users:organizer_id(full_name), departments(name)').gte('meeting_datetime', startISO).lte('meeting_datetime', endISO);
-    if (!isAdmin) q = q.eq('department_id', CURRENT_USER.department_id);
+    if (!isAdmin) {
+      q = CURRENT_USER.department_id
+        ? q.or(`department_id.eq.${CURRENT_USER.department_id},organizer_id.eq.${CURRENT_USER.id}`)
+        : q.eq('organizer_id', CURRENT_USER.id);
+    }
     if (st.dept) q = q.eq('department_id', st.dept);
     const { data: meets } = await q;
     return meets || [];
@@ -7275,14 +7279,17 @@ async function pageMeetings(body, urlQuery) {
     <div class="panel"><div class="panel-body"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
   `;
 
-  let query = sb.from('meetings').select('*, departments(name), users!organizer_id(full_name)').order('meeting_datetime', { ascending: false });
-  if (CURRENT_USER.role === 'meeting_organizer') {
-    query = query.or(`department_id.eq.${CURRENT_USER.department_id},organizer_id.eq.${CURRENT_USER.id}`);
-  } else if (!isAdmin) {
-    query = query.eq('department_id', CURRENT_USER.department_id);
-  }
-  const { data: meetings, error } = await query;
+  let query = sb.from('meetings').select('*, departments(name), users!organizer_id(full_name), meeting_attendees(user_id)').order('meeting_datetime', { ascending: false });
+  const { data: meetingsRaw, error } = await query;
   if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  // غير الأدمن يشوف: اجتماعات قسمه + اللي هو منظّمها + اللي هو مدعو فيها.
+  // الفلتر القديم (القسم فقط) كان يُخفي الاجتماعات عن المدعوين من أقسام أخرى،
+  // ولو المستخدم بدون قسم كانت الصفحة تطلع فاضية تمامًا
+  const meetings = isAdmin ? meetingsRaw : (meetingsRaw || []).filter(m =>
+    (CURRENT_USER.department_id && m.department_id === CURRENT_USER.department_id) ||
+    m.organizer_id === CURRENT_USER.id ||
+    (m.meeting_attendees || []).some(a => a.user_id === CURRENT_USER.id)
+  );
 
   const { data: allTasks } = await sb.from('action_items').select('id, meeting_id, status');
   const taskCounts = {};
@@ -8864,7 +8871,14 @@ async function pageTasks(body, urlQuery) {
 
   let query = sb.from('action_items').select('*, users(full_name), meetings(title)').order('due_date', { ascending: true });
   if (CURRENT_USER.role === 'employee') query = query.eq('assigned_to', CURRENT_USER.id);
-  else if (!['admin','company_manager'].includes(CURRENT_USER.role)) query = query.eq('department_id', CURRENT_USER.department_id);
+  else if (!['admin','company_manager'].includes(CURRENT_USER.role)) {
+    // مدير القسم يشوف مهام قسمه + أي مهمة مسندة له شخصيًا (حتى لو بدون قسم).
+    // الفلتر القديم eq(department_id) كان يُخفي المهام بدون قسم تمامًا،
+    // ولو المدير نفسه بدون قسم كانت الصفحة تطلع فاضية بالكامل
+    query = CURRENT_USER.department_id
+      ? query.or(`department_id.eq.${CURRENT_USER.department_id},assigned_to.eq.${CURRENT_USER.id}`)
+      : query.eq('assigned_to', CURRENT_USER.id);
+  }
   const { data: tasks, error } = await query;
   if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
 
@@ -13711,7 +13725,9 @@ async function pageUsers(body) {
   }
   const isAdmin = scope('users') === 'company_wide';
   let usersQuery = sb.from('users').select('*, departments(name), manager:direct_manager_id(full_name)').order('full_name');
-  if (!isAdmin) usersQuery = usersQuery.eq('department_id', CURRENT_USER.department_id);
+  if (!isAdmin) usersQuery = CURRENT_USER.department_id
+    ? usersQuery.eq('department_id', CURRENT_USER.department_id)
+    : usersQuery.eq('id', CURRENT_USER.id);
   const { data: users } = await usersQuery;
   const { data: departments } = await sb.from('departments').select('*').order('name');
   let pendingSignups = [];
@@ -15648,11 +15664,15 @@ function myDayTaskItem(t, kind) {
 async function pageDashboard(body) {
   const isAdmin = ['admin','company_manager'].includes(CURRENT_USER.role);
   let meetingsQuery = sb.from('meetings').select('*');
-  if (!isAdmin) meetingsQuery = meetingsQuery.eq('department_id', CURRENT_USER.department_id);
+  if (!isAdmin) meetingsQuery = CURRENT_USER.department_id
+    ? meetingsQuery.or(`department_id.eq.${CURRENT_USER.department_id},organizer_id.eq.${CURRENT_USER.id}`)
+    : meetingsQuery.eq('organizer_id', CURRENT_USER.id);
   const { data: meetings } = await meetingsQuery;
 
   let tasksQuery = sb.from('action_items').select('*');
-  if (!isAdmin) tasksQuery = tasksQuery.eq('department_id', CURRENT_USER.department_id);
+  if (!isAdmin) tasksQuery = CURRENT_USER.department_id
+    ? tasksQuery.or(`department_id.eq.${CURRENT_USER.department_id},assigned_to.eq.${CURRENT_USER.id}`)
+    : tasksQuery.eq('assigned_to', CURRENT_USER.id);
   const { data: tasks } = await tasksQuery;
 
   const thisMonth = new Date().toISOString().slice(0, 7);
@@ -15693,7 +15713,9 @@ async function pageDashboard(body) {
   let deptTasksQuery = sb.from('department_tasks').select('*, assignee:assigned_to(full_name)');
   if (!isAdmin) deptTasksQuery = deptTasksQuery.eq('assigned_to', CURRENT_USER.id);
   let simpleTasksQuery = sb.from('action_items').select('*, users(full_name)');
-  if (!isAdmin) simpleTasksQuery = simpleTasksQuery.eq('department_id', CURRENT_USER.department_id);
+  if (!isAdmin) simpleTasksQuery = CURRENT_USER.department_id
+    ? simpleTasksQuery.or(`department_id.eq.${CURRENT_USER.department_id},assigned_to.eq.${CURRENT_USER.id}`)
+    : simpleTasksQuery.eq('assigned_to', CURRENT_USER.id);
   const [{ data: tasksDetailed }, { data: deptTasks }, { data: openDecisions }] = await Promise.all([
     simpleTasksQuery,
     deptTasksQuery,
@@ -20893,7 +20915,7 @@ function ensureMobileShell() {
           setTimeout(syncMobileBottomNav, 100);
         } else if (nav === 'dashboard') location.hash = '#dashboard';
         else if (nav === 'meetings') location.hash = '#meetings';
-        else if (nav === 'tasks') location.hash = '#tasks';
+        else if (nav === 'tasks') location.hash = '#department_tasks';
         else if (nav === 'notifications') location.hash = '#notifications';
       });
     });
@@ -21225,7 +21247,7 @@ function openMobileMoreSheet() {
 function syncMobileBottomNav() {
   const page = (location.hash || '#dashboard').replace('#','').split('/')[0].split('?')[0];
   document.querySelectorAll('.m-bottomnav-item').forEach(b => b.removeAttribute('data-active'));
-  const map = { dashboard: 'dashboard', meetings: 'meetings', tasks: 'tasks', notifications: 'notifications' };
+  const map = { dashboard: 'dashboard', meetings: 'meetings', tasks: 'tasks', department_tasks: 'tasks', notifications: 'notifications' };
   const active = map[page] || 'dashboard';
   document.querySelector(`.m-bottomnav-item[data-mnav="${active}"]`)?.setAttribute('data-active','1');
 }
@@ -21855,9 +21877,13 @@ async function renderMobileMeetings(body) {
   if (window.lucide) lucide.createIcons();
 
   let query = sb.from('meetings').select('id, title, meeting_datetime, meeting_type, status, department_id, organizer_id, departments(name), users:organizer_id(full_name), meeting_attendees(user_id)').order('meeting_datetime', { ascending: false });
-  if (!isAdmin) query = query.eq('department_id', CURRENT_USER.department_id);
   const { data: meets } = await query;
-  const all = meets || [];
+  // نفس منطق صفحة الاجتماعات الرئيسية: قسمي + منظّمها أنا + مدعو فيها أنا
+  const all = isAdmin ? (meets || []) : (meets || []).filter(m =>
+    (CURRENT_USER.department_id && m.department_id === CURRENT_USER.department_id) ||
+    m.organizer_id === CURRENT_USER.id ||
+    (m.meeting_attendees || []).some(a => a.user_id === CURRENT_USER.id)
+  );
   const listEl = document.getElementById('mMeetList');
 
   function renderList() {
