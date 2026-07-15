@@ -1252,10 +1252,18 @@ tr:hover td { background: var(--primary-light); }
   /* إطار خفيف بالتدرج الأخضر↔البنفسجي على كل بار/كارت قابل للطي على الموبايل
      (بيانات الطلب، تفاصيل المشكلة، المرفقات، إلخ) — كان شكلها مسطّح وغير واضحة
      إنها عنصر قابل للضغط، فكان بعض المستخدمين ما يلاحظوش وجودها كبار أصلًا */
-  .panel, .meeting-form-card, .foldable-summary {
+  .panel, .foldable-summary {
     border: 1.5px solid transparent !important;
     background-image:
       linear-gradient(var(--surface), var(--surface)),
+      linear-gradient(135deg, #10B981 0%, #34D399 45%, #8B5CF6 100%) !important;
+    background-origin: border-box !important;
+    background-clip: padding-box, border-box !important;
+  }
+  .meeting-form-card {
+    border: 1.5px solid transparent !important;
+    background-image:
+      linear-gradient(#F0F7F3, #F0F7F3),
       linear-gradient(135deg, #10B981 0%, #34D399 45%, #8B5CF6 100%) !important;
     background-origin: border-box !important;
     background-clip: padding-box, border-box !important;
@@ -4444,7 +4452,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v66-2026-07-15-stepper-mobile-ui';
+const APP_VERSION = 'v67-2026-07-15-card-border-fix';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
