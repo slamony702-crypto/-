@@ -4475,7 +4475,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v72-2026-07-15-visibility-audit';
+const APP_VERSION = 'v73-2026-07-15-mobile-dept-tasks';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -21178,7 +21178,8 @@ function openMobileMoreSheet() {
           const homeKeys = window._mHomeSectionKeys || [];
           const swappable = [
             { key:'meetings', hash:'#meetings', icon:'calendar', label:'الاجتماعات' },
-            { key:'tasks', hash:'#tasks', icon:'check-square', label:'المهام' },
+            { key:'department_tasks', hash:'#department_tasks', icon:'clipboard-list', label:'مهام وتكليفات' },
+            { key:'tasks', hash:'#tasks', icon:'check-square', label:'مخرجات الاجتماعات' },
             { key:'decisions', hash:'#decisions', icon:'gavel', label:'القرارات' },
             { key:'maintenance', hash:'#maintenance', icon:'wrench', label:'الصيانة' },
             { key:'quality', hash:'#quality', icon:'shield-check', label:'الجودة' },
@@ -21274,7 +21275,7 @@ function openMobileCustomizeSheet() {
   if (existing) { existing.remove(); return; }
   const all = window._mAllSectionKeys || [];
   const labels = {
-    meetings: ['الاجتماعات','calendar'], tasks: ['المهام','check-square'],
+    meetings: ['الاجتماعات','calendar'], department_tasks: ['مهام وتكليفات','clipboard-list'], tasks: ['مخرجات الاجتماعات','check-square'],
     decisions: ['القرارات','gavel'], maintenance: ['الصيانة','wrench'],
     quality: ['الجودة','shield-check'], conversations: ['التواصل','message-circle'],
     cafe: ['ركن الكافيه','coffee'], reports: ['التقارير','bar-chart-3'],
@@ -21650,8 +21651,10 @@ async function renderMobileHome(body) {
     { key:'meetings',  href:'#meetings',  tint:'t-lavender',    icon:'calendar',
       title:'الاجتماعات',   sub: meets.length ? `${meets.length} اليوم · ${meetsThisWeek} هذا الأسبوع` : (meetsThisWeek ? `${meetsThisWeek} هذا الأسبوع` : 'ابدأ بجدولة اجتماع'),
       badge: meets.length || null },
+    { key:'department_tasks', href:'#department_tasks', tint:'t-mint', icon:'clipboard-list',
+      title:'مهام وتكليفات', sub:'المهام المسندة لي ومني', badge:null },
     { key:'tasks',     href:'#tasks',     tint:'t-mint',        icon:'check-square',
-      title:'المهام',       sub: openTasks.length ? `${openTasks.length} مهمة مفتوحة` : 'كل شيء في مكانه ✨',
+      title:'مخرجات الاجتماعات', sub: openTasks.length ? `${openTasks.length} مهمة مفتوحة` : 'كل شيء في مكانه ✨',
       badge: overdueTasks.length || null },
     { key:'decisions', href:'#decisions', tint:'t-aqua',        icon:'gavel',
       title:'القرارات',     sub: openDecs.length ? `${openDecs.length} قرار قيد التنفيذ` : 'لا توجد قرارات مفتوحة',
@@ -21680,10 +21683,18 @@ async function renderMobileHome(body) {
   const savedVisible = (() => {
     try {
       const v = JSON.parse(localStorage.getItem('mHomeTilesVisible') || 'null');
-      if (Array.isArray(v)) return v;
+      if (Array.isArray(v)) {
+        // ترحيل: قسم "مهام وتكليفات" اتضاف بعد ما بعض المستخدمين حفظوا تفضيلاتهم —
+        // نضيفه مرة واحدة عشان ميختفيش عنهم القسم الجديد
+        if (!v.includes('department_tasks')) {
+          v.splice(v.includes('meetings') ? v.indexOf('meetings') + 1 : 0, 0, 'department_tasks');
+          try { localStorage.setItem('mHomeTilesVisible', JSON.stringify(v)); } catch (e) {}
+        }
+        return v;
+      }
     } catch {}
-    // افتراضي: 8 الأقسام الأصلية على الرئيسية، والباقي (users/my_profile/settings) في More
-    return ['meetings','tasks','decisions','maintenance','quality','conversations','cafe','reports'];
+    // افتراضي: الأقسام الأساسية على الرئيسية، والباقي (users/my_profile/settings) في More
+    return ['meetings','department_tasks','tasks','decisions','maintenance','quality','conversations','cafe','reports'];
   })();
   const byKey = Object.fromEntries(defaultTiles.map(t => [t.key, t]));
   const visibleTiles = [
