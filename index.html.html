@@ -1646,6 +1646,81 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
   .hr-emp-cards { display: none; }
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   HR — Organization & Attendance
+═══════════════════════════════════════════════════════════════════ */
+
+/* Sub-tabs used in Organization page */
+.hr-subtabs { display: flex; gap: 6px; margin-bottom: 16px; background: rgba(148,163,184,0.10); padding: 4px; border-radius: 12px; width: fit-content; }
+.hr-subtab { border: none; background: none; padding: 8px 16px; font-size: 13px; font-weight: 700; color: var(--text-muted); cursor: pointer; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; transition: all .15s ease; }
+.hr-subtab.active { background: var(--surface); color: #123F32; box-shadow: 0 2px 6px rgba(15,23,42,0.08); }
+.hr-subtab:not(.active):hover { color: #0F172A; }
+
+/* Departments cards grid */
+.hr-dept-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.hr-dept-card {
+  background: var(--surface); border-radius: 14px; padding: 16px; position: relative;
+  border: 1.5px solid transparent;
+  background-image: linear-gradient(var(--surface), var(--surface)), linear-gradient(135deg, #10B981 0%, #34D399 45%, #8B5CF6 100%);
+  background-origin: border-box; background-clip: padding-box, border-box;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.hr-dept-card:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(18,55,47,0.10); }
+.hr-dept-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.hr-dept-card-icon { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, rgba(16,185,129,0.14), rgba(139,92,246,0.14)); color: #123F32; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.hr-dept-card-name { font-size: 15px; font-weight: 800; color: #0F172A; margin: 0; }
+.hr-dept-card-desc { font-size: 12px; color: var(--text-muted); margin: 8px 0 12px; line-height: 1.6; min-height: 32px; }
+.hr-dept-card-stats { display: flex; gap: 12px; align-items: center; padding-top: 10px; border-top: 1px dashed var(--border); font-size: 12px; color: #0F172A; }
+.hr-dept-card-stat { display: inline-flex; align-items: center; gap: 4px; }
+.hr-dept-card-actions { position: absolute; top: 12px; left: 12px; display: flex; gap: 4px; }
+.hr-dept-card-actions button { width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface); color: #64748B; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all .15s ease; }
+.hr-dept-card-actions button:hover { color: #047857; border-color: #10B981; }
+.hr-dept-card-actions button.danger:hover { color: #B91C1C; border-color: #EF4444; }
+
+/* Attendance calendar-style grid */
+.hr-att-controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+.hr-att-month { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1.5px solid var(--border); border-radius: 12px; padding: 6px 10px; }
+.hr-att-month button { border: none; background: rgba(148,163,184,0.10); width: 28px; height: 28px; border-radius: 8px; cursor: pointer; color: #0F172A; display: inline-flex; align-items: center; justify-content: center; }
+.hr-att-month button:hover:not(:disabled) { background: rgba(16,185,129,0.15); color: #047857; }
+.hr-att-month button:disabled { opacity: 0.4; cursor: not-allowed; }
+.hr-att-month-label { min-width: 110px; text-align: center; font-weight: 800; color: #123F32; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+
+.hr-att-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.hr-att-sum-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: 12px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; }
+.hr-att-sum-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.hr-att-sum-icon.st-present { background: rgba(16,185,129,0.14); color: #047857; }
+.hr-att-sum-icon.st-absent  { background: rgba(220,38,38,0.14); color: #B91C1C; }
+.hr-att-sum-icon.st-late    { background: rgba(245,158,11,0.14); color: #B45309; }
+.hr-att-sum-icon.st-leave   { background: rgba(139,92,246,0.14); color: #6D28D9; }
+.hr-att-sum-val { font-size: 20px; font-weight: 800; color: #0F172A; line-height: 1; font-variant-numeric: tabular-nums; }
+.hr-att-sum-lbl { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; font-weight: 700; }
+
+/* Attendance grid (rows = employees, cols = days) */
+.hr-att-grid-wrap { overflow-x: auto; border: 1.5px solid var(--border); border-radius: 12px; background: var(--surface); }
+.hr-att-grid { border-collapse: separate; border-spacing: 0; font-size: 11px; min-width: 100%; }
+.hr-att-grid th, .hr-att-grid td { padding: 4px; text-align: center; border-bottom: 1px solid var(--border); border-left: 1px solid var(--border); }
+.hr-att-grid th { background: rgba(148,163,184,0.08); font-weight: 700; color: var(--text-muted); position: sticky; top: 0; z-index: 2; }
+.hr-att-grid th:first-child, .hr-att-grid td:first-child { text-align: right; padding: 8px 12px; font-weight: 700; color: #0F172A; position: sticky; right: 0; background: var(--surface); z-index: 1; min-width: 180px; max-width: 220px; border-left: 2px solid var(--border); }
+.hr-att-grid tbody tr:hover td:first-child { background: rgba(16,185,129,0.05); }
+.hr-att-cell {
+  cursor: pointer; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 6px; font-weight: 800; font-size: 11px;
+}
+.hr-att-cell.st-present  { background: rgba(16,185,129,0.20); color: #047857; }
+.hr-att-cell.st-absent   { background: rgba(220,38,38,0.18); color: #B91C1C; }
+.hr-att-cell.st-late     { background: rgba(245,158,11,0.22); color: #B45309; }
+.hr-att-cell.st-leave    { background: rgba(139,92,246,0.18); color: #6D28D9; }
+.hr-att-cell.st-holiday  { background: rgba(148,163,184,0.18); color: #64748B; }
+.hr-att-cell.st-sick     { background: rgba(239,68,68,0.14); color: #B91C1C; }
+.hr-att-cell.st-remote   { background: rgba(56,189,248,0.18); color: #0369A1; }
+.hr-att-cell.st-empty    { color: #CBD5E1; }
+.hr-att-cell:hover { outline: 2px solid #123F32; }
+
+/* Legend for cell status */
+.hr-att-legend { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 11px; color: var(--text-muted); }
+.hr-att-legend .lg { display: inline-flex; align-items: center; gap: 4px; }
+.hr-att-legend .sw { width: 12px; height: 12px; border-radius: 3px; }
+
 .panel-header { position: relative; }
 .panel-header h3 { position: relative; padding-right: 12px; }
 .panel-header h3::before { content: ''; position: absolute; right: 0; top: 2px; bottom: 2px; width: 3px; background: var(--accent); border-radius: 2px; }
@@ -4709,7 +4784,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v78-2026-07-16-hr-dashboard-employees';
+const APP_VERSION = 'v79-2026-07-16-hr-organization-attendance';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -7723,7 +7798,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', accounting: 'الحسابات والمالية', operations: 'تشغيل المطاعم', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', accounting: 'الحسابات والمالية', operations: 'تشغيل المطاعم', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -12283,6 +12358,8 @@ async function route() {
     else if (page === 'hr') await pageHrDashboard(body);
     else if (page === 'hr_employees') await pageHrEmployees(body, query);
     else if (page === 'hr_employee') await pageHrEmployeeDetail(body, param);
+    else if (page === 'hr_organization') await pageHrOrganization(body, query);
+    else if (page === 'hr_attendance') await pageHrAttendance(body, query);
     else if (page === 'accounting') await pageComingSoonModule(body, 'accounting');
     else if (page === 'operations') await pageComingSoonModule(body, 'operations');
     else if (page === 'meetings') await pageMeetings(body, query);
@@ -15721,7 +15798,13 @@ async function pageHrDashboard(body) {
       </div>
       <div class="mod-hero-badges">
         <a href="#hr_employees" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;">
-          <span data-lucide="users" style="width:12px;height:12px;"></span> فتح قائمة الموظفين
+          <span data-lucide="users" style="width:12px;height:12px;"></span> قائمة الموظفين
+        </a>
+        <a href="#hr_organization" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;">
+          <span data-lucide="network" style="width:12px;height:12px;"></span> الأقسام والمناصب
+        </a>
+        <a href="#hr_attendance" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;">
+          <span data-lucide="calendar-check" style="width:12px;height:12px;"></span> الحضور والانصراف
         </a>
         ${canManage ? `<span class="mod-hero-badge hb-scope"><span data-lucide="shield-check" style="width:12px;height:12px;"></span> صلاحية إدارة كاملة</span>` : ''}
       </div>
@@ -16465,6 +16548,611 @@ async function openHrEmployeeModal(userId) {
       errBox.textContent = err.message || 'حدث خطأ أثناء الحفظ';
       errBox.classList.add('show');
     }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// HR MODULE — Organization (Departments + Positions) & Attendance
+// v79 — Step 1.4b
+// ═══════════════════════════════════════════════════════════════════════
+
+const HrOrgState = { activeTab: 'departments' };
+
+// ─── صفحة الأقسام والمناصب ───────────────────────────────────────
+async function pageHrOrganization(body, urlQuery) {
+  const canManage = canManageEmployees();
+  if (urlQuery && urlQuery.tab && ['departments', 'positions'].includes(urlQuery.tab)) {
+    HrOrgState.activeTab = urlQuery.tab;
+  }
+
+  body.innerHTML = `
+    <a href="#hr" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الموارد البشرية</a>
+
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="network" style="width:22px;height:22px;color:#123F32;"></span> الأقسام والمناصب</h2>
+        <p>إدارة الهيكل التنظيمي: الأقسام الوظيفية، المناصب، ونطاقات الرواتب.</p>
+      </div>
+    </div>
+
+    <div class="hr-subtabs">
+      <button type="button" class="hr-subtab ${HrOrgState.activeTab === 'departments' ? 'active' : ''}" data-org-tab="departments">
+        <span data-lucide="building-2" style="width:14px;height:14px;"></span> الأقسام
+      </button>
+      <button type="button" class="hr-subtab ${HrOrgState.activeTab === 'positions' ? 'active' : ''}" data-org-tab="positions">
+        <span data-lucide="briefcase" style="width:14px;height:14px;"></span> المناصب
+      </button>
+    </div>
+
+    <div id="hrOrgBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
+    <div id="hrOrgModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  document.querySelectorAll('.hr-subtab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      HrOrgState.activeTab = btn.dataset.orgTab;
+      document.querySelectorAll('.hr-subtab').forEach(b => b.classList.toggle('active', b === btn));
+      renderHrOrgBody();
+    });
+  });
+  await renderHrOrgBody();
+}
+
+async function renderHrOrgBody() {
+  const box = document.getElementById('hrOrgBody');
+  if (!box) return;
+  const canManage = canManageEmployees();
+  if (HrOrgState.activeTab === 'departments') await renderHrDeptsList(box, canManage);
+  else await renderHrPositionsList(box, canManage);
+}
+
+// ─── قائمة الأقسام (كروت) ─────────────────────────────────────────
+async function renderHrDeptsList(box, canManage) {
+  const [{ data: depts }, { data: allUsers }] = await Promise.all([
+    sb.from('departments').select('*, manager:manager_id(id, full_name)').order('name'),
+    sb.from('users').select('id, department_id').eq('is_active', true)
+  ]);
+  const empCounts = {};
+  (allUsers || []).forEach(u => { if (u.department_id) empCounts[u.department_id] = (empCounts[u.department_id] || 0) + 1; });
+
+  const header = canManage ? `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+      <button type="button" class="btn" id="hrAddDeptBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;">
+        <span data-lucide="plus" style="width:14px;height:14px;"></span> إضافة قسم
+      </button>
+    </div>` : '';
+
+  if (!depts || !depts.length) {
+    box.innerHTML = header + `<div class="hr-empty"><span data-lucide="building-2"></span><p class="hr-empty-title">لا يوجد أقسام بعد</p><p class="hr-empty-sub">${canManage ? 'اضغط "إضافة قسم" لبدء بناء الهيكل التنظيمي.' : ''}</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    if (canManage) document.getElementById('hrAddDeptBtn')?.addEventListener('click', () => openHrDeptModal(null));
+    return;
+  }
+
+  box.innerHTML = header + `<div class="hr-dept-grid">${depts.map(d => `
+    <div class="hr-dept-card" data-dept-id="${d.id}">
+      ${canManage ? `<div class="hr-dept-card-actions">
+        <button type="button" title="تعديل" data-dept-edit="${d.id}"><span data-lucide="pencil" style="width:13px;height:13px;"></span></button>
+        <button type="button" class="danger" title="حذف" data-dept-delete="${d.id}"><span data-lucide="trash-2" style="width:13px;height:13px;"></span></button>
+      </div>` : ''}
+      <div class="hr-dept-card-head">
+        <div class="hr-dept-card-icon"><span data-lucide="building-2" style="width:20px;height:20px;"></span></div>
+        <div style="min-width:0;flex:1;">
+          <p class="hr-dept-card-name">${esc(d.name)}</p>
+          <p style="font-size:11.5px;color:var(--text-muted);margin:2px 0 0;">${d.manager ? 'مدير: ' + esc(d.manager.full_name) : 'بدون مدير'}</p>
+        </div>
+      </div>
+      <p class="hr-dept-card-desc">${esc(d.description || 'لا يوجد وصف')}</p>
+      <div class="hr-dept-card-stats">
+        <span class="hr-dept-card-stat"><span data-lucide="users" style="width:13px;height:13px;color:#6D28D9;"></span> ${empCounts[d.id] || 0} موظف</span>
+      </div>
+    </div>
+  `).join('')}</div>`;
+  if (window.lucide) lucide.createIcons();
+
+  if (canManage) {
+    document.getElementById('hrAddDeptBtn')?.addEventListener('click', () => openHrDeptModal(null));
+    box.querySelectorAll('[data-dept-edit]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); openHrDeptModal(Number(b.dataset.deptEdit)); }));
+    box.querySelectorAll('[data-dept-delete]').forEach(b => b.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = Number(b.dataset.deptDelete);
+      const count = empCounts[id] || 0;
+      if (count > 0) {
+        toast(`لا يمكن حذف قسم فيه ${count} موظف — انقل الموظفين أولاً`, 'error');
+        return;
+      }
+      if (!(await customConfirm('حذف هذا القسم نهائيًا؟'))) return;
+      const { error } = await sb.from('departments').delete().eq('id', id);
+      if (error) { toast('تعذّر الحذف: ' + error.message, 'error'); return; }
+      toast('تم حذف القسم', 'success');
+      renderHrDeptsList(box, canManage);
+    }));
+  }
+}
+
+async function openHrDeptModal(deptId) {
+  const isEdit = !!deptId;
+  const [{ data: dept }, { data: users }] = await Promise.all([
+    isEdit ? sb.from('departments').select('*').eq('id', deptId).maybeSingle() : { data: {} },
+    sb.from('users').select('id, full_name').eq('is_active', true).order('full_name')
+  ]);
+  const d = dept || {};
+
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:480px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="${isEdit ? 'pencil' : 'plus'}" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ${isEdit ? 'تعديل قسم' : 'إضافة قسم جديد'}</h3>
+        <button class="modal-close-x" id="hrDeptCloseBtn"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="hrDeptErr"></div>
+        <form id="hrDeptForm" style="display:grid;gap:12px;">
+          <div class="form-field"><label>اسم القسم *</label><input class="form-input" name="name" required value="${esc(d.name || '')}"></div>
+          <div class="form-field"><label>المدير</label>
+            <select class="form-select" name="manager_id">
+              <option value="">—</option>
+              ${(users || []).map(u => `<option value="${u.id}" ${String(u.id) === String(d.manager_id) ? 'selected' : ''}>${esc(u.full_name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>الوصف</label><textarea class="form-input" name="description" rows="3">${esc(d.description || '')}</textarea></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="hrDeptCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">${isEdit ? 'حفظ' : 'إضافة'}</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#hrDeptCloseBtn').addEventListener('click', close);
+  host.querySelector('#hrDeptCancel').addEventListener('click', close);
+  host.querySelector('#hrDeptForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('hrDeptErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      name: (fd.get('name') || '').trim(),
+      manager_id: fd.get('manager_id') ? Number(fd.get('manager_id')) : null,
+      description: (fd.get('description') || '').trim() || null
+    };
+    if (!payload.name) { errBox.textContent = 'اسم القسم مطلوب'; errBox.classList.add('show'); return; }
+    try {
+      if (isEdit) {
+        const { error } = await sb.from('departments').update(payload).eq('id', deptId);
+        if (error) throw error;
+        toast('تم حفظ التعديلات', 'success');
+      } else {
+        const { error } = await sb.from('departments').insert(payload);
+        if (error) throw error;
+        toast('تم إضافة القسم', 'success');
+      }
+      close();
+      const box = document.getElementById('hrOrgBody');
+      if (box) renderHrDeptsList(box, canManageEmployees());
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ─── قائمة المناصب (جدول) ─────────────────────────────────────────
+async function renderHrPositionsList(box, canManage) {
+  const [{ data: positions }, { data: profiles }] = await Promise.all([
+    HR.positions.list(),
+    sb.from('hr_employee_profile').select('position_id')
+  ]);
+  const occupied = {};
+  (profiles || []).forEach(p => { if (p.position_id) occupied[p.position_id] = (occupied[p.position_id] || 0) + 1; });
+
+  const header = canManage ? `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+      <button type="button" class="btn" id="hrAddPosBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;">
+        <span data-lucide="plus" style="width:14px;height:14px;"></span> إضافة منصب
+      </button>
+    </div>` : '';
+
+  if (!positions || !positions.length) {
+    box.innerHTML = header + `<div class="hr-empty"><span data-lucide="briefcase"></span><p class="hr-empty-title">لا توجد مناصب مسجلة بعد</p><p class="hr-empty-sub">${canManage ? 'المناصب تربط الموظف بنطاق راتب وقسم — أضف أول منصب لتفعيلها.' : ''}</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    if (canManage) document.getElementById('hrAddPosBtn')?.addEventListener('click', () => openHrPositionModal(null));
+    return;
+  }
+
+  const money = n => n == null ? '—' : Number(n).toLocaleString('en-US');
+  box.innerHTML = header + `
+    <div class="panel"><div class="panel-body" style="padding:0;">
+      <div style="overflow-x:auto;">
+        <table class="hr-emp-table">
+          <thead><tr><th>المنصب</th><th>القسم</th><th>الوصف</th><th>نطاق الراتب (ر.س)</th><th>الشاغلون</th><th>الحالة</th><th style="width:110px;">إجراءات</th></tr></thead>
+          <tbody>
+            ${positions.map(p => `<tr>
+              <td><strong>${esc(p.name)}</strong></td>
+              <td>${esc(p.departments?.name || '—')}</td>
+              <td style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-muted);">${esc(p.description || '—')}</td>
+              <td class="mono-num">${p.min_salary != null || p.max_salary != null ? money(p.min_salary) + ' — ' + money(p.max_salary) : '—'}</td>
+              <td class="mono-num">${occupied[p.id] || 0}</td>
+              <td><span class="hr-pill hr-pill-${p.is_active !== false ? 'active' : 'inactive'}">${p.is_active !== false ? 'نشط' : 'موقوف'}</span></td>
+              <td>
+                <div class="hr-emp-actions">
+                  ${canManage ? `<button type="button" title="تعديل" data-pos-edit="${p.id}"><span data-lucide="pencil" style="width:14px;height:14px;"></span></button>` : ''}
+                  ${canManage ? `<button type="button" class="danger" title="حذف" data-pos-delete="${p.id}"><span data-lucide="trash-2" style="width:14px;height:14px;"></span></button>` : ''}
+                </div>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  if (canManage) {
+    document.getElementById('hrAddPosBtn')?.addEventListener('click', () => openHrPositionModal(null));
+    box.querySelectorAll('[data-pos-edit]').forEach(b => b.addEventListener('click', () => openHrPositionModal(Number(b.dataset.posEdit))));
+    box.querySelectorAll('[data-pos-delete]').forEach(b => b.addEventListener('click', async () => {
+      const id = Number(b.dataset.posDelete);
+      const count = occupied[id] || 0;
+      if (count > 0) {
+        toast(`لا يمكن حذف منصب فيه ${count} موظف — انقل الموظفين أولاً`, 'error');
+        return;
+      }
+      if (!(await customConfirm('حذف هذا المنصب؟'))) return;
+      const { error } = await HR.positions.remove(id);
+      if (error) { toast('تعذّر الحذف: ' + error.message, 'error'); return; }
+      toast('تم حذف المنصب', 'success');
+      renderHrPositionsList(box, canManage);
+    }));
+  }
+}
+
+async function openHrPositionModal(posId) {
+  const isEdit = !!posId;
+  const [{ data: pos }, { data: depts }] = await Promise.all([
+    isEdit ? HR.positions.get(posId) : { data: {} },
+    sb.from('departments').select('id, name').order('name')
+  ]);
+  const p = pos || {};
+
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:520px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="${isEdit ? 'pencil' : 'plus'}" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ${isEdit ? 'تعديل منصب' : 'إضافة منصب جديد'}</h3>
+        <button class="modal-close-x" id="hrPosCloseBtn"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="hrPosErr"></div>
+        <form id="hrPosForm" class="hr-form-grid">
+          <div class="form-field full"><label>اسم المنصب *</label><input class="form-input" name="name" required value="${esc(p.name || '')}"></div>
+          <div class="form-field"><label>القسم *</label>
+            <select class="form-select" name="department_id" required>
+              <option value="">اختر القسم</option>
+              ${(depts || []).map(d => `<option value="${d.id}" ${String(d.id) === String(p.department_id) ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>الحالة</label>
+            <select class="form-select" name="is_active">
+              <option value="true"  ${p.is_active !== false ? 'selected' : ''}>نشط</option>
+              <option value="false" ${p.is_active === false ? 'selected' : ''}>موقوف</option>
+            </select>
+          </div>
+          <div class="form-field"><label>الحد الأدنى للراتب (ر.س)</label><input class="form-input" type="number" step="0.01" min="0" name="min_salary" value="${p.min_salary == null ? '' : esc(String(p.min_salary))}"></div>
+          <div class="form-field"><label>الحد الأقصى للراتب (ر.س)</label><input class="form-input" type="number" step="0.01" min="0" name="max_salary" value="${p.max_salary == null ? '' : esc(String(p.max_salary))}"></div>
+          <div class="form-field full"><label>الوصف الوظيفي</label><textarea class="form-input" name="description" rows="3">${esc(p.description || '')}</textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="hrPosCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">${isEdit ? 'حفظ' : 'إضافة'}</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#hrPosCloseBtn').addEventListener('click', close);
+  host.querySelector('#hrPosCancel').addEventListener('click', close);
+  host.querySelector('#hrPosForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('hrPosErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      name: (fd.get('name') || '').trim(),
+      department_id: fd.get('department_id') ? Number(fd.get('department_id')) : null,
+      description: (fd.get('description') || '').trim() || null,
+      min_salary: fd.get('min_salary') ? Number(fd.get('min_salary')) : null,
+      max_salary: fd.get('max_salary') ? Number(fd.get('max_salary')) : null,
+      is_active: fd.get('is_active') === 'true'
+    };
+    try {
+      const { error } = isEdit ? await HR.positions.update(posId, payload) : await HR.positions.create(payload);
+      if (error) throw error;
+      toast(isEdit ? 'تم حفظ التعديلات' : 'تم إضافة المنصب', 'success');
+      close();
+      const box = document.getElementById('hrOrgBody');
+      if (box) renderHrPositionsList(box, canManageEmployees());
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// HR — Attendance page (شهر واحد كامل، جدول matrix)
+// ═══════════════════════════════════════════════════════════════════════
+const HrAttState = { year: new Date().getFullYear(), month: new Date().getMonth() + 1, deptFilter: '' };
+
+async function pageHrAttendance(body, urlQuery) {
+  const canManage = canManageEmployees();
+
+  body.innerHTML = `
+    <a href="#hr" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الموارد البشرية</a>
+
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="calendar-check" style="width:22px;height:22px;color:#123F32;"></span> الحضور والانصراف</h2>
+        <p>عرض شهري لكل الموظفين مع إمكانية تسجيل الحضور يدويًا لأي يوم.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="hrAttRecordBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;">
+        <span data-lucide="plus" style="width:14px;height:14px;"></span> تسجيل حضور
+      </button>` : ''}
+    </div>
+
+    <div class="hr-att-controls">
+      <div class="hr-att-month">
+        <button type="button" id="hrAttPrev" title="الشهر السابق"><span data-lucide="chevron-right" style="width:14px;height:14px;"></span></button>
+        <span class="hr-att-month-label" id="hrAttLabel">—</span>
+        <button type="button" id="hrAttNext" title="الشهر التالي"><span data-lucide="chevron-left" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="filter-select-wrap" style="min-width:180px;">
+        <span class="fsw-icon" data-lucide="building-2" style="width:15px;height:15px;"></span>
+        <select id="hrAttDept"><option value="">كل الأقسام</option></select>
+      </div>
+      <button type="button" class="btn btn-outline btn-sm" id="hrAttToday"><span data-lucide="calendar" style="width:13px;height:13px;"></span> الشهر الحالي</button>
+    </div>
+
+    <div class="hr-att-summary" id="hrAttSummary">
+      <div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div>
+    </div>
+
+    <div id="hrAttGrid"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
+
+    <div class="hr-att-legend">
+      <span class="lg"><span class="sw" style="background:rgba(16,185,129,0.20);"></span> حاضر</span>
+      <span class="lg"><span class="sw" style="background:rgba(56,189,248,0.18);"></span> عن بعد</span>
+      <span class="lg"><span class="sw" style="background:rgba(245,158,11,0.22);"></span> متأخر</span>
+      <span class="lg"><span class="sw" style="background:rgba(139,92,246,0.18);"></span> إجازة</span>
+      <span class="lg"><span class="sw" style="background:rgba(239,68,68,0.14);"></span> مرضي</span>
+      <span class="lg"><span class="sw" style="background:rgba(220,38,38,0.18);"></span> غائب</span>
+      <span class="lg"><span class="sw" style="background:rgba(148,163,184,0.18);"></span> عطلة</span>
+    </div>
+
+    <div id="hrAttModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  const { data: depts } = await sb.from('departments').select('id, name').order('name');
+  const deptSel = document.getElementById('hrAttDept');
+  if (deptSel) deptSel.innerHTML = '<option value="">كل الأقسام</option>' + (depts || []).map(d => `<option value="${d.id}" ${String(d.id) === String(HrAttState.deptFilter) ? 'selected' : ''}>${esc(d.name)}</option>`).join('');
+
+  document.getElementById('hrAttPrev').addEventListener('click', () => {
+    HrAttState.month--;
+    if (HrAttState.month < 1) { HrAttState.month = 12; HrAttState.year--; }
+    renderHrAttendanceGrid();
+  });
+  document.getElementById('hrAttNext').addEventListener('click', () => {
+    HrAttState.month++;
+    if (HrAttState.month > 12) { HrAttState.month = 1; HrAttState.year++; }
+    renderHrAttendanceGrid();
+  });
+  document.getElementById('hrAttToday').addEventListener('click', () => {
+    const n = new Date();
+    HrAttState.year = n.getFullYear(); HrAttState.month = n.getMonth() + 1;
+    renderHrAttendanceGrid();
+  });
+  document.getElementById('hrAttDept').addEventListener('change', (e) => {
+    HrAttState.deptFilter = e.target.value;
+    renderHrAttendanceGrid();
+  });
+  if (canManage) document.getElementById('hrAttRecordBtn').addEventListener('click', () => openHrAttendanceModal(null, null));
+
+  await renderHrAttendanceGrid();
+}
+
+async function renderHrAttendanceGrid() {
+  const summaryBox = document.getElementById('hrAttSummary');
+  const gridBox = document.getElementById('hrAttGrid');
+  const label = document.getElementById('hrAttLabel');
+  if (!gridBox) return;
+
+  const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  if (label) label.textContent = `${monthNames[HrAttState.month - 1]} ${HrAttState.year}`;
+
+  const mm = String(HrAttState.month).padStart(2, '0');
+  const lastDay = new Date(HrAttState.year, HrAttState.month, 0).getDate();
+  const startDate = `${HrAttState.year}-${mm}-01`;
+  const endDate   = `${HrAttState.year}-${mm}-${String(lastDay).padStart(2, '0')}`;
+
+  // Load employees + attendance for the month
+  let empQ = sb.from('users').select('id, full_name, department_id, departments(name)').eq('is_active', true).order('full_name');
+  if (HrAttState.deptFilter) empQ = empQ.eq('department_id', HrAttState.deptFilter);
+  const [{ data: employees }, { data: records }] = await Promise.all([
+    empQ,
+    sb.from('hr_attendance').select('id, user_id, attendance_date, status, check_in, check_out, notes').gte('attendance_date', startDate).lte('attendance_date', endDate).is('deleted_at', null)
+  ]);
+
+  // Index records by user_id then day
+  const idx = {};
+  (records || []).forEach(r => {
+    const day = Number(r.attendance_date.slice(8, 10));
+    idx[r.user_id] = idx[r.user_id] || {};
+    idx[r.user_id][day] = r;
+  });
+
+  // Summary counts
+  const counts = { present: 0, absent: 0, late: 0, leave: 0 };
+  (records || []).forEach(r => { if (counts[r.status] != null) counts[r.status]++; });
+  if (summaryBox) {
+    summaryBox.innerHTML = `
+      <div class="hr-att-sum-card"><div class="hr-att-sum-icon st-present"><span data-lucide="check-circle-2" style="width:17px;height:17px;"></span></div><div><div class="hr-att-sum-val">${counts.present}</div><div class="hr-att-sum-lbl">سجلات حضور</div></div></div>
+      <div class="hr-att-sum-card"><div class="hr-att-sum-icon st-absent"><span data-lucide="x-circle" style="width:17px;height:17px;"></span></div><div><div class="hr-att-sum-val">${counts.absent}</div><div class="hr-att-sum-lbl">غياب</div></div></div>
+      <div class="hr-att-sum-card"><div class="hr-att-sum-icon st-late"><span data-lucide="clock-alert" style="width:17px;height:17px;"></span></div><div><div class="hr-att-sum-val">${counts.late}</div><div class="hr-att-sum-lbl">تأخير</div></div></div>
+      <div class="hr-att-sum-card"><div class="hr-att-sum-icon st-leave"><span data-lucide="palm-tree" style="width:17px;height:17px;"></span></div><div><div class="hr-att-sum-val">${counts.leave}</div><div class="hr-att-sum-lbl">إجازة</div></div></div>
+    `;
+    if (window.lucide) lucide.createIcons();
+  }
+
+  if (!employees || !employees.length) {
+    gridBox.innerHTML = `<div class="hr-empty"><span data-lucide="users-round"></span><p class="hr-empty-title">لا يوجد موظفون في هذا القسم</p><p class="hr-empty-sub">جرّب اختيار قسم آخر أو أضف موظفين للنظام أولاً.</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+
+  const symbolFor = (s) => ({ present: '✓', absent: '✗', late: 'ت', leave: 'ج', holiday: 'ع', sick: 'م', remote: 'ب' })[s] || '·';
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  const daysArr = Array.from({ length: lastDay }, (_, i) => i + 1);
+  gridBox.innerHTML = `
+    <div class="hr-att-grid-wrap">
+      <table class="hr-att-grid">
+        <thead>
+          <tr>
+            <th>الموظف</th>
+            ${daysArr.map(d => {
+              const dt = `${HrAttState.year}-${mm}-${String(d).padStart(2, '0')}`;
+              const isToday = dt === todayStr;
+              return `<th style="${isToday ? 'background:rgba(139,92,246,0.14);color:#6D28D9;' : ''}">${d}</th>`;
+            }).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${employees.map(u => `
+            <tr>
+              <td>${esc(u.full_name)}<div style="font-size:10.5px;color:var(--text-muted);font-weight:400;">${esc(u.departments?.name || '')}</div></td>
+              ${daysArr.map(d => {
+                const rec = idx[u.id] && idx[u.id][d];
+                const cls = rec ? 'st-' + rec.status : 'st-empty';
+                const dt = `${HrAttState.year}-${mm}-${String(d).padStart(2, '0')}`;
+                const title = rec ? `${rec.status}${rec.notes ? ' — ' + rec.notes : ''}` : dt;
+                return `<td><span class="hr-att-cell ${cls}" data-att-cell="${u.id}|${dt}" title="${esc(title)}">${rec ? symbolFor(rec.status) : '·'}</span></td>`;
+              }).join('')}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  if (canManageEmployees()) {
+    gridBox.querySelectorAll('[data-att-cell]').forEach(el => {
+      el.addEventListener('click', () => {
+        const [uid, dt] = el.dataset.attCell.split('|');
+        openHrAttendanceModal(Number(uid), dt);
+      });
+    });
+  }
+}
+
+async function openHrAttendanceModal(prefUserId, prefDate) {
+  const { data: employees } = await sb.from('users').select('id, full_name, department_id, departments(name)').eq('is_active', true).order('full_name');
+  const today = new Date();
+  const defaultDate = prefDate || `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  // If a record already exists for (user, date), preload it
+  let existing = null;
+  if (prefUserId && prefDate) {
+    const { data } = await sb.from('hr_attendance').select('*').eq('user_id', prefUserId).eq('attendance_date', prefDate).maybeSingle();
+    existing = data;
+  }
+  const e = existing || {};
+  const ci = e.check_in ? new Date(e.check_in) : null;
+  const co = e.check_out ? new Date(e.check_out) : null;
+  const toTime = d => d ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : '';
+
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:520px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="${existing ? 'pencil' : 'plus'}" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ${existing ? 'تعديل سجل حضور' : 'تسجيل حضور'}</h3>
+        <button class="modal-close-x" id="hrAttCloseBtn"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="hrAttErr"></div>
+        <form id="hrAttForm" class="hr-form-grid">
+          <div class="form-field"><label>الموظف *</label>
+            <select class="form-select" name="user_id" required>
+              <option value="">اختر الموظف</option>
+              ${(employees || []).map(u => `<option value="${u.id}" ${String(u.id) === String(prefUserId) ? 'selected' : ''}>${esc(u.full_name)}${u.departments ? ' — ' + esc(u.departments.name) : ''}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>التاريخ *</label><input class="form-input" type="date" name="attendance_date" required value="${esc(defaultDate)}"></div>
+          <div class="form-field full"><label>الحالة *</label>
+            <select class="form-select" name="status" required>
+              <option value="present" ${e.status === 'present' ? 'selected' : ''}>حاضر</option>
+              <option value="remote"  ${e.status === 'remote'  ? 'selected' : ''}>حضور عن بعد</option>
+              <option value="late"    ${e.status === 'late'    ? 'selected' : ''}>متأخر</option>
+              <option value="leave"   ${e.status === 'leave'   ? 'selected' : ''}>في إجازة</option>
+              <option value="sick"    ${e.status === 'sick'    ? 'selected' : ''}>إجازة مرضية</option>
+              <option value="absent"  ${e.status === 'absent'  ? 'selected' : ''}>غائب</option>
+              <option value="holiday" ${e.status === 'holiday' ? 'selected' : ''}>عطلة رسمية</option>
+            </select>
+          </div>
+          <div class="form-field"><label>وقت الحضور</label><input class="form-input" type="time" name="check_in" value="${esc(toTime(ci))}"></div>
+          <div class="form-field"><label>وقت الانصراف</label><input class="form-input" type="time" name="check_out" value="${esc(toTime(co))}"></div>
+          <div class="form-field full"><label>ملاحظات</label><textarea class="form-input" name="notes" rows="2">${esc(e.notes || '')}</textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            ${existing ? `<button type="button" class="btn btn-outline" id="hrAttDelBtn" style="color:#B91C1C;border-color:#EF4444;"><span data-lucide="trash-2" style="width:13px;height:13px;"></span> حذف</button>` : ''}
+            <button type="button" class="btn btn-outline" id="hrAttCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">${existing ? 'حفظ' : 'تسجيل'}</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#hrAttCloseBtn').addEventListener('click', close);
+  host.querySelector('#hrAttCancel').addEventListener('click', close);
+
+  host.querySelector('#hrAttDelBtn')?.addEventListener('click', async () => {
+    if (!(await customConfirm('حذف سجل الحضور هذا؟'))) return;
+    const { error } = await HR.attendance.remove(existing.id);
+    if (error) { toast('تعذّر الحذف: ' + error.message, 'error'); return; }
+    toast('تم حذف السجل', 'success');
+    close();
+    renderHrAttendanceGrid();
+  });
+
+  host.querySelector('#hrAttForm').addEventListener('submit', async (evt) => {
+    evt.preventDefault();
+    const errBox = document.getElementById('hrAttErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(evt.target);
+    const dt = fd.get('attendance_date');
+    const ciTime = fd.get('check_in');
+    const coTime = fd.get('check_out');
+    const toISO = (t) => t ? new Date(`${dt}T${t}:00`).toISOString() : null;
+    const payload = {
+      user_id: Number(fd.get('user_id')),
+      attendance_date: dt,
+      status: fd.get('status'),
+      check_in: toISO(ciTime),
+      check_out: toISO(coTime),
+      notes: (fd.get('notes') || '').trim() || null
+    };
+    const { error } = await HR.attendance.upsert(payload);
+    if (error) { errBox.textContent = error.message; errBox.classList.add('show'); return; }
+    toast(existing ? 'تم حفظ التعديلات' : 'تم تسجيل الحضور', 'success');
+    close();
+    renderHrAttendanceGrid();
   });
 }
 
