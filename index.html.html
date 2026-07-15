@@ -4427,7 +4427,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v62-2026-07-15-error-copy-details';
+const APP_VERSION = 'v63-2026-07-15-silent-error-logging';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -4535,54 +4535,27 @@ catch (e) { try { localStorage.removeItem('food_affairs_user'); } catch (e2) {} 
 // ولو الانهيار كامل يعرض شاشة استعادة فيها زر إعادة تحميل.
 
 let __fwLastToastAt = 0;
-function fwToast(msg, type) {
-  try { if (typeof toast === 'function') toast(msg, type || 'error'); } catch (e) {}
-}
-// بدل رسالة عامة مالهاش أي تفاصيل (كانت بتحتاج نسأل الموظف يوصف اللي حصل أو
-// يمسح الكاش)، نلتقط تفاصيل الخطأ فعليًا ونديه زرار "نسخ التفاصيل" — يبعتها
-// كما هي عبر واتساب بدون ما يفهم حاجة تقنية، ونقدر نشخّص المشكلة الحقيقية
-// فورًا بدل التخمين.
+// صامت بالكامل للموظف — الموظف ما يشوفش أي إشارة إن فيه مشكلة أصلًا.
+// نسجّل تفاصيل الخطأ في جدول سجل النشاط الموجود أصلًا (user_activity_log)
+// بعلامة مميزة "🐛 خطأ تقني"، ويظهر فقط لمدير النظام من صفحة
+// المستخدمون → سجل النشاط. بدون جدول جديد وبدون أي إزعاج للموظف.
 function fwReport(source, err) {
   try { console.error('[firewall:' + source + ']', err); } catch (e) {}
-  const detail = {
-    source,
-    message: (err && (err.message || err.toString && err.toString())) || String(err),
-    stack: (err && err.stack) ? String(err.stack).slice(0, 500) : '',
-    page: location.hash || '#dashboard',
-    time: new Date().toISOString(),
-    version: typeof APP_VERSION !== 'undefined' ? APP_VERSION : '?',
-    ua: navigator.userAgent
-  };
   const now = Date.now();
-  if (now - __fwLastToastAt > 4000) { // ما نغرقش المستخدم برسائل
+  if (now - __fwLastToastAt > 4000) { // ما نكررش التسجيل لنفس الدفعة من الأخطاء
     __fwLastToastAt = now;
-    showFwErrorBanner(detail);
+    logSilentError(source, err);
   }
 }
-function showFwErrorBanner(detail) {
+function logSilentError(source, err) {
   try {
-    document.getElementById('fwErrorBanner')?.remove();
-    const bar = document.createElement('div');
-    bar.id = 'fwErrorBanner';
-    bar.style.cssText = 'position:fixed;bottom:calc(16px + env(safe-area-inset-bottom,0px));left:12px;right:12px;z-index:99999;padding:12px 14px;border-radius:14px;background:#D32F2F;color:#fff;font-family:Tajawal,"Noto Sans Arabic",sans-serif;font-size:12.5px;font-weight:600;box-shadow:0 10px 26px rgba(211,47,47,0.35);display:flex;align-items:center;gap:8px;';
-    bar.innerHTML = `
-      <span style="flex:1;line-height:1.5;">حدث خلل مؤقت — النظام مستمر في العمل</span>
-      <button type="button" id="fwCopyErrBtn" style="background:#fff;color:#D32F2F;border:none;padding:6px 12px;border-radius:8px;font-family:inherit;font-size:11.5px;font-weight:800;cursor:pointer;white-space:nowrap;">نسخ التفاصيل</button>
-      <button type="button" id="fwCloseErrBtn" aria-label="إغلاق" style="background:none;border:none;color:#fff;font-size:16px;line-height:1;cursor:pointer;padding:2px 4px;opacity:.85;">✕</button>
-    `;
-    document.body.appendChild(bar);
-    document.getElementById('fwCloseErrBtn').onclick = () => bar.remove();
-    document.getElementById('fwCopyErrBtn').onclick = async () => {
-      const text = `خطأ في تطبيق شؤون الغذاء\nالمصدر: ${detail.source}\nالرسالة: ${detail.message}\nالصفحة: ${detail.page}\nالإصدار: ${detail.version}\nالوقت: ${detail.time}\nالجهاز: ${detail.ua}\n${detail.stack ? 'التفاصيل:\n' + detail.stack : ''}`;
-      try {
-        await navigator.clipboard.writeText(text);
-        fwToast('تم نسخ التفاصيل — أرسلها للدعم الفني', 'success');
-      } catch (e) {
-        try { window.prompt('انسخ النص ده وابعته للدعم الفني:', text); } catch (e2) {}
-      }
-    };
-    setTimeout(() => bar.remove(), 15000);
-  } catch (e) { fwToast('حدث خلل مؤقت — النظام مستمر في العمل', 'error'); }
+    const message = (err && (err.message || (err.toString && err.toString()))) || String(err);
+    const page = location.hash || '#dashboard';
+    const version = typeof APP_VERSION !== 'undefined' ? APP_VERSION : '?';
+    const actionText = `🐛 خطأ تقني [${source}] في ${page} (${version}): ${String(message).slice(0, 300)}`;
+    // best-effort فقط — لو فشل التسجيل (قبل تسجيل الدخول مثلًا) نتجاهل بصمت
+    sb.from('user_activity_log').insert({ user_id: null, action_text: actionText, created_by: null }).then(() => {}, () => {});
+  } catch (e) { /* حتى لو فشل التسجيل، الموظف ما يتأثرش */ }
 }
 function showRecoveryScreen() {
   try {
