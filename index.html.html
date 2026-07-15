@@ -4354,7 +4354,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v50-2026-07-15-login-by-email';
+const APP_VERSION = 'v51-2026-07-15-greeting-update';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -20854,16 +20854,17 @@ async function renderMobileHome(body) {
   const today = new Date();
   const todayISO = today.toISOString().slice(0,10);
   const h = today.getHours();
-  const greeting = h < 5 ? 'ليلة هادئة' : h < 12 ? 'صباح الخير' : h < 17 ? 'مساء النور' : h < 20 ? 'مساء الخير' : 'ليلة سعيدة';
-  const firstName = (CURRENT_USER.full_name || '').split(' ')[0] || '';
-  const initials = (CURRENT_USER.full_name || '').trim().split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('');
+  const nameParts = (CURRENT_USER.full_name || '').trim().split(/\s+/).filter(Boolean);
+  const displayName = nameParts.length > 1 ? nameParts[0] + ' ' + nameParts[nameParts.length - 1] : (nameParts[0] || '');
+  const initials = nameParts.slice(0,2).map(w=>w[0]).join('');
 
   // Skeleton أثناء التحميل
   body.innerHTML = `
     <div class="m-welcome">
       <div class="m-welcome-avatar">${esc(initials)}</div>
       <div class="m-welcome-txt">
-        <p class="m-welcome-hi">${esc(greeting)}، ${esc(firstName)}</p>
+        <p class="m-welcome-hi">السلام عليكم، ${esc(displayName)}</p>
+        <p class="m-welcome-sub">يومك مليء بالإنجاز 🌿</p>
         <div class="m-datetime" id="mDateTimeRow">
           <span class="m-dt-cell"><span data-lucide="clock" class="m-dt-icon"></span><span class="m-dt-val" id="mDtTime">--:--</span></span>
           <span class="m-dt-sep"></span>
