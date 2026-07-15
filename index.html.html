@@ -4475,7 +4475,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v69-2026-07-15-self-signup-pending';
+const APP_VERSION = 'v70-2026-07-15-silent-write-fixes';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -12831,18 +12831,21 @@ async function pageCustomChat(body, convId) {
   document.getElementById('cchEditName')?.addEventListener('click', async () => {
     const newName = await customPrompt('اسم الشات الجديد:', conv.title || '');
     if (!newName || !newName.trim() || newName === conv.title) return;
-    await sb.from('conversations').update({ title: newName.trim() }).eq('id', cid);
+    const { error } = await sb.from('conversations').update({ title: newName.trim() }).eq('id', cid);
+    if (error) { toast('تعذّر تحديث الاسم: ' + error.message, 'error'); return; }
     toast('تم تحديث الاسم', 'success');
     renderApp();
   });
   document.getElementById('cchArchive')?.addEventListener('click', async () => {
     if (!(await customConfirm('أرشفة الشات؟'))) return;
-    await sb.from('conversations').update({ is_archived: true, archived_at: new Date().toISOString(), archived_by: CURRENT_USER.id }).eq('id', cid);
+    const { error } = await sb.from('conversations').update({ is_archived: true, archived_at: new Date().toISOString(), archived_by: CURRENT_USER.id }).eq('id', cid);
+    if (error) { toast('تعذّر أرشفة الشات: ' + error.message, 'error'); return; }
     toast('تم أرشفة الشات', 'success');
     location.hash = '#conversations';
   });
   document.getElementById('cchUnarchive')?.addEventListener('click', async () => {
-    await sb.from('conversations').update({ is_archived: false, archived_at: null, archived_by: null }).eq('id', cid);
+    const { error } = await sb.from('conversations').update({ is_archived: false, archived_at: null, archived_by: null }).eq('id', cid);
+    if (error) { toast('تعذّر استعادة الشات: ' + error.message, 'error'); return; }
     toast('تمت استعادة الشات', 'success');
     renderApp();
   });
@@ -14390,7 +14393,8 @@ window.deleteUserPermanently = async function(userId) {
   undoableAction({
     message: `تم تعطيل "${esc(u.full_name)}" — تراجع خلال 6 ثوانٍ`,
     action: async () => {
-      await sb.from('users').update({ status: 'inactive', is_active: false }).eq('id', userId);
+      const { error } = await sb.from('users').update({ status: 'inactive', is_active: false }).eq('id', userId);
+      if (error) { toast('تعذّر تعطيل المستخدم: ' + error.message, 'error'); return; }
       await sb.from('user_activity_log').insert({ user_id: userId, action_text: 'تعطيل المستخدم (قبل الحذف)', created_by: CURRENT_USER.id });
     },
     undo: async () => {
@@ -17220,7 +17224,8 @@ async function pageQualityVisitNew(body, param) {
 
     let visitId = resumeId;
     if (visitId) {
-      await sb.from('quality_visits').update(payload).eq('id', visitId);
+      const { error: updErr } = await sb.from('quality_visits').update(payload).eq('id', visitId);
+      if (updErr) { toast('تعذّر حفظ الزيارة: ' + updErr.message, 'error'); btn.disabled = false; other.disabled = false; return; }
       await sb.from('quality_visit_items').delete().eq('visit_id', visitId);
       await sb.from('quality_attachments').delete().eq('visit_id', visitId);
     } else {
@@ -19035,11 +19040,13 @@ function wireMaintActionButtons(req) {
 async function selectMaintQuote(req, quoteId, price) {
   confirmModal('اعتماد هذا العرض كعرض فائز وإرساله للمالية؟', async () => {
     await sb.from('maintenance_quotes').update({ is_selected: false }).eq('request_id', req.id);
-    await sb.from('maintenance_quotes').update({ is_selected: true }).eq('id', quoteId);
+    const { error: qErr } = await sb.from('maintenance_quotes').update({ is_selected: true }).eq('id', quoteId);
+    if (qErr) { toast('تعذّر اعتماد العرض: ' + qErr.message, 'error'); return; }
     const upd = { selected_quote_id: quoteId, updated_at: new Date().toISOString() };
     if (price) upd.estimated_cost = Number(price);
     if (req.status === 'awaiting_quotes') upd.status = 'awaiting_finance';
-    await sb.from('maintenance_requests').update(upd).eq('id', req.id);
+    const { error: rErr } = await sb.from('maintenance_requests').update(upd).eq('id', req.id);
+    if (rErr) { toast('تعذّر تحديث الطلب بعد اعتماد العرض: ' + rErr.message, 'error'); return; }
     await logMaintTimeline(req.id, 'quote_selected', req.status, upd.status || req.status, 'تم اختيار العرض الفائز وإرساله للمالية');
     const finNotifRoles = await getNotifTargetRoles('notif_maintenance_finance', ['finance', 'admin', 'company_manager']);
     const { data: fin } = await sb.from('users').select('id').in('role', finNotifRoles).eq('is_active', true);
@@ -19054,7 +19061,8 @@ async function handleMaintAction(action, req) {
   const prev = req.status;
 
   const advance = async (newStatus, note) => {
-    await sb.from('maintenance_requests').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', rid);
+    const { error } = await sb.from('maintenance_requests').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', rid);
+    if (error) { toast('تعذّر تحديث حالة الطلب: ' + error.message, 'error'); return; }
     await logMaintTimeline(rid, 'status_change', prev, newStatus, note);
     if (req.requester_id) await notifyMaintUsers([req.requester_id], `تحديث حالة الطلب ${req.request_no || '#'+rid}`, label('maint_status', newStatus), '#maintenance_detail/' + rid);
     toast(note || 'تم تحديث الحالة', 'success');
@@ -19100,7 +19108,8 @@ async function handleMaintAction(action, req) {
       const reason = host.querySelector('#mtRejectReason').value.trim();
       if (!reason) { toast('اكتب سبب الرفض', 'error'); return; }
       host.remove();
-      await sb.from('maintenance_requests').update({ status: 'rejected', reject_reason: reason, updated_at: new Date().toISOString() }).eq('id', rid);
+      const { error } = await sb.from('maintenance_requests').update({ status: 'rejected', reject_reason: reason, updated_at: new Date().toISOString() }).eq('id', rid);
+      if (error) { toast('تعذّر رفض الطلب: ' + error.message, 'error'); return; }
       await logMaintTimeline(rid, 'status_change', prev, 'rejected', 'رُفض الطلب: ' + reason);
       toast('تم الرفض', 'success');
       pageMaintenanceDetail(document.getElementById('pageBody'), rid);
@@ -19157,7 +19166,8 @@ function openMaintInspectionModal(req) {
     };
     const { error } = await sb.from('maintenance_inspections').insert(payload);
     if (error) { toast(error.message, 'error'); return; }
-    await sb.from('maintenance_requests').update({ status: 'inspection_reported', estimated_cost: payload.estimated_cost, updated_at: new Date().toISOString() }).eq('id', req.id);
+    const { error: stErr } = await sb.from('maintenance_requests').update({ status: 'inspection_reported', estimated_cost: payload.estimated_cost, updated_at: new Date().toISOString() }).eq('id', req.id);
+    if (stErr) { toast('حُفظ التقرير لكن تعذّر تحديث حالة الطلب: ' + stErr.message, 'warning'); host.remove(); pageMaintenanceDetail(document.getElementById('pageBody'), req.id); return; }
     await logMaintTimeline(req.id, 'inspection', req.status, 'inspection_reported', 'تم رفع تقرير الفحص');
     toast('تم حفظ التقرير', 'success');
     host.remove();
@@ -19205,7 +19215,8 @@ function openMaintQuoteModal(req) {
     const { error } = await sb.from('maintenance_quotes').insert(payload);
     if (error) { toast(error.message, 'error'); return; }
     if (req.status !== 'awaiting_quotes' && req.status !== 'awaiting_finance') {
-      await sb.from('maintenance_requests').update({ status: 'awaiting_quotes', updated_at: new Date().toISOString() }).eq('id', req.id);
+      const { error: stErr } = await sb.from('maintenance_requests').update({ status: 'awaiting_quotes', updated_at: new Date().toISOString() }).eq('id', req.id);
+      if (stErr) toast('أُضيف العرض لكن تعذّر تحديث حالة الطلب: ' + stErr.message, 'warning');
       await logMaintTimeline(req.id, 'quote_added', req.status, 'awaiting_quotes', 'إضافة عرض سعر');
     } else {
       await logMaintTimeline(req.id, 'quote_added', req.status, req.status, 'إضافة عرض سعر');
@@ -19255,7 +19266,8 @@ function openMaintFinanceModal(req, approving) {
     const newStatus = approving ? 'in_progress' : 'rejected';
     const upd = { status: newStatus, updated_at: new Date().toISOString() };
     if (!approving) upd.reject_reason = fd.get('reject_reason');
-    await sb.from('maintenance_requests').update(upd).eq('id', req.id);
+    const { error: stErr } = await sb.from('maintenance_requests').update(upd).eq('id', req.id);
+    if (stErr) { toast('حُفظ القرار المالي لكن تعذّر تحديث حالة الطلب: ' + stErr.message, 'warning'); host.remove(); pageMaintenanceDetail(document.getElementById('pageBody'), req.id); return; }
     await logMaintTimeline(req.id, 'finance_' + (approving ? 'approved' : 'rejected'), req.status, newStatus, approving ? 'اعتُمد الصرف' : 'رُفض الصرف');
     toast(approving ? 'تم الاعتماد' : 'تم الرفض', 'success');
     host.remove();
@@ -19311,7 +19323,8 @@ function openMaintRepairModal(req) {
     };
     const { error } = await sb.from('maintenance_repairs').insert(payload);
     if (error) { toast(error.message, 'error'); return; }
-    await sb.from('maintenance_requests').update({ status: 'awaiting_receipt', final_cost: payload.final_cost, updated_at: new Date().toISOString() }).eq('id', req.id);
+    const { error: stErr } = await sb.from('maintenance_requests').update({ status: 'awaiting_receipt', final_cost: payload.final_cost, updated_at: new Date().toISOString() }).eq('id', req.id);
+    if (stErr) { toast('حُفظ تقرير الإصلاح لكن تعذّر تحديث حالة الطلب: ' + stErr.message, 'warning'); host.remove(); pageMaintenanceDetail(document.getElementById('pageBody'), req.id); return; }
     await logMaintTimeline(req.id, 'repair_ended', req.status, 'awaiting_receipt', 'تم رفع تقرير الإصلاح');
     if (req.requester_id) await notifyMaintUsers([req.requester_id], `✅ تم الإصلاح - ${req.request_no || '#'+req.id}`, 'تفضل بتأكيد استلام الفرع', '#maintenance_detail/' + req.id);
     toast('تم حفظ التقرير', 'success');
@@ -19359,7 +19372,8 @@ function openMaintReceiptModal(req) {
     };
     const { error } = await sb.from('maintenance_receipts').insert(payload);
     if (error) { toast(error.message, 'error'); return; }
-    await sb.from('maintenance_requests').update({ status: 'closed', updated_at: new Date().toISOString() }).eq('id', req.id);
+    const { error: stErr } = await sb.from('maintenance_requests').update({ status: 'closed', updated_at: new Date().toISOString() }).eq('id', req.id);
+    if (stErr) { toast('حُفظ الاستلام لكن تعذّر إغلاق الطلب: ' + stErr.message, 'warning'); host.remove(); pageMaintenanceDetail(document.getElementById('pageBody'), req.id); return; }
     await logMaintTimeline(req.id, 'closed', req.status, 'closed', 'تم إغلاق الطلب - ' + label('maint_closure', payload.closure_status));
     toast('تم الإغلاق', 'success');
     host.remove();
@@ -20699,7 +20713,8 @@ function cafeOrderCardStaff(o) {
 async function updateCafeOrderStatus(orderId, newStatus) {
   const { data: o } = await sb.from('cafe_orders').select('*').eq('id', orderId).maybeSingle();
   if (!o) return;
-  await sb.from('cafe_orders').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', orderId);
+  const { error: updErr } = await sb.from('cafe_orders').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', orderId);
+  if (updErr) { toast('تعذّر تحديث حالة الطلب: ' + updErr.message, 'error'); return; }
   await sb.from('cafe_order_status_log').insert({ order_id: orderId, status: newStatus, changed_by: CURRENT_USER.id });
 
   // ═══ لو الطلب اتلغى، ارجّع الكميات لمنتجاته ═══
