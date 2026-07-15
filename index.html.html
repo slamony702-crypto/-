@@ -4820,7 +4820,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v83-2026-07-16-acct-ap-vendors-bills';
+const APP_VERSION = 'v84-2026-07-16-acct-ar-zatca';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -5734,6 +5734,14 @@ const ACCT = {
     async postPaymentJournal(paymentId) {
       const { data, error } = await sb.rpc('create_journal_for_payment', { p_payment_id: paymentId });
       return { data, error };
+    },
+    async postInvoiceJournal(invoiceId) {
+      const { data, error } = await sb.rpc('create_journal_for_invoice', { p_invoice_id: invoiceId });
+      return { data, error };
+    },
+    async postReceiptJournal(receiptId) {
+      const { data, error } = await sb.rpc('create_journal_for_receipt', { p_receipt_id: receiptId });
+      return { data, error };
     }
   },
 
@@ -5926,6 +5934,125 @@ const ACCT = {
     }
   },
 
+  // ─── Customers (AR — Phase 2.c) ────────────────────────────────────
+  customers: {
+    async list(filters = {}) {
+      let q = sb.from('acct_customers').select('*').is('deleted_at', null).order('name');
+      if (filters.is_active != null) q = q.eq('is_active', filters.is_active);
+      if (filters.search) {
+        const s = filters.search.trim().replace(/[%,]/g, '');
+        q = q.or(`name.ilike.%${s}%,code.ilike.%${s}%,phone.ilike.%${s}%`);
+      }
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('acct_customers').select('*').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      if (!payload.name || !payload.name.trim()) return ACCT._err('اسم العميل مطلوب');
+      const { data, error } = await sb.from('acct_customers').insert(payload).select().single();
+      return { data, error };
+    },
+    async update(id, payload) {
+      const { data, error } = await sb.from('acct_customers').update(payload).eq('id', id).select().single();
+      return { data, error };
+    },
+    async remove(id) {
+      const { data: used } = await sb.from('acct_invoices').select('id').eq('customer_id', id).limit(1);
+      if (used && used.length) return ACCT._err('لا يمكن حذف عميل له فواتير مسجَّلة — أوقفه بدلًا من الحذف');
+      const { error } = await sb.from('acct_customers').update({ deleted_at: new Date().toISOString(), is_active: false }).eq('id', id);
+      return { error };
+    }
+  },
+
+  // ─── Invoices (فواتير المبيعات + ZATCA Phase 1) ────────────────────
+  invoices: {
+    async list(filters = {}) {
+      let q = sb.from('acct_invoices').select('*, acct_customers(name, code)').is('deleted_at', null).order('invoice_date', { ascending: false });
+      if (filters.status) q = q.eq('status', filters.status);
+      if (filters.customer_id) q = q.eq('customer_id', filters.customer_id);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('acct_invoices').select('*, acct_customers(name, code, tax_number), lines:acct_invoice_lines(*, account:account_id(code, name))').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      if (!payload.customer_id) return ACCT._err('العميل مطلوب');
+      const invNo = 'INV-' + Date.now().toString().slice(-8);
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_invoices').insert({ ...payload, invoice_no: invNo, created_by: uid }).select().single();
+      return { data, error };
+    },
+    async addLine(invoiceId, line) {
+      if (!line.account_id) return ACCT._err('حساب الإيراد مطلوب لكل بند');
+      const { data: existing } = await sb.from('acct_invoice_lines').select('line_no').eq('invoice_id', invoiceId).order('line_no', { ascending: false }).limit(1);
+      const nextNo = (existing && existing[0] ? existing[0].line_no : 0) + 1;
+      const { data, error } = await sb.from('acct_invoice_lines').insert({ invoice_id: invoiceId, line_no: nextNo, ...line }).select().single();
+      if (!error) await ACCT.invoices._recalcTotals(invoiceId);
+      return { data, error };
+    },
+    async removeLine(lineId, invoiceId) {
+      const { error } = await sb.from('acct_invoice_lines').delete().eq('id', lineId);
+      if (!error) await ACCT.invoices._recalcTotals(invoiceId);
+      return { error };
+    },
+    async _recalcTotals(invoiceId) {
+      const { data: lines } = await sb.from('acct_invoice_lines').select('line_total, vat_applicable').eq('invoice_id', invoiceId);
+      const { data: settings } = await sb.from('acct_settings').select('vat_rate').eq('id', 1).maybeSingle();
+      const vatRate = settings ? Number(settings.vat_rate) / 100 : 0.15;
+      const subtotal = (lines || []).reduce((s, l) => s + Number(l.line_total || 0), 0);
+      const vatAmount = (lines || []).filter(l => l.vat_applicable).reduce((s, l) => s + Number(l.line_total || 0) * vatRate, 0);
+      await sb.from('acct_invoices').update({ subtotal, vat_amount: vatAmount }).eq('id', invoiceId);
+    },
+    // إصدار الفاتورة: يولّد QR Code (ZATCA Phase 1) ويُنشئ قيد اليومية
+    async issue(id) {
+      const { data: inv, error: getErr } = await ACCT.invoices.get(id);
+      if (getErr || !inv) return ACCT._err(getErr ? getErr.message : 'الفاتورة غير موجودة');
+      if (!inv.lines || !inv.lines.length) return ACCT._err('أضف بندًا واحدًا على الأقل قبل الإصدار');
+
+      const { data: settings } = await ACCT.settings.get();
+      const sellerName = (settings && settings.zatca_seller_name) || (settings && settings.company_name) || 'شركة شؤون الغذاء';
+      const vatNumber = (settings && settings.vat_registration_number) || '';
+      const timestamp = new Date().toISOString();
+      const qr = buildZatcaQrBase64(sellerName, vatNumber, timestamp, inv.total, inv.vat_amount);
+
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_invoices').update({
+        status: 'issued', issued_by: uid, issued_at: timestamp, zatca_qr_base64: qr
+      }).eq('id', id).select().single();
+      if (!error) { try { await ACCT.integrations.postInvoiceJournal(id); } catch (e) { fwReport('postInvoiceJournal', e); } }
+      return { data, error };
+    },
+    async cancel(id) {
+      const { data, error } = await sb.from('acct_invoices').update({ status: 'cancelled' }).eq('id', id).select().single();
+      return { data, error };
+    }
+  },
+
+  // ─── Receipts (مقبوضات من العملاء) ──────────────────────────────────
+  receipts: {
+    async list(filters = {}) {
+      let q = sb.from('acct_receipts').select('*, acct_customers(name, code), acct_invoices(invoice_no)').is('deleted_at', null).order('receipt_date', { ascending: false });
+      if (filters.customer_id) q = q.eq('customer_id', filters.customer_id);
+      if (filters.invoice_id) q = q.eq('invoice_id', filters.invoice_id);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async create(payload) {
+      if (!payload.customer_id) return ACCT._err('العميل مطلوب');
+      if (!(Number(payload.amount) > 0)) return ACCT._err('المبلغ يجب أن يكون أكبر من صفر');
+      const rcptNo = 'RCPT-' + Date.now().toString().slice(-8);
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_receipts').insert({ ...payload, receipt_no: rcptNo, created_by: uid }).select().single();
+      if (!error) { try { await ACCT.integrations.postReceiptJournal(data.id); } catch (e) { fwReport('postReceiptJournal', e); } }
+      return { data, error };
+    }
+  },
+
   // ─── Dashboard aggregates ──────────────────────────────────────────
   dashboard: {
     async summary() {
@@ -5948,6 +6075,31 @@ const ACCT = {
   }
 };
 window.ACCT = ACCT;
+
+// ─── ZATCA Phase 1 — TLV-encoded Base64 QR string ────────────────────
+// Tags: 1=Seller name, 2=VAT number, 3=Timestamp(ISO), 4=Invoice total, 5=VAT total.
+// Phase 1 requires no cryptographic stamp or government API call — purely
+// client-side TLV encoding, which is why this lives in the browser layer.
+function buildZatcaQrBase64(sellerName, vatNumber, timestampISO, total, vatAmount) {
+  function tlv(tag, value) {
+    const bytes = new TextEncoder().encode(String(value ?? ''));
+    return new Uint8Array([tag, bytes.length, ...bytes]);
+  }
+  const parts = [
+    tlv(1, sellerName),
+    tlv(2, vatNumber),
+    tlv(3, timestampISO),
+    tlv(4, Number(total).toFixed(2)),
+    tlv(5, Number(vatAmount).toFixed(2))
+  ];
+  const totalLen = parts.reduce((s, p) => s + p.length, 0);
+  const buf = new Uint8Array(totalLen);
+  let offset = 0;
+  parts.forEach(p => { buf.set(p, offset); offset += p.length; });
+  let binary = '';
+  buf.forEach(b => { binary += String.fromCharCode(b); });
+  return btoa(binary);
+}
 
 // scope(sectionKey) -> 'company_wide' | 'own_department'
 function scope(sectionKey) {
@@ -8357,7 +8509,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', operations: 'تشغيل المطاعم', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', operations: 'تشغيل المطاعم', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -12931,6 +13083,10 @@ async function route() {
     else if (page === 'acct_bills') await pageAcctBills(body, query);
     else if (page === 'acct_bill') await pageAcctBillDetail(body, param);
     else if (page === 'acct_payments') await pageAcctPayments(body, query);
+    else if (page === 'acct_customers') await pageAcctCustomers(body, query);
+    else if (page === 'acct_invoices') await pageAcctInvoices(body, query);
+    else if (page === 'acct_invoice') await pageAcctInvoiceDetail(body, param);
+    else if (page === 'acct_receipts') await pageAcctReceipts(body, query);
     else if (page === 'operations') await pageComingSoonModule(body, 'operations');
     else if (page === 'meetings') await pageMeetings(body, query);
     else if (page === 'meetings_calendar') await pageMeetingsCalendar(body, query);
@@ -18420,6 +18576,9 @@ async function pageAcctDashboard(body) {
         <a href="#acct_vendors" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="truck" style="width:12px;height:12px;"></span> الموردون</a>
         <a href="#acct_bills" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="file-text" style="width:12px;height:12px;"></span> فواتير الموردين</a>
         <a href="#acct_payments" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="wallet" style="width:12px;height:12px;"></span> المدفوعات</a>
+        <a href="#acct_customers" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="user-round" style="width:12px;height:12px;"></span> العملاء</a>
+        <a href="#acct_invoices" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="receipt" style="width:12px;height:12px;"></span> فواتير المبيعات</a>
+        <a href="#acct_receipts" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="hand-coins" style="width:12px;height:12px;"></span> المقبوضات</a>
         ${canManage ? `<span class="mod-hero-badge hb-scope"><span data-lucide="shield-check" style="width:12px;height:12px;"></span> صلاحية إدارة كاملة</span>` : ''}
       </div>
     </div>
@@ -19713,6 +19872,494 @@ async function openAcctPaymentModal(bill) {
       toast('تم إنشاء الدفعة كمسودة — اعتمدها من صفحة المدفوعات', 'success');
       close();
       location.hash = '#acct_payments';
+      renderApp();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ACCOUNTING MODULE — Phase 2.c screens: Customers, Invoices, Receipts (v84)
+// ═══════════════════════════════════════════════════════════════════════
+
+function isArOfficer() { return CURRENT_USER && ['admin', 'company_manager', 'finance_manager', 'ar_officer'].includes(CURRENT_USER.role); }
+
+// ─── العملاء ────────────────────────────────────────────────────────
+const AcctCustState = { search: '' };
+
+async function pageAcctCustomers(body) {
+  const canManage = isArOfficer();
+  body.innerHTML = `
+    <a href="#accounting" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الحسابات</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="user-round" style="width:22px;height:22px;color:#123F32;"></span> العملاء</h2>
+        <p>عملاء الشركة — يشمل عميلًا افتراضيًا للمبيعات النقدية السريعة.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="acctAddCustBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> إضافة عميل</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body">
+      <div class="hr-toolbar">
+        <div class="search-wrap"><input type="text" id="acctCustSearch" placeholder="بحث بالاسم أو الرمز أو الجوال..." value="${esc(AcctCustState.search)}"><span class="search-icon" data-lucide="search"></span></div>
+      </div>
+      <div id="acctCustTableBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
+    </div></div>
+    <div id="acctModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  document.getElementById('acctCustSearch').addEventListener('input', debounce(() => { AcctCustState.search = document.getElementById('acctCustSearch').value.trim(); renderAcctCustTable(); }, 300));
+  if (canManage) document.getElementById('acctAddCustBtn').addEventListener('click', () => openAcctCustomerModal(null));
+  await renderAcctCustTable();
+}
+
+async function renderAcctCustTable() {
+  const box = document.getElementById('acctCustTableBody');
+  if (!box) return;
+  const { data: rows, error } = await ACCT.customers.list({ search: AcctCustState.search });
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  const canManage = isArOfficer();
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="user-round"></span><p class="hr-empty-title">لا يوجد عملاء</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>الرمز</th><th>الاسم</th><th>الجوال</th><th>الرقم الضريبي</th><th>الحالة</th><th style="width:80px;">إجراءات</th></tr></thead>
+      <tbody>${rows.map(c => `<tr>
+        <td class="mono-num">${esc(c.code || '—')}</td>
+        <td><strong>${esc(c.name)}</strong></td>
+        <td class="mono-num">${esc(c.phone || '—')}</td>
+        <td class="mono-num">${esc(c.tax_number || '—')}</td>
+        <td><span class="hr-pill hr-pill-${c.is_active ? 'active' : 'inactive'}">${c.is_active ? 'نشط' : 'موقوف'}</span></td>
+        <td>
+          <div class="hr-emp-actions">
+            ${canManage ? `<button type="button" title="تعديل" data-cust-edit="${c.id}"><span data-lucide="pencil" style="width:14px;height:14px;"></span></button>` : ''}
+            ${canManage ? `<button type="button" class="danger" title="إيقاف" data-cust-delete="${c.id}"><span data-lucide="trash-2" style="width:14px;height:14px;"></span></button>` : ''}
+          </div>
+        </td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) {
+    box.querySelectorAll('[data-cust-edit]').forEach(b => b.addEventListener('click', () => openAcctCustomerModal(Number(b.dataset.custEdit))));
+    box.querySelectorAll('[data-cust-delete]').forEach(b => b.addEventListener('click', async () => {
+      if (!(await customConfirm('إيقاف هذا العميل؟'))) return;
+      const { error } = await ACCT.customers.remove(Number(b.dataset.custDelete));
+      if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+      toast('تم إيقاف العميل', 'success');
+      renderAcctCustTable();
+    }));
+  }
+}
+
+async function openAcctCustomerModal(custId) {
+  const isEdit = !!custId;
+  const c = isEdit ? (await ACCT.customers.get(custId)).data || {} : {};
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:480px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="${isEdit ? 'pencil' : 'plus'}" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ${isEdit ? 'تعديل عميل' : 'إضافة عميل'}</h3>
+        <button class="modal-close-x" id="acctCustClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="acctCustErr"></div>
+        <form id="acctCustForm" style="display:grid;gap:12px;">
+          <div class="form-field"><label>الاسم *</label><input class="form-input" name="name" required value="${esc(c.name || '')}"></div>
+          <div class="form-field"><label>الجوال</label><input class="form-input" name="phone" value="${esc(c.phone || '')}"></div>
+          <div class="form-field"><label>البريد الإلكتروني</label><input class="form-input" type="email" name="email" value="${esc(c.email || '')}"></div>
+          <div class="form-field"><label>الرقم الضريبي</label><input class="form-input mono-num" name="tax_number" value="${esc(c.tax_number || '')}"></div>
+          <div class="form-field"><label>العنوان</label><input class="form-input" name="address" value="${esc(c.address || '')}"></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="acctCustCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">${isEdit ? 'حفظ' : 'إضافة'}</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#acctCustClose').addEventListener('click', close);
+  host.querySelector('#acctCustCancel').addEventListener('click', close);
+  host.querySelector('#acctCustForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('acctCustErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {};
+    ['name', 'phone', 'email', 'tax_number', 'address'].forEach(k => { const val = (fd.get(k) || '').trim(); payload[k] = val || null; });
+    try {
+      const { error } = isEdit ? await ACCT.customers.update(custId, payload) : await ACCT.customers.create(payload);
+      if (error) throw error;
+      toast(isEdit ? 'تم حفظ التعديلات' : 'تم إضافة العميل', 'success');
+      close();
+      renderAcctCustTable();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ─── فواتير المبيعات ────────────────────────────────────────────────
+const AcctInvState = { statusFilter: '' };
+
+async function pageAcctInvoices(body, urlQuery) {
+  const canManage = isArOfficer();
+  if (urlQuery && urlQuery.status) AcctInvState.statusFilter = urlQuery.status;
+  body.innerHTML = `
+    <a href="#accounting" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الحسابات</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="receipt" style="width:22px;height:22px;color:#123F32;"></span> فواتير المبيعات</h2>
+        <p>فواتير العملاء المتوافقة مع الفوترة الإلكترونية السعودية (ZATCA — المرحلة الأولى: QR Code).</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="acctInvNewBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> فاتورة جديدة</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body">
+      <div class="hr-toolbar">
+        <div class="filter-select-wrap"><span class="fsw-icon" data-lucide="check-circle-2" style="width:15px;height:15px;"></span>
+          <select id="acctInvStatus">
+            <option value="">كل الحالات</option>
+            <option value="draft"           ${AcctInvState.statusFilter === 'draft' ? 'selected' : ''}>مسودة</option>
+            <option value="issued"          ${AcctInvState.statusFilter === 'issued' ? 'selected' : ''}>مُصدَرة</option>
+            <option value="partially_paid"  ${AcctInvState.statusFilter === 'partially_paid' ? 'selected' : ''}>مدفوعة جزئيًا</option>
+            <option value="paid"            ${AcctInvState.statusFilter === 'paid' ? 'selected' : ''}>مدفوعة بالكامل</option>
+            <option value="cancelled"       ${AcctInvState.statusFilter === 'cancelled' ? 'selected' : ''}>ملغاة</option>
+          </select>
+        </div>
+      </div>
+      <div id="acctInvTableBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
+    </div></div>
+    <div id="acctModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  document.getElementById('acctInvStatus').addEventListener('change', (e) => { AcctInvState.statusFilter = e.target.value; renderAcctInvTable(); });
+  if (canManage) document.getElementById('acctInvNewBtn').addEventListener('click', () => openAcctInvoiceCreateModal());
+  await renderAcctInvTable();
+}
+
+async function renderAcctInvTable() {
+  const box = document.getElementById('acctInvTableBody');
+  if (!box) return;
+  const filters = {};
+  if (AcctInvState.statusFilter) filters.status = AcctInvState.statusFilter;
+  const { data: rows, error } = await ACCT.invoices.list(filters);
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="receipt"></span><p class="hr-empty-title">لا توجد فواتير</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const statusLbl = { draft: 'مسودة', issued: 'مُصدَرة', partially_paid: 'مدفوعة جزئيًا', paid: 'مدفوعة', cancelled: 'ملغاة' };
+  const statusCls = { draft: 'st-empty', issued: 'st-leave', partially_paid: 'st-late', paid: 'st-present', cancelled: 'st-absent' };
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>رقم الفاتورة</th><th>العميل</th><th>التاريخ</th><th>الإجمالي</th><th>المدفوع</th><th>الحالة</th></tr></thead>
+      <tbody>${rows.map(i => `<tr class="hr-emp-row" data-inv-id="${i.id}">
+        <td class="mono-num">${esc(i.invoice_no)}</td>
+        <td>${esc(i.acct_customers?.name || '—')}</td>
+        <td class="mono-num">${esc(i.invoice_date)}</td>
+        <td class="mono-num">${money(i.total)}</td>
+        <td class="mono-num">${money(i.amount_paid)}</td>
+        <td><span class="hr-att-cell ${statusCls[i.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(statusLbl[i.status])}</span></td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  box.querySelectorAll('[data-inv-id]').forEach(el => el.addEventListener('click', () => { location.hash = '#acct_invoice/' + el.dataset.invId; }));
+}
+
+async function openAcctInvoiceCreateModal() {
+  const [{ data: customers }, { data: accounts }] = await Promise.all([
+    ACCT.customers.list({ is_active: true }),
+    ACCT.accounts.list({ leafOnly: true, is_active: true, account_type: 'revenue' })
+  ]);
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:760px;max-width:97%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> فاتورة مبيعات جديدة</h3>
+        <button class="modal-close-x" id="acctInvCrClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="acctInvCrErr"></div>
+        <div class="hr-form-grid" style="margin-bottom:12px;">
+          <div class="form-field"><label>العميل *</label>
+            <select class="form-select" id="acctInvCustomer" required>
+              ${(customers || []).map(c => `<option value="${c.id}">${esc(c.code)} — ${esc(c.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>تاريخ الفاتورة *</label><input class="form-input" type="date" id="acctInvDate" value="${new Date().toISOString().slice(0,10)}"></div>
+          <div class="form-field"><label>تاريخ الاستحقاق</label><input class="form-input" type="date" id="acctInvDue"></div>
+        </div>
+
+        <div class="hr-section-heading"><span class="icon" data-lucide="list"></span> بنود الفاتورة</div>
+        <div class="acct-je-lines" id="acctInvLinesBox"></div>
+        <button type="button" class="btn btn-outline btn-sm" id="acctInvAddLineBtn" style="margin-bottom:12px;"><span data-lucide="plus" style="width:13px;height:13px;"></span> إضافة بند</button>
+
+        <div class="acct-je-totals" id="acctInvTotals">الإجمالي قبل الضريبة: 0.00 ر.س</div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px;">
+          <button type="button" class="btn btn-outline" id="acctInvCrCancel">إلغاء</button>
+          <button type="button" class="btn" id="acctInvSaveBtn" style="background:var(--surface);border:1.5px solid var(--border);color:#0F172A;"><span data-lucide="save" style="width:13px;height:13px;"></span> حفظ كمسودة</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#acctInvCrClose').addEventListener('click', close);
+  host.querySelector('#acctInvCrCancel').addEventListener('click', close);
+
+  const linesBox = host.querySelector('#acctInvLinesBox');
+  const totalsBox = host.querySelector('#acctInvTotals');
+  function accOptions() { return `<option value="">اختر حساب الإيراد</option>` + (accounts || []).map(a => `<option value="${a.id}">${esc(a.code)} — ${esc(a.name)}</option>`).join(''); }
+  function addLineRow() {
+    const row = document.createElement('div');
+    row.className = 'acct-je-line-row';
+    row.style.gridTemplateColumns = '2fr 1.4fr 90px 90px 70px 32px';
+    row.innerHTML = `
+      <input class="form-input il-desc" placeholder="وصف البند (مثال: وجبة عشاء)">
+      <select class="form-select il-account">${accOptions()}</select>
+      <input class="form-input mono-num il-qty" type="number" step="0.01" min="0.01" value="1" placeholder="الكمية">
+      <input class="form-input mono-num il-price" type="number" step="0.01" min="0" placeholder="السعر">
+      <label style="display:flex;align-items:center;gap:4px;font-size:11px;"><input type="checkbox" class="il-vat" checked> VAT</label>
+      <button type="button" class="acct-je-line-del" title="حذف البند"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+    `;
+    linesBox.appendChild(row);
+    if (window.lucide) lucide.createIcons();
+    row.querySelector('.acct-je-line-del').addEventListener('click', () => { row.remove(); recalc(); });
+    row.querySelectorAll('.il-qty, .il-price, .il-vat').forEach(el => el.addEventListener('input', recalc));
+  }
+  function recalc() {
+    let subtotal = 0, vat = 0;
+    linesBox.querySelectorAll('.acct-je-line-row').forEach(r => {
+      const lineTotal = Number(r.querySelector('.il-qty').value || 0) * Number(r.querySelector('.il-price').value || 0);
+      subtotal += lineTotal;
+      if (r.querySelector('.il-vat').checked) vat += lineTotal * 0.15;
+    });
+    totalsBox.textContent = `الإجمالي قبل الضريبة: ${subtotal.toFixed(2)} ر.س | ضريبة القيمة المضافة: ${vat.toFixed(2)} ر.س | الإجمالي: ${(subtotal + vat).toFixed(2)} ر.س`;
+  }
+  host.querySelector('#acctInvAddLineBtn').addEventListener('click', addLineRow);
+  addLineRow();
+
+  host.querySelector('#acctInvSaveBtn').addEventListener('click', async () => {
+    const errBox = host.querySelector('#acctInvCrErr');
+    errBox.classList.remove('show');
+    const customerId = Number(host.querySelector('#acctInvCustomer').value);
+    const lineRows = [...linesBox.querySelectorAll('.acct-je-line-row')];
+    const lines = lineRows.map(r => ({
+      description: r.querySelector('.il-desc').value.trim() || 'بند',
+      account_id: r.querySelector('.il-account').value ? Number(r.querySelector('.il-account').value) : null,
+      quantity: Number(r.querySelector('.il-qty').value || 1),
+      unit_price: Number(r.querySelector('.il-price').value || 0),
+      vat_applicable: r.querySelector('.il-vat').checked
+    })).filter(l => l.account_id && l.unit_price > 0);
+    if (!lines.length) { errBox.textContent = 'أضف بندًا واحدًا على الأقل بحساب إيراد وسعر صحيحين'; errBox.classList.add('show'); return; }
+
+    try {
+      const { data: inv, error: createErr } = await ACCT.invoices.create({
+        customer_id: customerId,
+        invoice_date: host.querySelector('#acctInvDate').value,
+        due_date: host.querySelector('#acctInvDue').value || null
+      });
+      if (createErr) throw createErr;
+      for (const line of lines) {
+        const { error: lineErr } = await ACCT.invoices.addLine(inv.id, line);
+        if (lineErr) throw lineErr;
+      }
+      toast('تم حفظ الفاتورة كمسودة', 'success');
+      close();
+      location.hash = '#acct_invoice/' + inv.id;
+      renderApp();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function pageAcctInvoiceDetail(body, idParam) {
+  const invId = Number(idParam);
+  if (!invId) { body.innerHTML = '<p class="error-msg show">معرف الفاتورة غير صحيح</p>'; return; }
+  const { data: inv, error } = await ACCT.invoices.get(invId);
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!inv) { body.innerHTML = '<p class="empty-state">الفاتورة غير موجودة</p>'; return; }
+
+  const canManage = isArOfficer();
+  const statusLbl = { draft: 'مسودة', issued: 'مُصدَرة', partially_paid: 'مدفوعة جزئيًا', paid: 'مدفوعة', cancelled: 'ملغاة' };
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const qrImgUrl = inv.zatca_qr_base64 ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(inv.zatca_qr_base64)}` : null;
+
+  body.innerHTML = `
+    <a href="#acct_invoices" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لفواتير المبيعات</a>
+    <div class="hr-emp-hero">
+      <div class="hr-emp-hero-content">
+        <div class="hr-emp-hero-avatar"><span data-lucide="receipt" style="width:28px;height:28px;"></span></div>
+        <div class="hr-emp-hero-info">
+          <h2 class="hr-emp-hero-name">${esc(inv.invoice_no)}</h2>
+          <div class="hr-emp-hero-meta">
+            <span><span data-lucide="user-round" style="width:13px;height:13px;"></span> ${esc(inv.acct_customers?.name || '—')}</span>
+            <span><span data-lucide="calendar" style="width:13px;height:13px;"></span> ${esc(inv.invoice_date)}</span>
+            <span><span data-lucide="info" style="width:13px;height:13px;"></span> ${esc(statusLbl[inv.status])}</span>
+          </div>
+        </div>
+        <div class="hr-emp-hero-actions">
+          ${canManage && inv.status === 'draft' ? `<button type="button" class="hr-emp-hero-btn" id="acctInvIssueBtn"><span data-lucide="check-check" style="width:13px;height:13px;"></span> إصدار (ZATCA QR)</button>` : ''}
+          ${canManage && ['issued','partially_paid'].includes(inv.status) ? `<button type="button" class="hr-emp-hero-btn" id="acctInvReceiptBtn"><span data-lucide="hand-coins" style="width:13px;height:13px;"></span> تسجيل تحصيل</button>` : ''}
+          ${canManage && inv.status === 'draft' ? `<button type="button" class="hr-emp-hero-btn" id="acctInvCancelBtn"><span data-lucide="ban" style="width:13px;height:13px;"></span> إلغاء</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 220px;gap:20px;align-items:start;">
+      <div>
+        <div class="hr-info-grid" style="margin-bottom:20px;">
+          ${_hrInfo('تاريخ الاستحقاق', inv.due_date)}
+          ${_hrInfo('الإجمالي قبل الضريبة', money(inv.subtotal) + ' ر.س')}
+          ${_hrInfo('ضريبة القيمة المضافة', money(inv.vat_amount) + ' ر.س')}
+          ${_hrInfo('الإجمالي', money(inv.total) + ' ر.س')}
+          ${_hrInfo('المدفوع حتى الآن', money(inv.amount_paid) + ' ر.س')}
+        </div>
+        <div class="hr-section-heading"><span class="icon" data-lucide="list"></span> بنود الفاتورة</div>
+        <div style="overflow-x:auto;">
+          <table class="hr-emp-table">
+            <thead><tr><th>الوصف</th><th>الحساب</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th><th>VAT</th></tr></thead>
+            <tbody>${(inv.lines || []).sort((a,b)=>a.line_no-b.line_no).map(l => `<tr>
+              <td>${esc(l.description)}</td>
+              <td>${esc(l.account?.code || '')} — ${esc(l.account?.name || '')}</td>
+              <td class="mono-num">${esc(String(l.quantity))}</td>
+              <td class="mono-num">${money(l.unit_price)}</td>
+              <td class="mono-num">${money(l.line_total)}</td>
+              <td>${l.vat_applicable ? '✓' : '—'}</td>
+            </tr>`).join('')}</tbody>
+          </table>
+        </div>
+      </div>
+      <div style="text-align:center;">
+        ${qrImgUrl ? `
+          <div class="hr-info-item" style="padding:14px;">
+            <div class="hr-info-label" style="margin-bottom:8px;">رمز الفوترة الإلكترونية (ZATCA — المرحلة الأولى)</div>
+            <img src="${qrImgUrl}" alt="ZATCA QR" style="width:100%;max-width:160px;border-radius:8px;">
+          </div>
+        ` : `<div class="hr-empty" style="padding:16px;"><span data-lucide="qr-code" style="width:28px;height:28px;"></span><p class="hr-empty-sub">يظهر رمز QR بعد إصدار الفاتورة</p></div>`}
+      </div>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  document.getElementById('acctInvIssueBtn')?.addEventListener('click', async () => {
+    if (!(await customConfirm('إصدار هذه الفاتورة؟ سيتم توليد رمز ZATCA وإنشاء قيد يومية تلقائيًا.'))) return;
+    const { error } = await ACCT.invoices.issue(invId);
+    if (error) { toast('تعذّر الإصدار: ' + error.message, 'error'); return; }
+    toast('تم إصدار الفاتورة', 'success');
+    renderApp();
+  });
+  document.getElementById('acctInvReceiptBtn')?.addEventListener('click', () => openAcctReceiptModal(inv));
+  document.getElementById('acctInvCancelBtn')?.addEventListener('click', async () => {
+    if (!(await customConfirm('إلغاء هذه الفاتورة؟'))) return;
+    const { error } = await ACCT.invoices.cancel(invId);
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم الإلغاء', 'success');
+    location.hash = '#acct_invoices';
+    renderApp();
+  });
+}
+
+// ─── المقبوضات ─────────────────────────────────────────────────────
+async function pageAcctReceipts(body) {
+  body.innerHTML = `
+    <a href="#accounting" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الحسابات</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="hand-coins" style="width:22px;height:22px;color:#123F32;"></span> المقبوضات</h2>
+        <p>تحصيلات العملاء — تسجّل عادة من داخل صفحة الفاتورة.</p>
+      </div>
+    </div>
+    <div id="acctRcptTableBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  const { data: rows, error } = await ACCT.receipts.list({});
+  const box = document.getElementById('acctRcptTableBody');
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="hand-coins"></span><p class="hr-empty-title">لا توجد مقبوضات بعد</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const methodLbl = { bank: 'بنك', cash: 'نقدًا', check: 'شيك' };
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  box.innerHTML = `
+    <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>رقم السند</th><th>العميل</th><th>الفاتورة</th><th>التاريخ</th><th>المبلغ</th><th>الطريقة</th></tr></thead>
+      <tbody>${rows.map(r => `<tr>
+        <td class="mono-num">${esc(r.receipt_no)}</td>
+        <td>${esc(r.acct_customers?.name || '—')}</td>
+        <td>${esc(r.acct_invoices?.invoice_no || '—')}</td>
+        <td class="mono-num">${esc(r.receipt_date)}</td>
+        <td class="mono-num">${money(r.amount)}</td>
+        <td>${esc(methodLbl[r.method] || r.method)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div></div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+}
+
+async function openAcctReceiptModal(invoice) {
+  const remaining = Number(invoice.total) - Number(invoice.amount_paid || 0);
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:460px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="hand-coins" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> تسجيل تحصيل من العميل</h3>
+        <button class="modal-close-x" id="acctRcptClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="acctRcptErr"></div>
+        <form id="acctRcptForm" style="display:grid;gap:12px;">
+          <div class="form-field"><label>المبلغ * (المتبقي: ${remaining.toFixed(2)} ر.س)</label><input class="form-input mono-num" type="number" step="0.01" min="0.01" name="amount" required value="${remaining.toFixed(2)}"></div>
+          <div class="form-field"><label>تاريخ التحصيل *</label><input class="form-input" type="date" name="receipt_date" required value="${new Date().toISOString().slice(0,10)}"></div>
+          <div class="form-field"><label>طريقة التحصيل</label>
+            <select class="form-select" name="method">
+              <option value="cash">نقدًا</option>
+              <option value="bank">تحويل بنكي</option>
+              <option value="check">شيك</option>
+            </select>
+          </div>
+          <div class="form-field"><label>مرجع (رقم إيصال/تحويل)</label><input class="form-input" name="reference"></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="acctRcptCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">تسجيل التحصيل</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#acctRcptClose').addEventListener('click', close);
+  host.querySelector('#acctRcptCancel').addEventListener('click', close);
+  host.querySelector('#acctRcptForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('acctRcptErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    try {
+      const { error } = await ACCT.receipts.create({
+        customer_id: invoice.customer_id, invoice_id: invoice.id,
+        amount: Number(fd.get('amount')), receipt_date: fd.get('receipt_date'),
+        method: fd.get('method'), reference: (fd.get('reference') || '').trim() || null
+      });
+      if (error) throw error;
+      toast('تم تسجيل التحصيل بنجاح', 'success');
+      close();
       renderApp();
     } catch (err) {
       errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
