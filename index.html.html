@@ -4361,7 +4361,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v54-2026-07-15-multi-fixes';
+const APP_VERSION = 'v55-2026-07-15-friendly-error-msgs';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -4487,9 +4487,9 @@ function showRecoveryScreen() {
     rootEl.innerHTML = `
       <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#F4F1E8;">
         <div style="max-width:380px;text-align:center;background:#fff;border-radius:18px;padding:30px 24px;box-shadow:0 6px 24px rgba(36,91,75,0.12);">
-          <div style="width:62px;height:62px;border-radius:50%;background:rgba(211,47,47,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:30px;">⚠️</div>
-          <h2 style="margin-bottom:8px;font-size:18px;color:#0F172A;">حدث خلل غير متوقع</h2>
-          <p style="color:#64748B;font-size:13px;line-height:1.7;margin-bottom:22px;">لا تقلق، بياناتك سليمة ومحفوظة. أعد تحميل التطبيق للمتابعة.</p>
+          <div style="width:62px;height:62px;border-radius:50%;background:rgba(16,185,129,0.12);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:30px;">🌿</div>
+          <h2 style="margin-bottom:8px;font-size:18px;color:#0F172A;">تحديث جديد قيد التحضير</h2>
+          <p style="color:#64748B;font-size:13px;line-height:1.7;margin-bottom:22px;">نعتذر عن التأخير البسيط — بياناتك سليمة ومحفوظة بالكامل. أعد تحميل التطبيق للمتابعة.</p>
           <button onclick="location.reload()" style="background:#12372F;color:#fff;border:none;border-radius:10px;padding:12px 22px;font-size:14px;font-weight:800;cursor:pointer;width:100%;">إعادة تحميل التطبيق</button>
         </div>
       </div>`;
@@ -11295,9 +11295,9 @@ async function route() {
     try {
       body.innerHTML = `
         <div style="text-align:center;padding:40px 20px;">
-          <div style="width:56px;height:56px;border-radius:50%;background:rgba(211,47,47,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px;">⚠️</div>
-          <h3 style="font-size:16px;color:#0F172A;margin-bottom:6px;">تعذّر تحميل هذه الصفحة</h3>
-          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:18px;">حدث خلل مؤقت أثناء جلب البيانات. حاول مرة أخرى.</p>
+          <div style="width:56px;height:56px;border-radius:50%;background:rgba(16,185,129,0.12);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px;">🌿</div>
+          <h3 style="font-size:16px;color:#0F172A;margin-bottom:6px;">لحظات ونعود لك</h3>
+          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:18px;">نعتذر عن التأخير البسيط في تحميل هذه الصفحة — حاول مرة أخرى.</p>
           <button class="btn btn-primary btn-sm" onclick="renderApp()"><span data-lucide="refresh-cw" style="width:13px;height:13px;"></span> إعادة المحاولة</button>
           <button class="btn btn-outline btn-sm" onclick="location.hash='#dashboard'" style="margin-right:8px;">العودة للوحة التحكم</button>
         </div>`;
