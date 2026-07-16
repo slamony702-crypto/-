@@ -1262,10 +1262,19 @@ tr:hover td { background: var(--primary-light); }
     box-shadow: 0 0 0 3px rgba(214,164,55,0.12);
   }
 
-  /* الأقسام المقفولة: خفيفة اللون قليلاً لتمييزها بصريًا */
+  /* الأقسام المقفولة: خفيفة اللون قليلاً لتمييزها بصريًا.
+     ملاحظة: بنستخدم background-image بطبقتين (وليس background شامل) حتى
+     لا يُمسح الإطار المتدرج الأخضر↔البنفسجي المطبَّق على الكارت تحت */
   .panel.collapsed { opacity: 0.9; }
   .panel.collapsed > .panel-header { background: rgba(214,164,55,0.04) !important; }
-  .meeting-form-card.collapsed { background: rgba(214,164,55,0.03) !important; }
+  .meeting-form-card.collapsed {
+    border: 1.5px solid transparent !important;
+    background-image:
+      linear-gradient(#F3F4EC, #F3F4EC),
+      linear-gradient(135deg, #10B981 0%, #34D399 45%, #8B5CF6 100%) !important;
+    background-origin: border-box !important;
+    background-clip: padding-box, border-box !important;
+  }
 
   /* الأقسام الملفوفة تلقائيًا (KPIs، إجراءات سريعة، الفروع...): تنسيق موحّد */
   .foldable-summary { background: var(--surface); border-radius: 14px; }
@@ -1283,7 +1292,7 @@ tr:hover td { background: var(--primary-light); }
     background-origin: border-box !important;
     background-clip: padding-box, border-box !important;
   }
-  .meeting-form-card {
+  .meeting-form-card, .q-progress-bar {
     border: 1.5px solid transparent !important;
     background-image:
       linear-gradient(#F0F7F3, #F0F7F3),
@@ -4842,7 +4851,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v96-2026-07-16-stale-session-fix';
+const APP_VERSION = 'v97-2026-07-16-collapsed-card-gradient';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
