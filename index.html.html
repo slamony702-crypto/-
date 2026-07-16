@@ -4820,7 +4820,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v84-2026-07-16-acct-ar-zatca';
+const APP_VERSION = 'v85-2026-07-16-acct-treasury';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -6049,6 +6049,172 @@ const ACCT = {
       const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
       const { data, error } = await sb.from('acct_receipts').insert({ ...payload, receipt_no: rcptNo, created_by: uid }).select().single();
       if (!error) { try { await ACCT.integrations.postReceiptJournal(data.id); } catch (e) { fwReport('postReceiptJournal', e); } }
+      return { data, error };
+    }
+  },
+
+  // ─── Bank Accounts (Treasury — Phase 2.d) ──────────────────────────
+  bankAccounts: {
+    async list(filters = {}) {
+      let q = sb.from('acct_bank_accounts').select('*, coa:coa_account_id(code, name)').is('deleted_at', null).order('bank_name');
+      if (filters.is_active != null) q = q.eq('is_active', filters.is_active);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('acct_bank_accounts').select('*, coa:coa_account_id(code, name)').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      if (!payload.bank_name || !payload.account_name) return ACCT._err('اسم البنك واسم الحساب مطلوبان');
+      const { data, error } = await sb.from('acct_bank_accounts').insert(payload).select().single();
+      return { data, error };
+    },
+    async update(id, payload) {
+      const { data, error } = await sb.from('acct_bank_accounts').update(payload).eq('id', id).select().single();
+      return { data, error };
+    },
+    async remove(id) {
+      const { error } = await sb.from('acct_bank_accounts').update({ deleted_at: new Date().toISOString(), is_active: false }).eq('id', id);
+      return { error };
+    }
+  },
+
+  bankTransactions: {
+    async list(filters = {}) {
+      let q = sb.from('acct_bank_transactions').select('*, acct_bank_accounts(bank_name, account_name)').is('deleted_at', null).order('transaction_date', { ascending: false });
+      if (filters.bank_account_id) q = q.eq('bank_account_id', filters.bank_account_id);
+      if (filters.reconciled != null) q = q.eq('reconciled', filters.reconciled);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async create(payload) {
+      if (!payload.bank_account_id) return ACCT._err('الحساب البنكي مطلوب');
+      if (!(Number(payload.amount) > 0)) return ACCT._err('المبلغ يجب أن يكون أكبر من صفر');
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_bank_transactions').insert({ ...payload, created_by: uid }).select().single();
+      if (!error) { try { await sb.rpc('create_journal_for_bank_transaction', { p_tx_id: data.id }); } catch (e) { fwReport('createJournalForBankTx', e); } }
+      return { data, error };
+    },
+    async reconcile(id) {
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_bank_transactions').update({ reconciled: true, reconciled_at: new Date().toISOString(), reconciled_by: uid }).eq('id', id).select().single();
+      return { data, error };
+    }
+  },
+
+  // ─── Petty Cash ────────────────────────────────────────────────────
+  pettyCash: {
+    async list(filters = {}) {
+      let q = sb.from('acct_petty_cash').select('*, custodian:custodian_id(full_name), branches(name)').is('deleted_at', null).order('code');
+      if (filters.is_active != null) q = q.eq('is_active', filters.is_active);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async create(payload) {
+      if (!payload.custodian_id) return ACCT._err('أمين العهدة مطلوب');
+      const { data, error } = await sb.from('acct_petty_cash').insert(payload).select().single();
+      return { data, error };
+    },
+    async update(id, payload) {
+      const { data, error } = await sb.from('acct_petty_cash').update(payload).eq('id', id).select().single();
+      return { data, error };
+    },
+    async remove(id) {
+      const { error } = await sb.from('acct_petty_cash').update({ deleted_at: new Date().toISOString(), is_active: false }).eq('id', id);
+      return { error };
+    },
+    // الرصيد الحالي = الافتتاحي + التغذيات - المصروفات + المرتجعات
+    async balance(fundId) {
+      const { data: fund } = await sb.from('acct_petty_cash').select('opening_balance').eq('id', fundId).maybeSingle();
+      const { data: txs } = await sb.from('acct_petty_cash_transactions').select('type, amount').eq('petty_cash_id', fundId);
+      let balance = fund ? Number(fund.opening_balance) : 0;
+      (txs || []).forEach(t => {
+        if (t.type === 'replenishment' || t.type === 'return') balance += Number(t.amount);
+        else if (t.type === 'expense') balance -= Number(t.amount);
+      });
+      return balance;
+    },
+    async transactions(fundId) {
+      const { data, error } = await sb.from('acct_petty_cash_transactions').select('*').eq('petty_cash_id', fundId).order('transaction_date', { ascending: false });
+      return { data: data || [], error };
+    },
+    async replenish(fundId, amount, description) {
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_petty_cash_transactions').insert({
+        petty_cash_id: fundId, type: 'replenishment', amount, description, created_by: uid
+      }).select().single();
+      return { data, error };
+    }
+  },
+
+  // ─── Expense Claims ────────────────────────────────────────────────
+  expenseClaims: {
+    async list(filters = {}) {
+      let q = sb.from('acct_expense_claims').select('*, employee:employee_id(full_name)').is('deleted_at', null).order('claim_date', { ascending: false });
+      if (filters.status) q = q.eq('status', filters.status);
+      if (filters.employee_id) q = q.eq('employee_id', filters.employee_id);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('acct_expense_claims').select('*, employee:employee_id(full_name), lines:acct_expense_claim_lines(*, account:account_id(code, name))').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      const claimNo = 'EXP-' + Date.now().toString().slice(-8);
+      const { data, error } = await sb.from('acct_expense_claims').insert({ ...payload, claim_no: claimNo }).select().single();
+      return { data, error };
+    },
+    async addLine(claimId, line) {
+      if (!line.account_id) return ACCT._err('الحساب مطلوب لكل بند');
+      const { data: existing } = await sb.from('acct_expense_claim_lines').select('line_no').eq('claim_id', claimId).order('line_no', { ascending: false }).limit(1);
+      const nextNo = (existing && existing[0] ? existing[0].line_no : 0) + 1;
+      const { data, error } = await sb.from('acct_expense_claim_lines').insert({ claim_id: claimId, line_no: nextNo, ...line }).select().single();
+      if (!error) await ACCT.expenseClaims._recalcTotal(claimId);
+      return { data, error };
+    },
+    async _recalcTotal(claimId) {
+      const { data: lines } = await sb.from('acct_expense_claim_lines').select('amount').eq('claim_id', claimId);
+      const total = (lines || []).reduce((s, l) => s + Number(l.amount || 0), 0);
+      await sb.from('acct_expense_claims').update({ total }).eq('id', claimId);
+    },
+    async submit(id) {
+      const { data, error } = await sb.from('acct_expense_claims').update({ status: 'submitted', submitted_at: new Date().toISOString() }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async approve(id) {
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_expense_claims').update({ status: 'approved', approved_by: uid, approved_at: new Date().toISOString() }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async secondApprove(id) {
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_expense_claims').update({ second_approved_by: uid, second_approved_at: new Date().toISOString() }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async reject(id, reason) {
+      if (!reason || !reason.trim()) return ACCT._err('سبب الرفض مطلوب');
+      const { data, error } = await sb.from('acct_expense_claims').update({ status: 'rejected', rejection_reason: reason.trim() }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async markPaid(id) {
+      const { data: claim } = await sb.from('acct_expense_claims').select('*').eq('id', id).maybeSingle();
+      const { data, error } = await sb.from('acct_expense_claims').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', id).select().single();
+      if (!error) {
+        try { await sb.rpc('create_journal_for_expense_claim', { p_claim_id: id }); } catch (e) { fwReport('createJournalForExpenseClaim', e); }
+        if (claim && claim.reimbursement_method === 'petty_cash' && claim.petty_cash_id) {
+          const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+          await sb.from('acct_petty_cash_transactions').insert({
+            petty_cash_id: claim.petty_cash_id, type: 'expense', amount: claim.total,
+            description: 'سداد مصروفات: ' + claim.claim_no, expense_claim_id: id, created_by: uid
+          });
+        }
+      }
+      return { data, error };
+    },
+    async cancel(id) {
+      const { data, error } = await sb.from('acct_expense_claims').update({ status: 'cancelled' }).eq('id', id).select().single();
       return { data, error };
     }
   },
@@ -8509,7 +8675,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', operations: 'تشغيل المطاعم', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', operations: 'تشغيل المطاعم', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -13087,6 +13253,10 @@ async function route() {
     else if (page === 'acct_invoices') await pageAcctInvoices(body, query);
     else if (page === 'acct_invoice') await pageAcctInvoiceDetail(body, param);
     else if (page === 'acct_receipts') await pageAcctReceipts(body, query);
+    else if (page === 'acct_bank_accounts') await pageAcctBankAccounts(body, query);
+    else if (page === 'acct_petty_cash') await pageAcctPettyCash(body, query);
+    else if (page === 'acct_expense_claims') await pageAcctExpenseClaims(body, query);
+    else if (page === 'acct_expense_claim') await pageAcctExpenseClaimDetail(body, param);
     else if (page === 'operations') await pageComingSoonModule(body, 'operations');
     else if (page === 'meetings') await pageMeetings(body, query);
     else if (page === 'meetings_calendar') await pageMeetingsCalendar(body, query);
@@ -18579,6 +18749,9 @@ async function pageAcctDashboard(body) {
         <a href="#acct_customers" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="user-round" style="width:12px;height:12px;"></span> العملاء</a>
         <a href="#acct_invoices" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="receipt" style="width:12px;height:12px;"></span> فواتير المبيعات</a>
         <a href="#acct_receipts" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="hand-coins" style="width:12px;height:12px;"></span> المقبوضات</a>
+        <a href="#acct_bank_accounts" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="landmark" style="width:12px;height:12px;"></span> الحسابات البنكية</a>
+        <a href="#acct_petty_cash" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="coins" style="width:12px;height:12px;"></span> العهد النقدية</a>
+        <a href="#acct_expense_claims" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="receipt-text" style="width:12px;height:12px;"></span> مصروفات الموظفين</a>
         ${canManage ? `<span class="mod-hero-badge hb-scope"><span data-lucide="shield-check" style="width:12px;height:12px;"></span> صلاحية إدارة كاملة</span>` : ''}
       </div>
     </div>
@@ -20366,6 +20539,504 @@ async function openAcctReceiptModal(invoice) {
     }
   });
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// ACCOUNTING MODULE — Phase 2.d screens: Bank Accounts, Petty Cash, Expense Claims (v85)
+// ═══════════════════════════════════════════════════════════════════════
+
+// ─── الحسابات البنكية ───────────────────────────────────────────────
+async function pageAcctBankAccounts(body) {
+  const canManage = isFinanceManager();
+  body.innerHTML = `
+    <a href="#accounting" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الحسابات</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="landmark" style="width:22px;height:22px;color:#123F32;"></span> الحسابات البنكية</h2>
+        <p>كل حساب بنكي له حساب فرعي مستقل في دليل الحسابات تلقائيًا لتتبّع دقيق.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="acctAddBankBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> إضافة حساب بنكي</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body" id="acctBankBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="acctModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) document.getElementById('acctAddBankBtn').addEventListener('click', () => openAcctBankAccountModal(null));
+  await renderAcctBankTable();
+}
+
+async function renderAcctBankTable() {
+  const box = document.getElementById('acctBankBody');
+  if (!box) return;
+  const canManage = isFinanceManager();
+  const { data: rows, error } = await ACCT.bankAccounts.list();
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="landmark"></span><p class="hr-empty-title">لا توجد حسابات بنكية</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>البنك</th><th>اسم الحساب</th><th>رقم الحساب/آيبان</th><th>حساب دليل الحسابات</th><th>الحالة</th><th style="width:80px;">إجراءات</th></tr></thead>
+      <tbody>${rows.map(b => `<tr>
+        <td><strong>${esc(b.bank_name)}</strong></td>
+        <td>${esc(b.account_name)}</td>
+        <td class="mono-num">${esc(b.iban || b.account_no || '—')}</td>
+        <td class="mono-num">${b.coa ? esc(b.coa.code) + ' — ' + esc(b.coa.name) : '—'}</td>
+        <td><span class="hr-pill hr-pill-${b.is_active ? 'active' : 'inactive'}">${b.is_active ? 'نشط' : 'موقوف'}</span></td>
+        <td>
+          <div class="hr-emp-actions">
+            ${canManage ? `<button type="button" title="تعديل" data-bank-edit="${b.id}"><span data-lucide="pencil" style="width:14px;height:14px;"></span></button>` : ''}
+            ${canManage ? `<button type="button" class="danger" title="إيقاف" data-bank-delete="${b.id}"><span data-lucide="trash-2" style="width:14px;height:14px;"></span></button>` : ''}
+          </div>
+        </td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) {
+    box.querySelectorAll('[data-bank-edit]').forEach(b => b.addEventListener('click', () => openAcctBankAccountModal(Number(b.dataset.bankEdit))));
+    box.querySelectorAll('[data-bank-delete]').forEach(b => b.addEventListener('click', async () => {
+      if (!(await customConfirm('إيقاف هذا الحساب البنكي؟'))) return;
+      const { error } = await ACCT.bankAccounts.remove(Number(b.dataset.bankDelete));
+      if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+      toast('تم الإيقاف', 'success');
+      renderAcctBankTable();
+    }));
+  }
+}
+
+async function openAcctBankAccountModal(bankId) {
+  const isEdit = !!bankId;
+  const b = isEdit ? (await ACCT.bankAccounts.get(bankId)).data || {} : {};
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:480px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="${isEdit ? 'pencil' : 'plus'}" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ${isEdit ? 'تعديل حساب بنكي' : 'إضافة حساب بنكي'}</h3>
+        <button class="modal-close-x" id="acctBankClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="acctBankErr"></div>
+        <form id="acctBankForm" style="display:grid;gap:12px;">
+          <div class="form-field"><label>اسم البنك *</label><input class="form-input" name="bank_name" required value="${esc(b.bank_name || '')}"></div>
+          <div class="form-field"><label>اسم الحساب *</label><input class="form-input" name="account_name" required value="${esc(b.account_name || '')}"></div>
+          <div class="form-field"><label>رقم الحساب</label><input class="form-input mono-num" name="account_no" value="${esc(b.account_no || '')}"></div>
+          <div class="form-field"><label>رقم الآيبان</label><input class="form-input mono-num" name="iban" value="${esc(b.iban || '')}"></div>
+          ${!isEdit ? `<div class="form-field"><label>الرصيد الافتتاحي</label><input class="form-input mono-num" type="number" step="0.01" name="opening_balance" value="0"></div>` : ''}
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="acctBankCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">${isEdit ? 'حفظ' : 'إضافة'}</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#acctBankClose').addEventListener('click', close);
+  host.querySelector('#acctBankCancel').addEventListener('click', close);
+  host.querySelector('#acctBankForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('acctBankErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      bank_name: (fd.get('bank_name') || '').trim(),
+      account_name: (fd.get('account_name') || '').trim(),
+      account_no: (fd.get('account_no') || '').trim() || null,
+      iban: (fd.get('iban') || '').trim() || null
+    };
+    if (!isEdit) payload.opening_balance = Number(fd.get('opening_balance') || 0);
+    try {
+      const { error } = isEdit ? await ACCT.bankAccounts.update(bankId, payload) : await ACCT.bankAccounts.create(payload);
+      if (error) throw error;
+      toast(isEdit ? 'تم حفظ التعديلات' : 'تم إضافة الحساب البنكي وإنشاء حسابه في دليل الحسابات تلقائيًا', 'success');
+      close();
+      renderAcctBankTable();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ─── العهد النقدية ──────────────────────────────────────────────────
+async function pageAcctPettyCash(body) {
+  const canManage = isFinanceManager();
+  body.innerHTML = `
+    <a href="#accounting" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الحسابات</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="coins" style="width:22px;height:22px;color:#123F32;"></span> العهد النقدية</h2>
+        <p>عهد نقدية بحوزة موظفين لتغطية مصروفات صغيرة يومية.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="acctAddPcBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> إضافة عهدة</button>` : ''}
+    </div>
+    <div class="hr-dept-grid" id="acctPcGrid"><div class="skeleton skeleton-row"></div></div>
+    <div id="acctModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) document.getElementById('acctAddPcBtn').addEventListener('click', () => openAcctPettyCashModal());
+  await renderAcctPettyCashGrid();
+}
+
+async function renderAcctPettyCashGrid() {
+  const box = document.getElementById('acctPcGrid');
+  if (!box) return;
+  const canManage = isFinanceManager();
+  const { data: funds, error } = await ACCT.pettyCash.list();
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!funds.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="coins"></span><p class="hr-empty-title">لا توجد عهد نقدية</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const balances = await Promise.all(funds.map(f => ACCT.pettyCash.balance(f.id)));
+  box.innerHTML = funds.map((f, i) => `
+    <div class="hr-dept-card">
+      <div class="hr-dept-card-head">
+        <div class="hr-dept-card-icon"><span data-lucide="coins" style="width:20px;height:20px;"></span></div>
+        <div style="min-width:0;flex:1;">
+          <p class="hr-dept-card-name">${esc(f.code)}</p>
+          <p style="font-size:11.5px;color:var(--text-muted);margin:2px 0 0;">أمين العهدة: ${esc(f.custodian?.full_name || '—')}</p>
+        </div>
+      </div>
+      <p class="hr-dept-card-desc">${f.branches ? 'الفرع: ' + esc(f.branches.name) : 'بدون فرع محدد'}</p>
+      <div class="hr-dept-card-stats" style="justify-content:space-between;">
+        <span class="hr-dept-card-stat" style="font-weight:800;color:#123F32;font-size:16px;">${balances[i].toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</span>
+        ${canManage ? `<button type="button" class="btn btn-outline btn-sm" data-pc-replenish="${f.id}">تغذية</button>` : ''}
+      </div>
+    </div>
+  `).join('');
+  if (window.lucide) lucide.createIcons();
+  if (canManage) {
+    box.querySelectorAll('[data-pc-replenish]').forEach(b => b.addEventListener('click', async () => {
+      const amountStr = await customPrompt('مبلغ التغذية (ر.س):', '');
+      if (!amountStr || !(Number(amountStr) > 0)) return;
+      const { error } = await ACCT.pettyCash.replenish(Number(b.dataset.pcReplenish), Number(amountStr), 'تغذية عهدة نقدية');
+      if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+      toast('تمت تغذية العهدة', 'success');
+      renderAcctPettyCashGrid();
+    }));
+  }
+}
+
+async function openAcctPettyCashModal() {
+  const [{ data: users }, { data: branches }] = await Promise.all([
+    sb.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
+    sb.from('branches').select('id, name').eq('is_active', true).order('name')
+  ]);
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:460px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> إضافة عهدة نقدية</h3>
+        <button class="modal-close-x" id="acctPcClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="acctPcErr"></div>
+        <form id="acctPcForm" style="display:grid;gap:12px;">
+          <div class="form-field"><label>أمين العهدة *</label>
+            <select class="form-select" name="custodian_id" required>
+              ${(users || []).map(u => `<option value="${u.id}">${esc(u.full_name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>الفرع (اختياري)</label>
+            <select class="form-select" name="branch_id">
+              <option value="">—</option>
+              ${(branches || []).map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>الرصيد الافتتاحي</label><input class="form-input mono-num" type="number" step="0.01" name="opening_balance" value="0"></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="acctPcCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">إضافة</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#acctPcClose').addEventListener('click', close);
+  host.querySelector('#acctPcCancel').addEventListener('click', close);
+  host.querySelector('#acctPcForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('acctPcErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    try {
+      const { error } = await ACCT.pettyCash.create({
+        custodian_id: Number(fd.get('custodian_id')),
+        branch_id: fd.get('branch_id') ? Number(fd.get('branch_id')) : null,
+        opening_balance: Number(fd.get('opening_balance') || 0)
+      });
+      if (error) throw error;
+      toast('تم إضافة العهدة', 'success');
+      close();
+      renderAcctPettyCashGrid();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ─── مصروفات الموظفين ──────────────────────────────────────────────
+async function pageAcctExpenseClaims(body, urlQuery) {
+  const canApproveAny = isAccountingRole();
+  body.innerHTML = `
+    <a href="#accounting" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الحسابات</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="receipt-text" style="width:22px;height:22px;color:#123F32;"></span> مصروفات الموظفين</h2>
+        <p>طلبات استرداد مصروفات من موظفي الشركة — بموافقة مزدوجة فوق 10,000 ر.س.</p>
+      </div>
+      <button type="button" class="btn" id="acctExpNewBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;">
+        <span data-lucide="plus" style="width:14px;height:14px;"></span> طلب مصروفات جديد
+      </button>
+    </div>
+    <div class="panel"><div class="panel-body">
+      <div class="hr-toolbar">
+        <div class="filter-select-wrap"><span class="fsw-icon" data-lucide="check-circle-2" style="width:15px;height:15px;"></span>
+          <select id="acctExpStatus">
+            <option value="">كل الحالات</option>
+            <option value="draft">مسودة</option>
+            <option value="submitted">مُرسَلة</option>
+            <option value="approved">معتمدة</option>
+            <option value="rejected">مرفوضة</option>
+            <option value="paid">مدفوعة</option>
+          </select>
+        </div>
+      </div>
+      <div id="acctExpTableBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
+    </div></div>
+    <div id="acctModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  document.getElementById('acctExpStatus').addEventListener('change', renderAcctExpenseTable);
+  document.getElementById('acctExpNewBtn').addEventListener('click', () => openAcctExpenseClaimCreateModal());
+  await renderAcctExpenseTable();
+}
+
+async function renderAcctExpenseTable() {
+  const box = document.getElementById('acctExpTableBody');
+  if (!box) return;
+  const statusFilter = document.getElementById('acctExpStatus')?.value || '';
+  const canApproveAny = isAccountingRole();
+  const filters = {};
+  if (statusFilter) filters.status = statusFilter;
+  if (!canApproveAny && CURRENT_USER) filters.employee_id = CURRENT_USER.id;
+  const { data: rows, error } = await ACCT.expenseClaims.list(filters);
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="receipt-text"></span><p class="hr-empty-title">لا توجد طلبات مصروفات</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const statusLbl = { draft: 'مسودة', submitted: 'مُرسَلة', approved: 'معتمدة', rejected: 'مرفوضة', paid: 'مدفوعة', cancelled: 'ملغاة' };
+  const statusCls = { draft: 'st-empty', submitted: 'st-late', approved: 'st-leave', rejected: 'st-absent', paid: 'st-present', cancelled: 'st-absent' };
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>رقم الطلب</th><th>الموظف</th><th>التاريخ</th><th>الإجمالي</th><th>الحالة</th></tr></thead>
+      <tbody>${rows.map(c => `<tr class="hr-emp-row" data-exp-id="${c.id}">
+        <td class="mono-num">${esc(c.claim_no)}</td>
+        <td>${esc(c.employee?.full_name || '—')}</td>
+        <td class="mono-num">${esc(c.claim_date)}</td>
+        <td class="mono-num">${money(c.total)}</td>
+        <td><span class="hr-att-cell ${statusCls[c.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(statusLbl[c.status])}</span></td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  box.querySelectorAll('[data-exp-id]').forEach(el => el.addEventListener('click', () => { location.hash = '#acct_expense_claim/' + el.dataset.expId; }));
+}
+
+async function openAcctExpenseClaimCreateModal() {
+  const { data: accounts } = await ACCT.accounts.list({ leafOnly: true, is_active: true, account_type: 'expense' });
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:720px;max-width:97%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> طلب مصروفات جديد</h3>
+        <button class="modal-close-x" id="acctExpCrClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="acctExpCrErr"></div>
+        <div class="hr-form-grid" style="margin-bottom:12px;">
+          <div class="form-field"><label>طريقة السداد</label>
+            <select class="form-select" id="acctExpMethod">
+              <option value="petty_cash">من عهدة نقدية</option>
+              <option value="bank">تحويل بنكي</option>
+              <option value="payroll_deduction">خصم/إضافة من الراتب</option>
+            </select>
+          </div>
+        </div>
+        <div class="hr-section-heading"><span class="icon" data-lucide="list"></span> بنود المصروفات</div>
+        <div class="acct-je-lines" id="acctExpLinesBox"></div>
+        <button type="button" class="btn btn-outline btn-sm" id="acctExpAddLineBtn" style="margin-bottom:12px;"><span data-lucide="plus" style="width:13px;height:13px;"></span> إضافة بند</button>
+        <div class="acct-je-totals" id="acctExpTotals">الإجمالي: 0.00 ر.س</div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px;">
+          <button type="button" class="btn btn-outline" id="acctExpCrCancel">إلغاء</button>
+          <button type="button" class="btn" id="acctExpSaveBtn" style="background:var(--surface);border:1.5px solid var(--border);color:#0F172A;"><span data-lucide="save" style="width:13px;height:13px;"></span> حفظ وإرسال</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#acctExpCrClose').addEventListener('click', close);
+  host.querySelector('#acctExpCrCancel').addEventListener('click', close);
+
+  const linesBox = host.querySelector('#acctExpLinesBox');
+  const totalsBox = host.querySelector('#acctExpTotals');
+  function accOptions() { return `<option value="">اختر الحساب</option>` + (accounts || []).map(a => `<option value="${a.id}">${esc(a.code)} — ${esc(a.name)}</option>`).join(''); }
+  function addLineRow() {
+    const row = document.createElement('div');
+    row.className = 'acct-je-line-row';
+    row.style.gridTemplateColumns = '110px 2fr 1.4fr 100px 32px';
+    row.innerHTML = `
+      <input class="form-input" type="date" value="${new Date().toISOString().slice(0,10)}">
+      <input class="form-input ex-desc" placeholder="وصف المصروف">
+      <select class="form-select ex-account">${accOptions()}</select>
+      <input class="form-input mono-num ex-amount" type="number" step="0.01" min="0.01" placeholder="المبلغ">
+      <button type="button" class="acct-je-line-del" title="حذف البند"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+    `;
+    linesBox.appendChild(row);
+    if (window.lucide) lucide.createIcons();
+    row.querySelector('.acct-je-line-del').addEventListener('click', () => { row.remove(); recalc(); });
+    row.querySelector('.ex-amount').addEventListener('input', recalc);
+  }
+  function recalc() {
+    let total = 0;
+    linesBox.querySelectorAll('.acct-je-line-row').forEach(r => { total += Number(r.querySelector('.ex-amount').value || 0); });
+    totalsBox.textContent = `الإجمالي: ${total.toFixed(2)} ر.س`;
+  }
+  host.querySelector('#acctExpAddLineBtn').addEventListener('click', addLineRow);
+  addLineRow();
+
+  host.querySelector('#acctExpSaveBtn').addEventListener('click', async () => {
+    const errBox = host.querySelector('#acctExpCrErr');
+    errBox.classList.remove('show');
+    const lineRows = [...linesBox.querySelectorAll('.acct-je-line-row')];
+    const lines = lineRows.map(r => ({
+      expense_date: r.querySelector('input[type=date]').value,
+      description: r.querySelector('.ex-desc').value.trim() || 'مصروف',
+      account_id: r.querySelector('.ex-account').value ? Number(r.querySelector('.ex-account').value) : null,
+      amount: Number(r.querySelector('.ex-amount').value || 0)
+    })).filter(l => l.account_id && l.amount > 0);
+    if (!lines.length) { errBox.textContent = 'أضف بندًا واحدًا على الأقل بحساب ومبلغ صحيحين'; errBox.classList.add('show'); return; }
+
+    try {
+      const { data: claim, error: createErr } = await ACCT.expenseClaims.create({
+        employee_id: CURRENT_USER.id,
+        reimbursement_method: host.querySelector('#acctExpMethod').value
+      });
+      if (createErr) throw createErr;
+      for (const line of lines) {
+        const { error: lineErr } = await ACCT.expenseClaims.addLine(claim.id, line);
+        if (lineErr) throw lineErr;
+      }
+      await ACCT.expenseClaims.submit(claim.id);
+      toast('تم إرسال طلب المصروفات للاعتماد', 'success');
+      close();
+      location.hash = '#acct_expense_claim/' + claim.id;
+      renderApp();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function pageAcctExpenseClaimDetail(body, idParam) {
+  const claimId = Number(idParam);
+  if (!claimId) { body.innerHTML = '<p class="error-msg show">معرف الطلب غير صحيح</p>'; return; }
+  const { data: claim, error } = await ACCT.expenseClaims.get(claimId);
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!claim) { body.innerHTML = '<p class="empty-state">الطلب غير موجود</p>'; return; }
+
+  const isOwner = CURRENT_USER && claim.employee_id === CURRENT_USER.id;
+  const canApprove = isGlAccountantOrHigher();
+  const canFinance = isFinanceManager();
+  const statusLbl = { draft: 'مسودة', submitted: 'مُرسَلة', approved: 'معتمدة', rejected: 'مرفوضة', paid: 'مدفوعة', cancelled: 'ملغاة' };
+  const methodLbl = { petty_cash: 'من عهدة نقدية', bank: 'تحويل بنكي', payroll_deduction: 'من الراتب' };
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  body.innerHTML = `
+    <a href="#acct_expense_claims" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لمصروفات الموظفين</a>
+    <div class="hr-emp-hero">
+      <div class="hr-emp-hero-content">
+        <div class="hr-emp-hero-avatar"><span data-lucide="receipt-text" style="width:28px;height:28px;"></span></div>
+        <div class="hr-emp-hero-info">
+          <h2 class="hr-emp-hero-name">${esc(claim.claim_no)}</h2>
+          <div class="hr-emp-hero-meta">
+            <span><span data-lucide="user" style="width:13px;height:13px;"></span> ${esc(claim.employee?.full_name || '—')}</span>
+            <span><span data-lucide="calendar" style="width:13px;height:13px;"></span> ${esc(claim.claim_date)}</span>
+            <span><span data-lucide="info" style="width:13px;height:13px;"></span> ${esc(statusLbl[claim.status])}</span>
+            ${claim.requires_second_approval ? `<span><span data-lucide="shield-alert" style="width:13px;height:13px;"></span> ${claim.second_approved_by ? 'موافقة ثانية: تمت' : 'تحتاج موافقة ثانية'}</span>` : ''}
+          </div>
+        </div>
+        <div class="hr-emp-hero-actions">
+          ${canApprove && claim.status === 'submitted' ? `<button type="button" class="hr-emp-hero-btn" id="acctExpApproveBtn"><span data-lucide="check-check" style="width:13px;height:13px;"></span> اعتماد</button>` : ''}
+          ${canApprove && claim.status === 'submitted' ? `<button type="button" class="hr-emp-hero-btn" id="acctExpRejectBtn"><span data-lucide="x" style="width:13px;height:13px;"></span> رفض</button>` : ''}
+          ${canFinance && claim.requires_second_approval && !claim.second_approved_by ? `<button type="button" class="hr-emp-hero-btn" id="acctExpSecondApproveBtn"><span data-lucide="shield-check" style="width:13px;height:13px;"></span> موافقة ثانية</button>` : ''}
+          ${canApprove && claim.status === 'approved' ? `<button type="button" class="hr-emp-hero-btn" id="acctExpPayBtn"><span data-lucide="banknote" style="width:13px;height:13px;"></span> تسجيل السداد</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="hr-info-grid" style="margin-bottom:20px;">
+      ${_hrInfo('طريقة السداد', methodLbl[claim.reimbursement_method])}
+      ${_hrInfo('الإجمالي', money(claim.total) + ' ر.س')}
+      ${claim.rejection_reason ? _hrInfo('سبب الرفض', claim.rejection_reason) : ''}
+    </div>
+
+    <div class="hr-section-heading"><span class="icon" data-lucide="list"></span> بنود المصروفات</div>
+    <div style="overflow-x:auto;">
+      <table class="hr-emp-table">
+        <thead><tr><th>التاريخ</th><th>الوصف</th><th>الحساب</th><th>المبلغ</th></tr></thead>
+        <tbody>${(claim.lines || []).sort((a,b)=>a.line_no-b.line_no).map(l => `<tr>
+          <td class="mono-num">${esc(l.expense_date)}</td>
+          <td>${esc(l.description)}</td>
+          <td>${esc(l.account?.code || '')} — ${esc(l.account?.name || '')}</td>
+          <td class="mono-num">${money(l.amount)}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  document.getElementById('acctExpApproveBtn')?.addEventListener('click', async () => {
+    if (!(await customConfirm('اعتماد طلب المصروفات هذا؟'))) return;
+    const { error } = await ACCT.expenseClaims.approve(claimId);
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم الاعتماد', 'success'); renderApp();
+  });
+  document.getElementById('acctExpRejectBtn')?.addEventListener('click', async () => {
+    const reason = await customPrompt('سبب الرفض:', '');
+    if (reason === null || !reason.trim()) return;
+    const { error } = await ACCT.expenseClaims.reject(claimId, reason);
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم الرفض', 'success'); renderApp();
+  });
+  document.getElementById('acctExpSecondApproveBtn')?.addEventListener('click', async () => {
+    if (!(await customConfirm('تسجيل موافقتك الثانية؟'))) return;
+    const { error } = await ACCT.expenseClaims.secondApprove(claimId);
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم تسجيل الموافقة الثانية', 'success'); renderApp();
+  });
+  document.getElementById('acctExpPayBtn')?.addEventListener('click', async () => {
+    if (!(await customConfirm('تسجيل سداد هذا الطلب؟ سيُنشأ قيد يومية تلقائيًا.'))) return;
+    const { error } = await ACCT.expenseClaims.markPaid(claimId);
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم تسجيل السداد', 'success'); renderApp();
+  });
+}
+
+function isGlAccountantOrHigher() { return CURRENT_USER && ['admin', 'company_manager', 'finance_manager', 'gl_accountant'].includes(CURRENT_USER.role); }
 
 const COMING_SOON_MODULES = {
   hr: {
