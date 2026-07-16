@@ -4820,7 +4820,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v87-2026-07-16-acct-closing-reports';
+const APP_VERSION = 'v88-2026-07-16-ops-shifts';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -6401,6 +6401,206 @@ const ACCT = {
   }
 };
 window.ACCT = ACCT;
+
+// ═══════════════════════════════════════════════════════════════════
+// وحدة التشغيل (Operations) — طبقة الوصول للبيانات
+// ═══════════════════════════════════════════════════════════════════
+const OPS = {
+
+  validate: {
+    shiftTemplate(data) {
+      const errors = [];
+      if (!data.branch_id) errors.push('الفرع مطلوب');
+      if (!data.name || !data.name.trim()) errors.push('اسم القالب مطلوب');
+      if (!data.start_time) errors.push('وقت البداية مطلوب');
+      if (!data.end_time) errors.push('وقت النهاية مطلوب');
+      return errors;
+    },
+    shift(data) {
+      const errors = [];
+      if (!data.branch_id) errors.push('الفرع مطلوب');
+      if (!data.shift_date) errors.push('تاريخ الوردية مطلوب');
+      return errors;
+    },
+    checklist(data) {
+      const errors = [];
+      if (!data.branch_id) errors.push('الفرع مطلوب');
+      if (!['opening', 'closing'].includes(data.checklist_type)) errors.push('نوع القائمة غير صحيح');
+      if (!data.checklist_date) errors.push('تاريخ القائمة مطلوب');
+      return errors;
+    }
+  },
+
+  _err(msg) { return { data: null, error: { message: msg } }; },
+
+  // ─── قوالب الورديات ──────────────────────────────────────────────
+  shiftTemplates: {
+    async list(filters = {}) {
+      let q = sb.from('ops_shift_templates').select('*, branches(name)').order('branch_id').order('start_time');
+      if (filters.branch_id) q = q.eq('branch_id', filters.branch_id);
+      if (filters.is_active != null) q = q.eq('is_active', filters.is_active);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async create(payload) {
+      const errs = OPS.validate.shiftTemplate(payload);
+      if (errs.length) return OPS._err(errs.join('؛ '));
+      const { data, error } = await sb.from('ops_shift_templates').insert({ ...payload, created_by: CURRENT_USER?.id }).select().single();
+      return { data, error };
+    },
+    async update(id, payload) {
+      const { data, error } = await sb.from('ops_shift_templates').update(payload).eq('id', id).select().single();
+      return { data, error };
+    },
+    async remove(id) {
+      const { error } = await sb.from('ops_shift_templates').update({ is_active: false }).eq('id', id);
+      return { error };
+    }
+  },
+
+  // ─── الورديات ────────────────────────────────────────────────────
+  shifts: {
+    async list(filters = {}) {
+      let q = sb.from('ops_shifts').select('*, branches(name), template:template_id(name, start_time, end_time), manager:shift_manager_id(full_name)')
+        .is('deleted_at', null).order('shift_date', { ascending: false });
+      if (filters.branch_id) q = q.eq('branch_id', filters.branch_id);
+      if (filters.status) q = q.eq('status', filters.status);
+      if (filters.from) q = q.gte('shift_date', filters.from);
+      if (filters.to) q = q.lte('shift_date', filters.to);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('ops_shifts')
+        .select('*, branches(name), template:template_id(name, start_time, end_time), manager:shift_manager_id(full_name)')
+        .eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      const errs = OPS.validate.shift(payload);
+      if (errs.length) return OPS._err(errs.join('؛ '));
+      const { data, error } = await sb.from('ops_shifts').insert({ ...payload, created_by: CURRENT_USER?.id }).select().single();
+      return { data, error };
+    },
+    async open(id) {
+      const { data, error } = await sb.from('ops_shifts').update({ status: 'in_progress', opened_at: new Date().toISOString() }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async close(id) {
+      const { data, error } = await sb.from('ops_shifts').update({ status: 'closed', closed_at: new Date().toISOString() }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async remove(id) {
+      const { error } = await sb.from('ops_shifts').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+      return { error };
+    }
+  },
+
+  // ─── تسليم/استلام الوردية ────────────────────────────────────────
+  handovers: {
+    async listForShift(shiftId) {
+      const { data, error } = await sb.from('ops_shift_handovers')
+        .select('*, handed_over:handed_over_by(full_name), received:received_by(full_name)')
+        .eq('shift_id', shiftId).order('created_at', { ascending: false });
+      return { data: data || [], error };
+    },
+    async create(payload) {
+      const { data, error } = await sb.from('ops_shift_handovers').insert(payload).select().single();
+      if (!error) {
+        await sb.from('ops_shifts').update({ status: 'handed_over' }).eq('id', payload.shift_id);
+      }
+      return { data, error };
+    }
+  },
+
+  // ─── توزيع الموظفين على المحطات ──────────────────────────────────
+  stationAssignments: {
+    async listForShift(shiftId) {
+      const { data, error } = await sb.from('ops_station_assignments')
+        .select('*, users(full_name)').eq('shift_id', shiftId).order('station_name');
+      return { data: data || [], error };
+    },
+    // يتحقق أن الموظف ليس مسجّلًا غائبًا في تاريخ الوردية قبل التعيين
+    async checkAttendance(userId, shiftDate) {
+      const { data } = await sb.from('hr_attendance').select('status').eq('user_id', userId).eq('attendance_date', shiftDate).maybeSingle();
+      if (data && data.status === 'absent') return { ok: false, reason: 'الموظف مسجّل غائب في هذا اليوم' };
+      if (data && data.status === 'leave') return { ok: false, reason: 'الموظف في إجازة في هذا اليوم' };
+      return { ok: true };
+    },
+    async assign(shiftId, userId, stationName, shiftDate) {
+      const attCheck = await OPS.stationAssignments.checkAttendance(userId, shiftDate);
+      if (!attCheck.ok) return OPS._err(attCheck.reason);
+      const { data, error } = await sb.from('ops_station_assignments')
+        .insert({ shift_id: shiftId, user_id: userId, station_name: stationName, assigned_by: CURRENT_USER?.id })
+        .select().single();
+      return { data, error };
+    },
+    async remove(id) {
+      const { error } = await sb.from('ops_station_assignments').delete().eq('id', id);
+      return { error };
+    }
+  },
+
+  // ─── قوائم الفتح/الإغلاق اليومية ─────────────────────────────────
+  checklists: {
+    async list(filters = {}) {
+      let q = sb.from('ops_daily_checklists').select('*, branches(name)').order('checklist_date', { ascending: false });
+      if (filters.branch_id) q = q.eq('branch_id', filters.branch_id);
+      if (filters.shift_id) q = q.eq('shift_id', filters.shift_id);
+      if (filters.checklist_type) q = q.eq('checklist_type', filters.checklist_type);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('ops_daily_checklists').select('*, branches(name)').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload, items) {
+      const errs = OPS.validate.checklist(payload);
+      if (errs.length) return OPS._err(errs.join('؛ '));
+      const { data, error } = await sb.from('ops_daily_checklists').insert({ ...payload, created_by: CURRENT_USER?.id }).select().single();
+      if (error) return { data, error };
+      if (Array.isArray(items) && items.length) {
+        const rows = items.map((text, i) => ({ checklist_id: data.id, item_text: text, sort_order: i }));
+        await sb.from('ops_checklist_items').insert(rows);
+      }
+      return { data, error };
+    },
+    async items(checklistId) {
+      const { data, error } = await sb.from('ops_checklist_items').select('*, users(full_name)').eq('checklist_id', checklistId).order('sort_order');
+      return { data: data || [], error };
+    },
+    async toggleItem(itemId, checked) {
+      const payload = checked
+        ? { is_checked: true, checked_by: CURRENT_USER?.id, checked_at: new Date().toISOString() }
+        : { is_checked: false, checked_by: null, checked_at: null };
+      const { data, error } = await sb.from('ops_checklist_items').update(payload).eq('id', itemId).select().single();
+      return { data, error };
+    },
+    async complete(id) {
+      const { data, error } = await sb.from('ops_daily_checklists')
+        .update({ status: 'completed', completed_by: CURRENT_USER?.id, completed_at: new Date().toISOString() })
+        .eq('id', id).select().single();
+      return { data, error };
+    }
+  },
+
+  dashboard: {
+    async summary(branchId) {
+      let shiftsQ = sb.from('ops_shifts').select('id, status', { count: 'exact' }).is('deleted_at', null).eq('status', 'in_progress');
+      let checklistsQ = sb.from('ops_daily_checklists').select('id', { count: 'exact' }).eq('status', 'in_progress');
+      if (branchId) { shiftsQ = shiftsQ.eq('branch_id', branchId); checklistsQ = checklistsQ.eq('branch_id', branchId); }
+      const [activeShifts, pendingChecklists] = await Promise.all([shiftsQ, checklistsQ]);
+      return {
+        activeShifts: activeShifts.count || 0,
+        pendingChecklists: pendingChecklists.count || 0,
+        error: activeShifts.error || pendingChecklists.error || null
+      };
+    }
+  }
+};
+window.OPS = OPS;
+function isOpsManager() { return CURRENT_USER && ['admin', 'company_manager', 'operations_manager'].includes(CURRENT_USER.role); }
 
 // ─── ZATCA Phase 1 — TLV-encoded Base64 QR string ────────────────────
 // Tags: 1=Seller name, 2=VAT number, 3=Timestamp(ISO), 4=Invoice total, 5=VAT total.
@@ -8835,7 +9035,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', operations: 'تشغيل المطاعم', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -13423,7 +13623,11 @@ async function route() {
     else if (page === 'acct_vat_returns') await pageAcctVatReturns(body, query);
     else if (page === 'acct_reports') await pageAcctReports(body, query);
     else if (page === 'acct_budgets') await pageAcctBudgets(body, query);
-    else if (page === 'operations') await pageComingSoonModule(body, 'operations');
+    else if (page === 'operations') await pageOpsDashboard(body);
+    else if (page === 'ops_shift_templates') await pageOpsShiftTemplates(body);
+    else if (page === 'ops_shifts') await pageOpsShifts(body);
+    else if (page === 'ops_shift_detail') await pageOpsShiftDetail(body, param);
+    else if (page === 'ops_checklists') await pageOpsChecklists(body);
     else if (page === 'meetings') await pageMeetings(body, query);
     else if (page === 'meetings_calendar') await pageMeetingsCalendar(body, query);
     else if (page === 'meeting_detail') await pageMeetingDetail(body, param, query);
@@ -22080,6 +22284,758 @@ const COMING_SOON_MODULES = {
     ]
   }
 };
+
+// ═══════════════════════════════════════════════════════════════════
+// وحدة التشغيل (Operations) — المرحلة 3.a: التشغيل اليومي والورديات
+// ═══════════════════════════════════════════════════════════════════
+async function pageOpsDashboard(body) {
+  const canManage = isOpsManager();
+  body.innerHTML = `
+    <div class="mod-hero">
+      <div class="mod-hero-top">
+        <div class="mod-hero-icon"><span data-lucide="chef-hat"></span></div>
+        <div>
+          <h2 class="mod-hero-title">تشغيل المطاعم</h2>
+          <p class="mod-hero-sub">إدارة الورديات، توزيع الموظفين على المحطات، وقوائم الفتح والإغلاق اليومية.</p>
+        </div>
+      </div>
+      <div class="mod-hero-badges">
+        <a href="#ops_shifts" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="calendar-clock" style="width:12px;height:12px;"></span> الورديات</a>
+        <a href="#ops_shift_templates" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="clock" style="width:12px;height:12px;"></span> قوالب الورديات</a>
+        <a href="#ops_checklists" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="list-checks" style="width:12px;height:12px;"></span> قوائم الفتح والإغلاق</a>
+        ${canManage ? `<span class="mod-hero-badge hb-scope"><span data-lucide="shield-check" style="width:12px;height:12px;"></span> صلاحية إدارة كاملة</span>` : ''}
+      </div>
+    </div>
+
+    <div class="mod-stats" id="opsKpis">
+      ${[1,2].map(() => `<div class="mod-stat"><div class="skeleton skeleton-row" style="width:60%;height:24px;"></div><div class="skeleton skeleton-row" style="width:80%;margin-top:8px;"></div></div>`).join('')}
+    </div>
+
+    <div class="mod-section-title"><span data-lucide="calendar-clock" style="width:16px;height:16px;"></span> ورديات اليوم</div>
+    <div id="opsTodayShifts"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  const summary = await OPS.dashboard.summary();
+  const kpiBox = document.getElementById('opsKpis');
+  if (kpiBox) {
+    kpiBox.innerHTML = `
+      <div class="mod-stat"><div class="mod-stat-val">${summary.activeShifts}</div><div class="mod-stat-lbl">ورديات جارية الآن</div></div>
+      <div class="mod-stat"><div class="mod-stat-val">${summary.pendingChecklists}</div><div class="mod-stat-lbl">قوائم فتح/إغلاق بانتظار الإكمال</div></div>
+    `;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: shifts } = await OPS.shifts.list({ from: today, to: today });
+  const box = document.getElementById('opsTodayShifts');
+  if (box) {
+    if (!shifts.length) {
+      box.innerHTML = `<div class="hr-empty"><span data-lucide="calendar-clock"></span><p class="hr-empty-title">لا توجد ورديات مجدولة اليوم</p></div>`;
+    } else {
+      const statusLbl = { planned: 'مجدولة', in_progress: 'جارية', handed_over: 'تم التسليم', closed: 'مغلقة' };
+      const statusCls = { planned: 'st-empty', in_progress: 'st-present', handed_over: 'st-late', closed: 'st-absent' };
+      box.innerHTML = `
+        <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+          <thead><tr><th>الفرع</th><th>الوردية</th><th>مسؤول الوردية</th><th>الحالة</th></tr></thead>
+          <tbody>${shifts.map(s => `
+            <tr class="hr-emp-row" onclick="location.hash='#ops_shift_detail/${s.id}'">
+              <td>${esc(s.branches?.name || '—')}</td>
+              <td>${esc(s.template?.name || '—')}</td>
+              <td>${esc(s.manager?.full_name || '—')}</td>
+              <td><span class="hr-att-cell ${statusCls[s.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(statusLbl[s.status])}</span></td>
+            </tr>`).join('')}</tbody>
+        </table></div></div></div>
+      `;
+    }
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+// ─── قوالب الورديات ─────────────────────────────────────────────────
+async function pageOpsShiftTemplates(body) {
+  const canManage = isOpsManager();
+  body.innerHTML = `
+    <a href="#operations" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لتشغيل المطاعم</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="clock" style="width:22px;height:22px;color:#123F32;"></span> قوالب الورديات</h2>
+        <p>قوالب زمنية لكل فرع (صباحي/مسائي/...) تُستخدم عند إنشاء وردية جديدة.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="opsAddTplBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> إضافة قالب</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body" id="opsTplBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="opsModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) document.getElementById('opsAddTplBtn').addEventListener('click', () => openOpsShiftTemplateModal(null));
+  await renderOpsShiftTemplatesTable();
+}
+
+async function renderOpsShiftTemplatesTable() {
+  const box = document.getElementById('opsTplBody');
+  if (!box) return;
+  const canManage = isOpsManager();
+  const { data: rows, error } = await OPS.shiftTemplates.list();
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="clock"></span><p class="hr-empty-title">لا توجد قوالب ورديات بعد</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>الفرع</th><th>اسم القالب</th><th>من</th><th>إلى</th><th>الحالة</th><th style="width:80px;">إجراءات</th></tr></thead>
+      <tbody>${rows.map(t => `<tr>
+        <td>${esc(t.branches?.name || '—')}</td>
+        <td><strong>${esc(t.name)}</strong></td>
+        <td class="mono-num">${esc(t.start_time)}</td>
+        <td class="mono-num">${esc(t.end_time)}</td>
+        <td><span class="hr-pill hr-pill-${t.is_active ? 'active' : 'inactive'}">${t.is_active ? 'نشط' : 'موقوف'}</span></td>
+        <td>
+          <div class="hr-emp-actions">
+            ${canManage ? `<button type="button" title="تعديل" data-tpl-edit="${t.id}"><span data-lucide="pencil" style="width:14px;height:14px;"></span></button>` : ''}
+            ${canManage ? `<button type="button" class="danger" title="إيقاف" data-tpl-delete="${t.id}"><span data-lucide="trash-2" style="width:14px;height:14px;"></span></button>` : ''}
+          </div>
+        </td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) {
+    box.querySelectorAll('[data-tpl-edit]').forEach(b => b.addEventListener('click', () => openOpsShiftTemplateModal(Number(b.dataset.tplEdit))));
+    box.querySelectorAll('[data-tpl-delete]').forEach(b => b.addEventListener('click', async () => {
+      if (!(await customConfirm('إيقاف هذا القالب؟'))) return;
+      const { error } = await OPS.shiftTemplates.remove(Number(b.dataset.tplDelete));
+      if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+      toast('تم الإيقاف', 'success');
+      renderOpsShiftTemplatesTable();
+    }));
+  }
+}
+
+async function openOpsShiftTemplateModal(tplId) {
+  const isEdit = !!tplId;
+  const [{ data: branches }, existing] = await Promise.all([
+    sb.from('branches').select('id, name').eq('is_active', true).order('name'),
+    isEdit ? OPS.shiftTemplates.list().then(r => (r.data || []).find(x => x.id === tplId)) : Promise.resolve({})
+  ]);
+  const t = existing || {};
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:460px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="${isEdit ? 'pencil' : 'plus'}" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ${isEdit ? 'تعديل قالب وردية' : 'إضافة قالب وردية'}</h3>
+        <button class="modal-close-x" id="opsTplClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="opsTplErr"></div>
+        <form id="opsTplForm" class="hr-form-grid">
+          <div class="form-field full"><label>الفرع *</label>
+            <select class="form-select" name="branch_id" required ${isEdit ? 'disabled' : ''}>
+              <option value="">اختر فرعًا</option>
+              ${(branches || []).map(b => `<option value="${b.id}" ${t.branch_id === b.id ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field full"><label>اسم القالب *</label><input class="form-input" name="name" required value="${esc(t.name || '')}"></div>
+          <div class="form-field"><label>وقت البداية *</label><input class="form-input" type="time" name="start_time" required value="${esc(t.start_time || '')}"></div>
+          <div class="form-field"><label>وقت النهاية *</label><input class="form-input" type="time" name="end_time" required value="${esc(t.end_time || '')}"></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="opsTplCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">${isEdit ? 'حفظ' : 'إضافة'}</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#opsTplClose').addEventListener('click', close);
+  host.querySelector('#opsTplCancel').addEventListener('click', close);
+  host.querySelector('#opsTplForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('opsTplErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      name: (fd.get('name') || '').trim(),
+      start_time: fd.get('start_time'),
+      end_time: fd.get('end_time')
+    };
+    if (!isEdit) payload.branch_id = Number(fd.get('branch_id'));
+    try {
+      const { error } = isEdit ? await OPS.shiftTemplates.update(tplId, payload) : await OPS.shiftTemplates.create(payload);
+      if (error) throw error;
+      toast(isEdit ? 'تم حفظ التعديلات' : 'تم إضافة القالب', 'success');
+      close();
+      renderOpsShiftTemplatesTable();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ─── الورديات ────────────────────────────────────────────────────────
+async function pageOpsShifts(body) {
+  const canManage = isOpsManager();
+  body.innerHTML = `
+    <a href="#operations" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لتشغيل المطاعم</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="calendar-clock" style="width:22px;height:22px;color:#123F32;"></span> الورديات</h2>
+        <p>جدولة الورديات، فتحها وإغلاقها، وتوزيع الموظفين على المحطات.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="opsAddShiftBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> جدولة وردية</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body" id="opsShiftsBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="opsModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) document.getElementById('opsAddShiftBtn').addEventListener('click', () => openOpsShiftCreateModal());
+  await renderOpsShiftsTable();
+}
+
+async function renderOpsShiftsTable() {
+  const box = document.getElementById('opsShiftsBody');
+  if (!box) return;
+  const { data: rows, error } = await OPS.shifts.list();
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="calendar-clock"></span><p class="hr-empty-title">لا توجد ورديات بعد</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const statusLbl = { planned: 'مجدولة', in_progress: 'جارية', handed_over: 'تم التسليم', closed: 'مغلقة' };
+  const statusCls = { planned: 'st-empty', in_progress: 'st-present', handed_over: 'st-late', closed: 'st-absent' };
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>التاريخ</th><th>الفرع</th><th>القالب</th><th>مسؤول الوردية</th><th>الحالة</th></tr></thead>
+      <tbody>${rows.map(s => `
+        <tr class="hr-emp-row" onclick="location.hash='#ops_shift_detail/${s.id}'">
+          <td class="mono-num">${esc(s.shift_date)}</td>
+          <td>${esc(s.branches?.name || '—')}</td>
+          <td>${esc(s.template?.name || '—')}</td>
+          <td>${esc(s.manager?.full_name || '—')}</td>
+          <td><span class="hr-att-cell ${statusCls[s.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(statusLbl[s.status])}</span></td>
+        </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+}
+
+async function openOpsShiftCreateModal() {
+  const [{ data: branches }, { data: templates }, { data: managers }] = await Promise.all([
+    sb.from('branches').select('id, name').eq('is_active', true).order('name'),
+    OPS.shiftTemplates.list({ is_active: true }),
+    sb.from('users').select('id, full_name, branch_id').in('role', ['branch_manager', 'deputy_manager']).order('full_name')
+  ]);
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:480px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> جدولة وردية جديدة</h3>
+        <button class="modal-close-x" id="opsShiftClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="opsShiftErr"></div>
+        <form id="opsShiftForm" class="hr-form-grid">
+          <div class="form-field full"><label>الفرع *</label>
+            <select class="form-select" id="opsShiftBranch" name="branch_id" required>
+              <option value="">اختر فرعًا</option>
+              ${(branches || []).map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field full"><label>قالب الوردية</label>
+            <select class="form-select" id="opsShiftTemplate" name="template_id">
+              <option value="">— بدون قالب —</option>
+              ${(templates || []).map(t => `<option value="${t.id}" data-branch="${t.branch_id}">${esc(t.name)} (${esc(t.branches?.name || '')})</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>تاريخ الوردية *</label><input class="form-input" type="date" name="shift_date" required value="${new Date().toISOString().slice(0,10)}"></div>
+          <div class="form-field"><label>مسؤول الوردية</label>
+            <select class="form-select" name="shift_manager_id">
+              <option value="">—</option>
+              ${(managers || []).map(m => `<option value="${m.id}">${esc(m.full_name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field full"><label>ملاحظات</label><textarea class="form-input" name="notes" rows="2"></textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="opsShiftCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">جدولة</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#opsShiftClose').addEventListener('click', close);
+  host.querySelector('#opsShiftCancel').addEventListener('click', close);
+  // فلترة القوالب حسب الفرع المختار
+  const branchSel = host.querySelector('#opsShiftBranch');
+  const tplSel = host.querySelector('#opsShiftTemplate');
+  branchSel.addEventListener('change', () => {
+    const bId = branchSel.value;
+    Array.from(tplSel.options).forEach(opt => {
+      if (!opt.value) return;
+      opt.hidden = bId && opt.dataset.branch !== bId;
+    });
+    tplSel.value = '';
+  });
+  host.querySelector('#opsShiftForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('opsShiftErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      branch_id: Number(fd.get('branch_id')),
+      template_id: fd.get('template_id') ? Number(fd.get('template_id')) : null,
+      shift_date: fd.get('shift_date'),
+      shift_manager_id: fd.get('shift_manager_id') ? Number(fd.get('shift_manager_id')) : null,
+      notes: (fd.get('notes') || '').trim() || null
+    };
+    try {
+      const { error } = await OPS.shifts.create(payload);
+      if (error) throw error;
+      toast('تم جدولة الوردية', 'success');
+      close();
+      renderOpsShiftsTable();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ─── تفاصيل الوردية: توزيع محطات + تسليم/استلام + قوائم مرتبطة ───────
+async function pageOpsShiftDetail(body, idParam) {
+  const shiftId = Number(idParam);
+  if (!shiftId) { body.innerHTML = '<p class="error-msg show">معرف الوردية غير صحيح</p>'; return; }
+  const { data: shift, error } = await OPS.shifts.get(shiftId);
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!shift) { body.innerHTML = '<p class="empty-state">الوردية غير موجودة</p>'; return; }
+
+  const canManage = isOpsManager();
+  const statusLbl = { planned: 'مجدولة', in_progress: 'جارية', handed_over: 'تم التسليم', closed: 'مغلقة' };
+
+  body.innerHTML = `
+    <a href="#ops_shifts" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للورديات</a>
+
+    <div class="hr-emp-hero">
+      <div class="hr-emp-hero-content">
+        <div class="hr-emp-hero-avatar"><span data-lucide="calendar-clock" style="width:28px;height:28px;"></span></div>
+        <div class="hr-emp-hero-info">
+          <h2 class="hr-emp-hero-name">${esc(shift.branches?.name || '—')} — ${esc(shift.shift_date)}</h2>
+          <div class="hr-emp-hero-meta">
+            <span><span data-lucide="clock" style="width:13px;height:13px;"></span> ${esc(shift.template?.name || 'بدون قالب')}</span>
+            <span><span data-lucide="user" style="width:13px;height:13px;"></span> ${esc(shift.manager?.full_name || '—')}</span>
+            <span><span data-lucide="info" style="width:13px;height:13px;"></span> ${esc(statusLbl[shift.status])}</span>
+          </div>
+        </div>
+        <div class="hr-emp-hero-actions">
+          ${canManage && shift.status === 'planned' ? `<button type="button" class="hr-emp-hero-btn" id="opsShiftOpenBtn"><span data-lucide="play" style="width:13px;height:13px;"></span> فتح الوردية</button>` : ''}
+          ${canManage && shift.status === 'in_progress' ? `<button type="button" class="hr-emp-hero-btn" id="opsShiftHandoverBtn"><span data-lucide="repeat" style="width:13px;height:13px;"></span> تسليم الوردية</button>` : ''}
+          ${canManage && ['in_progress','handed_over'].includes(shift.status) ? `<button type="button" class="hr-emp-hero-btn" id="opsShiftCloseBtn"><span data-lucide="square" style="width:13px;height:13px;"></span> إغلاق الوردية</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="mod-section-title"><span data-lucide="users-round" style="width:16px;height:16px;"></span> توزيع المحطات
+      ${canManage ? `<button type="button" class="btn btn-outline" id="opsAssignBtn" style="margin-right:auto;padding:5px 12px;font-size:12.5px;"><span data-lucide="plus" style="width:13px;height:13px;"></span> تعيين موظف</button>` : ''}
+    </div>
+    <div id="opsAssignBody"><div class="skeleton skeleton-row"></div></div>
+
+    <div class="mod-section-title"><span data-lucide="repeat" style="width:16px;height:16px;"></span> سجل التسليم/الاستلام</div>
+    <div id="opsHandoverBody"><div class="skeleton skeleton-row"></div></div>
+
+    <div class="mod-section-title"><span data-lucide="list-checks" style="width:16px;height:16px;"></span> قوائم الفتح/الإغلاق المرتبطة
+      ${canManage ? `<button type="button" class="btn btn-outline" id="opsShiftChecklistBtn" style="margin-right:auto;padding:5px 12px;font-size:12.5px;"><span data-lucide="plus" style="width:13px;height:13px;"></span> إنشاء قائمة</button>` : ''}
+    </div>
+    <div id="opsShiftChecklistsBody"><div class="skeleton skeleton-row"></div></div>
+
+    <div id="opsModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  if (canManage) {
+    const openBtn = document.getElementById('opsShiftOpenBtn');
+    if (openBtn) openBtn.addEventListener('click', async () => {
+      const { error } = await OPS.shifts.open(shiftId);
+      if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+      toast('تم فتح الوردية', 'success');
+      pageOpsShiftDetail(body, idParam);
+    });
+    const closeBtn = document.getElementById('opsShiftCloseBtn');
+    if (closeBtn) closeBtn.addEventListener('click', async () => {
+      if (!(await customConfirm('إغلاق هذه الوردية نهائيًا؟'))) return;
+      const { error } = await OPS.shifts.close(shiftId);
+      if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+      toast('تم إغلاق الوردية', 'success');
+      pageOpsShiftDetail(body, idParam);
+    });
+    const handoverBtn = document.getElementById('opsShiftHandoverBtn');
+    if (handoverBtn) handoverBtn.addEventListener('click', () => openOpsHandoverModal(shiftId, body, idParam));
+    const assignBtn = document.getElementById('opsAssignBtn');
+    if (assignBtn) assignBtn.addEventListener('click', () => openOpsStationAssignModal(shiftId, shift.shift_date));
+    const clBtn = document.getElementById('opsShiftChecklistBtn');
+    if (clBtn) clBtn.addEventListener('click', () => openOpsChecklistCreateModal(shift.branch_id, shiftId));
+  }
+
+  await renderOpsStationAssignments(shiftId);
+  await renderOpsHandovers(shiftId);
+  await renderOpsShiftChecklists(shiftId);
+}
+
+async function renderOpsStationAssignments(shiftId) {
+  const box = document.getElementById('opsAssignBody');
+  if (!box) return;
+  const canManage = isOpsManager();
+  const { data: rows, error } = await OPS.stationAssignments.listForShift(shiftId);
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="users-round"></span><p class="hr-empty-title">لا يوجد موظفون معيّنون بعد</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  box.innerHTML = `
+    <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>المحطة</th><th>الموظف</th><th style="width:60px;"></th></tr></thead>
+      <tbody>${rows.map(a => `<tr>
+        <td>${esc(a.station_name)}</td>
+        <td>${esc(a.users?.full_name || '—')}</td>
+        <td>${canManage ? `<button type="button" class="danger" title="إزالة" data-assign-remove="${a.id}"><span data-lucide="x" style="width:14px;height:14px;"></span></button>` : ''}</td>
+      </tr>`).join('')}</tbody>
+    </table></div></div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  box.querySelectorAll('[data-assign-remove]').forEach(b => b.addEventListener('click', async () => {
+    if (!(await customConfirm('إزالة هذا التعيين؟'))) return;
+    const { error } = await OPS.stationAssignments.remove(Number(b.dataset.assignRemove));
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    renderOpsStationAssignments(shiftId);
+  }));
+}
+
+async function openOpsStationAssignModal(shiftId, shiftDate) {
+  const { data: employees } = await sb.from('users').select('id, full_name').eq('role', 'employee').eq('is_active', true).order('full_name');
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:420px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> تعيين موظف على محطة</h3>
+        <button class="modal-close-x" id="opsAssignClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="opsAssignErr"></div>
+        <form id="opsAssignForm" class="hr-form-grid">
+          <div class="form-field full"><label>الموظف *</label>
+            <select class="form-select" name="user_id" required>
+              <option value="">اختر موظفًا</option>
+              ${(employees || []).map(e => `<option value="${e.id}">${esc(e.full_name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field full"><label>اسم المحطة *</label><input class="form-input" name="station_name" required placeholder="مثال: الكاشير، المطبخ، التوصيل"></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="opsAssignCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">تعيين</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#opsAssignClose').addEventListener('click', close);
+  host.querySelector('#opsAssignCancel').addEventListener('click', close);
+  host.querySelector('#opsAssignForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('opsAssignErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    try {
+      const { error } = await OPS.stationAssignments.assign(shiftId, Number(fd.get('user_id')), (fd.get('station_name') || '').trim(), shiftDate);
+      if (error) throw error;
+      toast('تم التعيين', 'success');
+      close();
+      renderOpsStationAssignments(shiftId);
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function renderOpsHandovers(shiftId) {
+  const box = document.getElementById('opsHandoverBody');
+  if (!box) return;
+  const { data: rows, error } = await OPS.handovers.listForShift(shiftId);
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="repeat"></span><p class="hr-empty-title">لا يوجد تسليم بعد</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  box.innerHTML = `
+    <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>سلّمها</th><th>استلمها</th><th>مبلغ الكاش</th><th>ملاحظات</th></tr></thead>
+      <tbody>${rows.map(h => `<tr>
+        <td>${esc(h.handed_over?.full_name || '—')}</td>
+        <td>${esc(h.received?.full_name || '—')}</td>
+        <td class="mono-num">${h.cash_amount != null ? money(h.cash_amount) : '—'}</td>
+        <td>${esc(h.notes || '—')}</td>
+      </tr>`).join('')}</tbody>
+    </table></div></div></div>
+  `;
+}
+
+async function openOpsHandoverModal(shiftId, body, idParam) {
+  const { data: employees } = await sb.from('users').select('id, full_name').eq('is_active', true).order('full_name');
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:460px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="repeat" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> تسليم الوردية</h3>
+        <button class="modal-close-x" id="opsHoClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="opsHoErr"></div>
+        <form id="opsHoForm" class="hr-form-grid">
+          <div class="form-field"><label>سلّمها *</label>
+            <select class="form-select" name="handed_over_by" required>
+              <option value="">اختر موظفًا</option>
+              ${(employees || []).map(e => `<option value="${e.id}">${esc(e.full_name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>استلمها *</label>
+            <select class="form-select" name="received_by" required>
+              <option value="">اختر موظفًا</option>
+              ${(employees || []).map(e => `<option value="${e.id}">${esc(e.full_name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field full"><label>مبلغ الكاش المُسلَّم</label><input class="form-input mono-num" type="number" step="0.01" name="cash_amount"></div>
+          <div class="form-field full"><label>عناصر معلّقة / ملاحظات</label><textarea class="form-input" name="notes" rows="2"></textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="opsHoCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">تسليم</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#opsHoClose').addEventListener('click', close);
+  host.querySelector('#opsHoCancel').addEventListener('click', close);
+  host.querySelector('#opsHoForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('opsHoErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      shift_id: shiftId,
+      handed_over_by: Number(fd.get('handed_over_by')),
+      received_by: Number(fd.get('received_by')),
+      cash_amount: fd.get('cash_amount') ? Number(fd.get('cash_amount')) : null,
+      notes: (fd.get('notes') || '').trim() || null
+    };
+    try {
+      const { error } = await OPS.handovers.create(payload);
+      if (error) throw error;
+      toast('تم تسليم الوردية', 'success');
+      close();
+      pageOpsShiftDetail(body, idParam);
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function renderOpsShiftChecklists(shiftId) {
+  const box = document.getElementById('opsShiftChecklistsBody');
+  if (!box) return;
+  const { data: rows, error } = await OPS.checklists.list({ shift_id: shiftId });
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="list-checks"></span><p class="hr-empty-title">لا توجد قوائم مرتبطة بهذه الوردية</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const typeLbl = { opening: 'فتح', closing: 'إغلاق' };
+  box.innerHTML = `
+    <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>النوع</th><th>التاريخ</th><th>الحالة</th></tr></thead>
+      <tbody>${rows.map(c => `
+        <tr class="hr-emp-row" data-checklist-open="${c.id}">
+          <td>${esc(typeLbl[c.checklist_type])}</td>
+          <td class="mono-num">${esc(c.checklist_date)}</td>
+          <td><span class="hr-pill hr-pill-${c.status === 'completed' ? 'active' : 'inactive'}">${c.status === 'completed' ? 'مكتملة' : 'قيد التنفيذ'}</span></td>
+        </tr>`).join('')}</tbody>
+    </table></div></div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  box.querySelectorAll('[data-checklist-open]').forEach(r => r.addEventListener('click', () => openOpsChecklistItemsModal(Number(r.dataset.checklistOpen))));
+}
+
+// ─── قوائم الفتح والإغلاق اليومية (صفحة عامة) ────────────────────────
+async function pageOpsChecklists(body) {
+  body.innerHTML = `
+    <a href="#operations" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لتشغيل المطاعم</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="list-checks" style="width:22px;height:22px;color:#123F32;"></span> قوائم الفتح والإغلاق</h2>
+        <p>قوائم مهام يومية لتأكيد جاهزية الفرع عند الفتح، وتأمين الإغلاق آخر اليوم.</p>
+      </div>
+    </div>
+    <div class="panel"><div class="panel-body" id="opsClBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="opsModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  await renderOpsChecklistsTable();
+}
+
+async function renderOpsChecklistsTable() {
+  const box = document.getElementById('opsClBody');
+  if (!box) return;
+  const { data: rows, error } = await OPS.checklists.list();
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="list-checks"></span><p class="hr-empty-title">لا توجد قوائم بعد</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const typeLbl = { opening: 'فتح', closing: 'إغلاق' };
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>الفرع</th><th>النوع</th><th>التاريخ</th><th>الحالة</th></tr></thead>
+      <tbody>${rows.map(c => `
+        <tr class="hr-emp-row" data-checklist-open="${c.id}">
+          <td>${esc(c.branches?.name || '—')}</td>
+          <td>${esc(typeLbl[c.checklist_type])}</td>
+          <td class="mono-num">${esc(c.checklist_date)}</td>
+          <td><span class="hr-pill hr-pill-${c.status === 'completed' ? 'active' : 'inactive'}">${c.status === 'completed' ? 'مكتملة' : 'قيد التنفيذ'}</span></td>
+        </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  box.querySelectorAll('[data-checklist-open]').forEach(r => r.addEventListener('click', () => openOpsChecklistItemsModal(Number(r.dataset.checklistOpen))));
+}
+
+async function openOpsChecklistCreateModal(branchId, shiftId) {
+  const [{ data: branches }] = await Promise.all([
+    sb.from('branches').select('id, name').eq('is_active', true).order('name')
+  ]);
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:480px;max-width:96%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> إنشاء قائمة فتح/إغلاق</h3>
+        <button class="modal-close-x" id="opsClCreateClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="opsClCreateErr"></div>
+        <form id="opsClCreateForm" class="hr-form-grid">
+          <div class="form-field full"><label>الفرع *</label>
+            <select class="form-select" name="branch_id" required ${branchId ? 'disabled' : ''}>
+              <option value="">اختر فرعًا</option>
+              ${(branches || []).map(b => `<option value="${b.id}" ${branchId === b.id ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>النوع *</label>
+            <select class="form-select" name="checklist_type" required>
+              <option value="opening">فتح</option>
+              <option value="closing">إغلاق</option>
+            </select>
+          </div>
+          <div class="form-field"><label>التاريخ *</label><input class="form-input" type="date" name="checklist_date" required value="${new Date().toISOString().slice(0,10)}"></div>
+          <div class="form-field full"><label>بنود القائمة (سطر لكل بند) *</label><textarea class="form-input" name="items" rows="6" required placeholder="مثال:\nفحص درجة حرارة الثلاجات\nتنظيف منطقة الاستقبال\nتأكيد جاهزية الكاشير"></textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="opsClCreateCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">إنشاء</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#opsClCreateClose').addEventListener('click', close);
+  host.querySelector('#opsClCreateCancel').addEventListener('click', close);
+  host.querySelector('#opsClCreateForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('opsClCreateErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const items = (fd.get('items') || '').split('\n').map(s => s.trim()).filter(Boolean);
+    const payload = {
+      branch_id: branchId || Number(fd.get('branch_id')),
+      shift_id: shiftId || null,
+      checklist_type: fd.get('checklist_type'),
+      checklist_date: fd.get('checklist_date')
+    };
+    try {
+      const { error } = await OPS.checklists.create(payload, items);
+      if (error) throw error;
+      toast('تم إنشاء القائمة', 'success');
+      close();
+      if (shiftId) renderOpsShiftChecklists(shiftId);
+      else renderOpsChecklistsTable();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function openOpsChecklistItemsModal(checklistId) {
+  const [{ data: checklist }, { data: items }] = await Promise.all([
+    OPS.checklists.get(checklistId),
+    OPS.checklists.items(checklistId)
+  ]);
+  const typeLbl = { opening: 'فتح', closing: 'إغلاق' };
+  const canManage = isOpsManager();
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:460px;max-width:96%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="list-checks" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> قائمة ${esc(typeLbl[checklist?.checklist_type] || '')} — ${esc(checklist?.checklist_date || '')}</h3>
+        <button class="modal-close-x" id="opsClItemsClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div id="opsClItemsList" style="display:grid;gap:8px;">
+          ${(items || []).map(it => `
+            <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer;">
+              <input type="checkbox" data-item-id="${it.id}" ${it.is_checked ? 'checked' : ''} ${canManage || checklist?.status !== 'completed' ? '' : 'disabled'}>
+              <span style="${it.is_checked ? 'text-decoration:line-through;color:var(--text-muted);' : ''}">${esc(it.item_text)}</span>
+            </label>`).join('')}
+        </div>
+        ${checklist?.status !== 'completed' ? `
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+          <button type="button" class="btn" id="opsClCompleteBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">إنهاء القائمة</button>
+        </div>` : `<p style="margin-top:14px;font-size:12.5px;color:var(--text-muted);">تم إنهاء هذه القائمة.</p>`}
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#opsClItemsClose').addEventListener('click', close);
+  host.querySelectorAll('[data-item-id]').forEach(cb => cb.addEventListener('change', async () => {
+    const { error } = await OPS.checklists.toggleItem(Number(cb.dataset.itemId), cb.checked);
+    if (error) { toast('تعذّر: ' + error.message, 'error'); cb.checked = !cb.checked; }
+  }));
+  const completeBtn = host.querySelector('#opsClCompleteBtn');
+  if (completeBtn) completeBtn.addEventListener('click', async () => {
+    if (!(await customConfirm('إنهاء القائمة؟ لن يمكن تعديل بنودها بعد ذلك (لغير المدراء).'))) return;
+    const { error } = await OPS.checklists.complete(checklistId);
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم إنهاء القائمة', 'success');
+    close();
+    if (checklist.shift_id) renderOpsShiftChecklists(checklist.shift_id);
+    renderOpsChecklistsTable();
+  });
+}
 
 async function pageComingSoonModule(body, key) {
   const m = COMING_SOON_MODULES[key];
