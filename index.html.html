@@ -1623,6 +1623,30 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
 .hr-info-value.mono { font-variant-numeric: tabular-nums; direction: ltr; text-align: right; }
 .hr-info-value.empty { color: #94A3B8; font-weight: 400; }
 
+/* ═══ إطار متدرج للبطاقات المعلوماتية (أخضر الهيدر ← بنفسجي الهيدر) ═══
+   نفس هوية .mod-stat لكن كطبقة ::before بقناع (mask) لا تلمس خلفية البطاقة
+   الأصلية ولا الـ border-radius ولا المسافات — تعمل تلقائيًا مع الثيم الداكن.
+   البطاقات المؤهلة: خلايا المعلومات (hr-info-item)، ملخصات الاجتماع/الطلب
+   (meeting-summary-card)، وبطاقات الأرقام (kpi-card). الكروت التفاعلية
+   (أزرار/فلاتر/فورمز) خارج النطاق عمدًا. للاستخدام المستقبلي أضف
+   class="info-card-gradient-border" لأي بطاقة قراءة جديدة. */
+:where(.info-card-gradient-border, .hr-info-item, .meeting-summary-card, .kpi-card) { position: relative; }
+.info-card-gradient-border::before, .hr-info-item::before, .meeting-summary-card::before, .kpi-card::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  padding: 1.5px; pointer-events: none;
+  background: linear-gradient(135deg, rgba(5,150,105,0.5) 0%, rgba(52,211,153,0.42) 45%, rgba(139,92,246,0.48) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+:root[data-theme="dark"] .info-card-gradient-border::before,
+:root[data-theme="dark"] .hr-info-item::before,
+:root[data-theme="dark"] .meeting-summary-card::before,
+:root[data-theme="dark"] .kpi-card::before {
+  background: linear-gradient(135deg, rgba(16,185,129,0.45) 0%, rgba(52,211,153,0.35) 45%, rgba(139,92,246,0.45) 100%);
+}
+
 /* Form modal grid */
 .hr-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .hr-form-grid .full { grid-column: 1 / -1; }
@@ -4818,7 +4842,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v93-2026-07-16-module-feature-flag';
+const APP_VERSION = 'v94-2026-07-16-info-card-gradient';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
