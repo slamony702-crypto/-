@@ -4818,7 +4818,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v92-2026-07-16-maint-stepper-circles';
+const APP_VERSION = 'v93-2026-07-16-module-feature-flag';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -9323,6 +9323,27 @@ async function logout() {
 }
 
 // ============ هيكل التطبيق (Sidebar + Router) ============
+
+// ═══ Feature Flag مركزي للمديولات الجديدة ═══
+// المديولات المذكورة في PREVIEW_MODULES تظهر لكل المستخدمين كشارة "قريبًا"
+// وصفحة تعريفية فقط (pageComingSoonModule) — كل شاشاتها الداخلية محمية.
+// حسابات المراجعة في MODULE_PREVIEW_USERS فقط هي اللي تشوف الشاشات الحقيقية.
+// لإطلاق مديول للجميع: امسح مفتاحه من PREVIEW_MODULES — تعديل سطر واحد فقط.
+const PREVIEW_MODULES = ['hr', 'accounting', 'operations'];
+const MODULE_PREVIEW_USERS = ['test_admin'];
+function canAccessModule(moduleKey) {
+  if (!PREVIEW_MODULES.includes(moduleKey)) return true;
+  return !!(CURRENT_USER && MODULE_PREVIEW_USERS.includes(CURRENT_USER.username));
+}
+// يرجّع مفتاح المديول المقفول الذي تنتمي له الصفحة، أو null لو الصفحة عامة
+function gatedModuleForPage(page) {
+  const p = page || '';
+  if (p === 'hr' || p.startsWith('hr_')) return 'hr';
+  if (p === 'accounting' || p.startsWith('acct_')) return 'accounting';
+  if (p === 'operations' || p.startsWith('ops_')) return 'operations';
+  return null;
+}
+
 // عناصر القائمة الجانبية — منظمة في مجموعات قابلة للطي
 const MENU_GROUPS = [
   { key: '__main', label: 'الأساسيات', icon: 'home', defaultOpen: true, items: [
@@ -13613,7 +13634,8 @@ async function renderShellOnce() {
       let badge = '';
       if (item.key === 'conversations' && unreadMsgCount > 0) {
         badge = `<span class="nav-badge">${unreadMsgCount > 9 ? '9+' : unreadMsgCount}</span>`;
-      } else if (item.badge) {
+      } else if (item.badge && !canAccessModule(item.key)) {
+        // شارة "قريبًا" تظهر فقط لمن لا يملك صلاحية معاينة المديول
         badge = `<span class="nav-badge nav-badge-soon">${item.badge}</span>`;
       }
       return `<a href="#${item.key}" class="${item.key === page ? 'active' : ''}" data-tooltip="${item.label}"><span data-lucide="${item.icon}" style="width:18px;height:18px;flex-shrink:0;"></span><span class="label">${item.label}</span>${badge}</a>`;
@@ -13917,7 +13939,11 @@ async function route() {
   const loaderTimer = setTimeout(() => { if (!isStaleRoute(myTk)) showRouteLoader(); }, 1000);
   try {
     if (isStaleRoute(myTk)) return;
-    if (page === 'dashboard') await pageDashboard(body);
+    // حارس المعاينة: صفحات المديولات المقفولة خلف "قريبًا" تعرض الصفحة
+    // التعريفية فقط لغير حسابات المراجعة — راجع canAccessModule أعلى الملف
+    const gatedModule = gatedModuleForPage(page);
+    if (gatedModule && !canAccessModule(gatedModule)) await pageComingSoonModule(body, gatedModule);
+    else if (page === 'dashboard') await pageDashboard(body);
     else if (page === 'myday') await pageMyDay(body);
     else if (page === 'vision') await pageVision(body, param);
     else if (page === 'hr') await pageHrDashboard(body);
@@ -30694,9 +30720,11 @@ function openMobileMoreSheet() {
           ];
           // فقط التي مش موجود في الرئيسية
           const hidden = swappable.filter(s => !homeKeys.includes(s.key));
-          return hidden.map(s =>
-            `<a class="m-more-item" href="${s.hash}"><span data-lucide="${s.icon}" style="width:18px;height:18px;"></span> ${s.label}</a>`
-          ).join('');
+          return hidden.map(s => {
+            const soon = gatedModuleForPage(s.key) && !canAccessModule(s.key)
+              ? ' <span class="nav-badge nav-badge-soon" style="margin-right:auto;">قريبًا</span>' : '';
+            return `<a class="m-more-item" href="${s.hash}"><span data-lucide="${s.icon}" style="width:18px;height:18px;"></span> ${s.label}${soon}</a>`;
+          }).join('');
         })()}
         <button class="m-more-item m-more-install" type="button" id="mMoreInstall"><span data-lucide="download" style="width:18px;height:18px;"></span> تحميل التطبيق</button>
         <button class="m-more-item m-more-customize" type="button" id="mMoreCustomize"><span data-lucide="sliders-horizontal" style="width:18px;height:18px;"></span> تخصيص الرئيسية</button>
@@ -31178,11 +31206,11 @@ async function renderMobileHome(body) {
     { key:'reports',   href:'#reports',   tint:'t-peach-2',     icon:'bar-chart-3',
       title:'التقارير',     sub:'إحصائيات وأداء الفريق', badge:null },
     { key:'operations',href:'#operations',tint:'t-mint-2',     icon:'chef-hat',
-      title:'تشغيل المطاعم', sub:'مركز موحد لتشغيل الفروع لحظيًا', badge:'قريبًا' },
+      title:'تشغيل المطاعم', sub:'مركز موحد لتشغيل الفروع لحظيًا', badge: canAccessModule('operations') ? null : 'قريبًا' },
     { key:'hr',        href:'#hr',        tint:'t-lavender-2', icon:'users-round',
-      title:'الموارد البشرية', sub:'دورة حياة الموظف كاملة', badge:'قريبًا' },
+      title:'الموارد البشرية', sub:'دورة حياة الموظف كاملة', badge: canAccessModule('hr') ? null : 'قريبًا' },
     { key:'accounting',href:'#accounting',tint:'t-aqua-2',     icon:'landmark',
-      title:'الحسابات والمالية', sub:'دورة مالية متكاملة مع ZATCA', badge:'قريبًا' },
+      title:'الحسابات والمالية', sub:'دورة مالية متكاملة مع ZATCA', badge: canAccessModule('accounting') ? null : 'قريبًا' },
     { key:'emergency', href:'#emergency', tint:'t-peach',       icon:'siren',
       title:'تواصل طارئ',   sub:'تنبيهات عاجلة للفريق', badge:null },
     { key:'myday',     href:'#myday',     tint:'t-mint-2',      icon:'sun',
