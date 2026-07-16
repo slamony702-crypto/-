@@ -4842,7 +4842,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v95-2026-07-16-predemo-review';
+const APP_VERSION = 'v96-2026-07-16-stale-session-fix';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -14937,7 +14937,13 @@ window.openQuickAddTaskModal = async function(prefillUserId, prefillUserName, pr
       close();
       if (location.hash.startsWith('#department_tasks') || location.hash.startsWith('#tasks')) renderApp();
     } catch (err) {
-      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+      // خطأ foreign key على assigned_by = جلسة دخول قديمة بمعرّف مستخدم لم يعد
+      // موجودًا في قاعدة البيانات — رسالة عربية واضحة بدل نص Postgres الخام
+      const raw = err.message || '';
+      errBox.textContent = /assigned_by_fkey/.test(raw)
+        ? 'جلسة دخولك قديمة — سجّل الخروج ثم الدخول مرة أخرى وأعد المحاولة'
+        : (raw || 'حدث خطأ');
+      errBox.classList.add('show');
     }
   });
 };
@@ -17305,6 +17311,32 @@ async function bootApp() {
           return;
         }
       } catch (e) { /* لو Auth غير متاح، استمر بالنمط القديم */ }
+      // تحقق أن حساب المستخدم المخزَّن ما زال موجودًا وفعّالًا في قاعدة البيانات.
+      // جلسة قديمة بمعرّف محذوف/مُعاد إنشاؤه كانت بتكسر أي إدخال مرتبط بالمستخدم
+      // (أخطاء foreign key زي assigned_by في إسناد المهام) — هنا بنكتشفها مبكرًا
+      // ونحدّث البيانات المخزنة (الاسم/الدور/username) لو الحساب سليم.
+      try {
+        const { data: freshUser, error: freshErr } = await sb.from('users')
+          .select('id, username, full_name, role, department_id, avatar_url, is_active, departments(name)')
+          .eq('id', CURRENT_USER.id).maybeSingle();
+        if (!freshErr) {
+          if (!freshUser || freshUser.is_active === false) {
+            localStorage.removeItem('food_affairs_user');
+            CURRENT_USER = null;
+            try { await sb.auth.signOut(); } catch (e2) {}
+            renderLogin();
+            try { toast('انتهت صلاحية جلستك أو تغيّر حسابك — سجّل الدخول من جديد', 'error'); } catch (e3) {}
+            return;
+          }
+          CURRENT_USER = {
+            id: freshUser.id, username: freshUser.username, full_name: freshUser.full_name,
+            role: freshUser.role, department_id: freshUser.department_id,
+            department_name: freshUser.departments ? freshUser.departments.name : null,
+            avatar_url: freshUser.avatar_url || null
+          };
+          localStorage.setItem('food_affairs_user', JSON.stringify(CURRENT_USER));
+        }
+      } catch (e) { /* فشل الشبكة لا يمنع الدخول بالجلسة المخزنة */ }
       try { await loadPermissions(); } catch (e) { fwReport('loadPermissions', e); }
       await renderApp();
       // مهام خلفية — تُؤجّل لثانية كاملة لكي الواجهة تظهر أسرع
