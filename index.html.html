@@ -4820,7 +4820,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v85-2026-07-16-acct-treasury';
+const APP_VERSION = 'v86-2026-07-16-acct-assets-inventory';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -6215,6 +6215,88 @@ const ACCT = {
     },
     async cancel(id) {
       const { data, error } = await sb.from('acct_expense_claims').update({ status: 'cancelled' }).eq('id', id).select().single();
+      return { data, error };
+    }
+  },
+
+  // ─── Fixed Assets (Phase 2.e) ───────────────────────────────────────
+  fixedAssets: {
+    async list(filters = {}) {
+      let q = sb.from('acct_fixed_assets').select('*, branches(name)').is('deleted_at', null).order('purchase_date', { ascending: false });
+      if (filters.status) q = q.eq('status', filters.status);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('acct_fixed_assets').select('*, branches(name), asset:coa_asset_account_id(code, name), accum:coa_accumulated_depreciation_id(code, name)').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      if (!payload.name || !payload.name.trim()) return ACCT._err('اسم الأصل مطلوب');
+      if (!(Number(payload.cost) >= 0)) return ACCT._err('التكلفة يجب أن تكون رقمًا صحيحًا');
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_fixed_assets').insert({ ...payload, created_by: uid }).select().single();
+      return { data, error };
+    },
+    async update(id, payload) {
+      const { data, error } = await sb.from('acct_fixed_assets').update(payload).eq('id', id).select().single();
+      return { data, error };
+    },
+    async dispose(id, disposalDate, proceeds) {
+      const { data, error } = await sb.from('acct_fixed_assets').update({
+        status: 'disposed', disposal_date: disposalDate, disposal_proceeds: proceeds
+      }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async schedule(assetId) {
+      const { data, error } = await sb.from('acct_asset_depreciation_schedule').select('*').eq('asset_id', assetId).order('period_year').order('period_month');
+      return { data: data || [], error };
+    },
+    // مجموع الإهلاك المُرحَّل حتى الآن — القيمة الدفترية = التكلفة - هذا المجموع
+    async accumulatedDepreciation(assetId) {
+      const { data } = await sb.from('acct_asset_depreciation_schedule').select('amount').eq('asset_id', assetId).eq('is_posted', true);
+      return (data || []).reduce((s, r) => s + Number(r.amount || 0), 0);
+    },
+    async runMonthlyDepreciation(year, month) {
+      const { data, error } = await sb.rpc('run_monthly_depreciation', { p_year: year, p_month: month });
+      return { data, error };
+    }
+  },
+
+  // ─── Inventory (Phase 2.e) ──────────────────────────────────────────
+  inventory: {
+    async list(filters = {}) {
+      let q = sb.from('acct_inventory_items').select('*, account:asset_account_id(code, name)').is('deleted_at', null).order('name');
+      if (filters.is_active != null) q = q.eq('is_active', filters.is_active);
+      if (filters.category) q = q.eq('category', filters.category);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async create(payload) {
+      if (!payload.name || !payload.name.trim()) return ACCT._err('اسم الصنف مطلوب');
+      const { data, error } = await sb.from('acct_inventory_items').insert(payload).select().single();
+      return { data, error };
+    },
+    async update(id, payload) {
+      const { data, error } = await sb.from('acct_inventory_items').update(payload).eq('id', id).select().single();
+      return { data, error };
+    },
+    async remove(id) {
+      const { error } = await sb.from('acct_inventory_items').update({ deleted_at: new Date().toISOString(), is_active: false }).eq('id', id);
+      return { error };
+    },
+    async movements(itemId) {
+      const { data, error } = await sb.from('acct_inventory_movements').select('*').eq('item_id', itemId).order('movement_date', { ascending: false });
+      return { data: data || [], error };
+    },
+    async recordMovement(payload) {
+      if (!payload.item_id) return ACCT._err('الصنف مطلوب');
+      if (!(Number(payload.quantity) > 0)) return ACCT._err('الكمية يجب أن تكون أكبر من صفر');
+      const uid = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.id : null;
+      const { data, error } = await sb.from('acct_inventory_movements').insert({ ...payload, created_by: uid }).select().single();
+      if (!error && payload.type !== 'in') {
+        try { await sb.rpc('create_journal_for_inventory_movement', { p_movement_id: data.id }); } catch (e) { fwReport('createJournalForInventoryMovement', e); }
+      }
       return { data, error };
     }
   },
@@ -8675,7 +8757,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', operations: 'تشغيل المطاعم', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', operations: 'تشغيل المطاعم', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -13257,6 +13339,9 @@ async function route() {
     else if (page === 'acct_petty_cash') await pageAcctPettyCash(body, query);
     else if (page === 'acct_expense_claims') await pageAcctExpenseClaims(body, query);
     else if (page === 'acct_expense_claim') await pageAcctExpenseClaimDetail(body, param);
+    else if (page === 'acct_fixed_assets') await pageAcctFixedAssets(body, query);
+    else if (page === 'acct_fixed_asset') await pageAcctFixedAssetDetail(body, param);
+    else if (page === 'acct_inventory') await pageAcctInventory(body, query);
     else if (page === 'operations') await pageComingSoonModule(body, 'operations');
     else if (page === 'meetings') await pageMeetings(body, query);
     else if (page === 'meetings_calendar') await pageMeetingsCalendar(body, query);
@@ -18752,6 +18837,8 @@ async function pageAcctDashboard(body) {
         <a href="#acct_bank_accounts" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="landmark" style="width:12px;height:12px;"></span> الحسابات البنكية</a>
         <a href="#acct_petty_cash" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="coins" style="width:12px;height:12px;"></span> العهد النقدية</a>
         <a href="#acct_expense_claims" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="receipt-text" style="width:12px;height:12px;"></span> مصروفات الموظفين</a>
+        <a href="#acct_fixed_assets" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="building-2" style="width:12px;height:12px;"></span> الأصول الثابتة</a>
+        <a href="#acct_inventory" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="boxes" style="width:12px;height:12px;"></span> المخزون</a>
         ${canManage ? `<span class="mod-hero-badge hb-scope"><span data-lucide="shield-check" style="width:12px;height:12px;"></span> صلاحية إدارة كاملة</span>` : ''}
       </div>
     </div>
@@ -21037,6 +21124,391 @@ async function pageAcctExpenseClaimDetail(body, idParam) {
 }
 
 function isGlAccountantOrHigher() { return CURRENT_USER && ['admin', 'company_manager', 'finance_manager', 'gl_accountant'].includes(CURRENT_USER.role); }
+
+// ═══════════════════════════════════════════════════════════════════════
+// ACCOUNTING MODULE — Phase 2.e screens: Fixed Assets, Inventory (v86)
+// ═══════════════════════════════════════════════════════════════════════
+
+async function pageAcctFixedAssets(body) {
+  const canManage = isFinanceManager();
+  body.innerHTML = `
+    <a href="#accounting" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الحسابات</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="building-2" style="width:22px;height:22px;color:#123F32;"></span> الأصول الثابتة</h2>
+        <p>سجل الأصول مع جدول إهلاك شهري تلقائي (طريقة القسط الثابت).</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="acctAddAssetBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> إضافة أصل</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body" id="acctAssetsBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="acctModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) document.getElementById('acctAddAssetBtn').addEventListener('click', () => openAcctAssetModal());
+  await renderAcctAssetsTable();
+}
+
+async function renderAcctAssetsTable() {
+  const box = document.getElementById('acctAssetsBody');
+  if (!box) return;
+  const { data: rows, error } = await ACCT.fixedAssets.list();
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="building-2"></span><p class="hr-empty-title">لا توجد أصول ثابتة</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const accumulated = await Promise.all(rows.map(a => ACCT.fixedAssets.accumulatedDepreciation(a.id)));
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>رقم الأصل</th><th>الاسم</th><th>الفرع</th><th>التكلفة</th><th>مجمع الإهلاك</th><th>القيمة الدفترية</th><th>الحالة</th></tr></thead>
+      <tbody>${rows.map((a, i) => `<tr class="hr-emp-row" data-asset-id="${a.id}">
+        <td class="mono-num">${esc(a.asset_no)}</td>
+        <td><strong>${esc(a.name)}</strong>${a.legacy_branch_asset_id ? ' <span style="font-size:10px;color:var(--text-muted);">(مرحّل)</span>' : ''}</td>
+        <td>${esc(a.branches?.name || '—')}</td>
+        <td class="mono-num">${money(a.cost)}</td>
+        <td class="mono-num">${money(accumulated[i])}</td>
+        <td class="mono-num" style="font-weight:800;color:#123F32;">${money(Number(a.cost) - accumulated[i])}</td>
+        <td><span class="hr-pill hr-pill-${a.status === 'active' ? 'active' : 'inactive'}">${a.status === 'active' ? 'نشط' : 'مُستبعَد'}</span></td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  box.querySelectorAll('[data-asset-id]').forEach(el => el.addEventListener('click', () => { location.hash = '#acct_fixed_asset/' + el.dataset.assetId; }));
+}
+
+async function openAcctAssetModal() {
+  const [{ data: branches }, { data: costCenters }] = await Promise.all([
+    sb.from('branches').select('id, name').eq('is_active', true).order('name'),
+    ACCT.costCenters.list({ leafOnly: true })
+  ]);
+  const categories = [
+    { key: 'مطبخ', asset: '1230', accum: '1231' },
+    { key: 'سيارات', asset: '1220', accum: '1221' },
+    { key: 'أثاث وتجهيزات', asset: '1240', accum: '1241' },
+    { key: 'أجهزة كمبيوتر', asset: '1250', accum: '1251' }
+  ];
+  const { data: allAccounts } = await ACCT.accounts.list();
+  const findAcc = code => (allAccounts || []).find(a => a.code === code);
+
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:600px;max-width:97%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> إضافة أصل ثابت</h3>
+        <button class="modal-close-x" id="acctAssetClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="acctAssetErr"></div>
+        <form id="acctAssetForm" class="hr-form-grid">
+          <div class="form-field full"><label>اسم الأصل *</label><input class="form-input" name="name" required></div>
+          <div class="form-field"><label>التصنيف *</label>
+            <select class="form-select" id="acctAssetCategory" name="category" required>
+              ${categories.map(c => `<option value="${esc(c.key)}">${esc(c.key)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>الفرع</label>
+            <select class="form-select" name="branch_id">
+              <option value="">—</option>
+              ${(branches || []).map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>تاريخ الشراء *</label><input class="form-input" type="date" name="purchase_date" required value="${new Date().toISOString().slice(0,10)}"></div>
+          <div class="form-field"><label>التكلفة (ر.س) *</label><input class="form-input mono-num" type="number" step="0.01" min="0" name="cost" required></div>
+          <div class="form-field"><label>القيمة التخريدية</label><input class="form-input mono-num" type="number" step="0.01" min="0" name="salvage_value" value="0"></div>
+          <div class="form-field"><label>مدة الإهلاك (شهر) *</label><input class="form-input mono-num" type="number" min="1" name="useful_life_months" required value="60"></div>
+          <div class="form-field full"><label>ملاحظات</label><textarea class="form-input" name="notes" rows="2"></textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="acctAssetCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">إضافة</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#acctAssetClose').addEventListener('click', close);
+  host.querySelector('#acctAssetCancel').addEventListener('click', close);
+  host.querySelector('#acctAssetForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('acctAssetErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const cat = categories.find(c => c.key === fd.get('category'));
+    const assetAcc = cat ? findAcc(cat.asset) : null;
+    const accumAcc = cat ? findAcc(cat.accum) : null;
+    const payload = {
+      name: (fd.get('name') || '').trim(),
+      category: fd.get('category'),
+      branch_id: fd.get('branch_id') ? Number(fd.get('branch_id')) : null,
+      purchase_date: fd.get('purchase_date'),
+      cost: Number(fd.get('cost') || 0),
+      salvage_value: Number(fd.get('salvage_value') || 0),
+      useful_life_months: Number(fd.get('useful_life_months') || 60),
+      coa_asset_account_id: assetAcc ? assetAcc.id : null,
+      coa_accumulated_depreciation_id: accumAcc ? accumAcc.id : null,
+      notes: (fd.get('notes') || '').trim() || null
+    };
+    try {
+      const { error } = await ACCT.fixedAssets.create(payload);
+      if (error) throw error;
+      toast('تم إضافة الأصل وتوليد جدول الإهلاك تلقائيًا', 'success');
+      close();
+      renderAcctAssetsTable();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function pageAcctFixedAssetDetail(body, idParam) {
+  const assetId = Number(idParam);
+  if (!assetId) { body.innerHTML = '<p class="error-msg show">معرف الأصل غير صحيح</p>'; return; }
+  const { data: asset, error } = await ACCT.fixedAssets.get(assetId);
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!asset) { body.innerHTML = '<p class="empty-state">الأصل غير موجود</p>'; return; }
+
+  const canManage = isFinanceManager();
+  const accumulated = await ACCT.fixedAssets.accumulatedDepreciation(assetId);
+  const { data: schedule } = await ACCT.fixedAssets.schedule(assetId);
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+
+  body.innerHTML = `
+    <a href="#acct_fixed_assets" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للأصول الثابتة</a>
+    <div class="hr-emp-hero">
+      <div class="hr-emp-hero-content">
+        <div class="hr-emp-hero-avatar"><span data-lucide="building-2" style="width:28px;height:28px;"></span></div>
+        <div class="hr-emp-hero-info">
+          <h2 class="hr-emp-hero-name">${esc(asset.name)}</h2>
+          <div class="hr-emp-hero-meta">
+            <span><span data-lucide="hash" style="width:13px;height:13px;"></span> ${esc(asset.asset_no)}</span>
+            <span><span data-lucide="map-pin" style="width:13px;height:13px;"></span> ${esc(asset.branches?.name || '—')}</span>
+            <span><span data-lucide="info" style="width:13px;height:13px;"></span> ${asset.status === 'active' ? 'نشط' : 'مُستبعَد'}</span>
+          </div>
+        </div>
+        <div class="hr-emp-hero-actions">
+          ${canManage && asset.status === 'active' ? `<button type="button" class="hr-emp-hero-btn" id="acctAssetDisposeBtn"><span data-lucide="archive" style="width:13px;height:13px;"></span> استبعاد الأصل</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="mod-stats" style="margin-bottom:20px;">
+      <div class="mod-stat"><div class="mod-stat-val" style="font-size:18px;">${money(asset.cost)}</div><div class="mod-stat-lbl">التكلفة</div></div>
+      <div class="mod-stat"><div class="mod-stat-val" style="font-size:18px;">${money(accumulated)}</div><div class="mod-stat-lbl">مجمع الإهلاك</div></div>
+      <div class="mod-stat"><div class="mod-stat-val" style="font-size:18px;color:#123F32;">${money(Number(asset.cost) - accumulated)}</div><div class="mod-stat-lbl">القيمة الدفترية</div></div>
+      <div class="mod-stat"><div class="mod-stat-val" style="font-size:18px;">${asset.useful_life_months} شهر</div><div class="mod-stat-lbl">مدة الإهلاك</div></div>
+    </div>
+
+    <div class="hr-section-heading"><span class="icon" data-lucide="calendar-range"></span> جدول الإهلاك الشهري</div>
+    <div style="overflow-x:auto;max-height:400px;overflow-y:auto;">
+      <table class="hr-emp-table">
+        <thead><tr><th>الشهر</th><th>المبلغ</th><th>الحالة</th></tr></thead>
+        <tbody>${(schedule || []).map(s => `<tr>
+          <td>${esc(monthNames[s.period_month - 1])} ${s.period_year}</td>
+          <td class="mono-num">${money(s.amount)}</td>
+          <td><span class="hr-pill hr-pill-${s.is_posted ? 'active' : 'inactive'}">${s.is_posted ? 'مُرحَّل' : 'لم يُرحَّل بعد'}</span></td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  document.getElementById('acctAssetDisposeBtn')?.addEventListener('click', async () => {
+    const dateStr = await customPrompt('تاريخ الاستبعاد (YYYY-MM-DD):', new Date().toISOString().slice(0,10));
+    if (!dateStr) return;
+    const proceedsStr = await customPrompt('قيمة البيع/الاستبعاد (اتركها فارغة لو صفر):', '0');
+    const { error } = await ACCT.fixedAssets.dispose(assetId, dateStr, Number(proceedsStr || 0));
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم استبعاد الأصل', 'success');
+    renderApp();
+  });
+}
+
+// ─── المخزون ────────────────────────────────────────────────────────
+async function pageAcctInventory(body) {
+  const canManage = isGlAccountantOrHigher();
+  body.innerHTML = `
+    <a href="#accounting" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الحسابات</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="boxes" style="width:22px;height:22px;color:#123F32;"></span> المخزون</h2>
+        <p>أصناف المخزون المحاسبي — الصرف والتسوية يولّدان قيود تكلفة/هدر تلقائيًا.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="acctAddItemBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> إضافة صنف</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body" id="acctInvItemsBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="acctModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) document.getElementById('acctAddItemBtn').addEventListener('click', () => openAcctInventoryItemModal());
+  await renderAcctInventoryTable();
+}
+
+async function renderAcctInventoryTable() {
+  const box = document.getElementById('acctInvItemsBody');
+  if (!box) return;
+  const canManage = isGlAccountantOrHigher();
+  const { data: rows, error } = await ACCT.inventory.list();
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="boxes"></span><p class="hr-empty-title">لا توجد أصناف مخزون</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const catLbl = { food: 'أطعمة', beverage: 'مشروبات', consumable: 'مستهلكات' };
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>الرمز</th><th>الاسم</th><th>الفئة</th><th>الرصيد الحالي</th><th>تكلفة الوحدة</th><th>حد إعادة الطلب</th><th style="width:110px;">إجراءات</th></tr></thead>
+      <tbody>${rows.map(it => `<tr>
+        <td class="mono-num">${esc(it.sku)}</td>
+        <td><strong>${esc(it.name)}</strong></td>
+        <td>${esc(catLbl[it.category] || it.category || '—')}</td>
+        <td class="mono-num ${Number(it.quantity_on_hand) <= Number(it.reorder_level) ? '' : ''}" style="${Number(it.quantity_on_hand) <= Number(it.reorder_level) ? 'color:#B91C1C;font-weight:800;' : ''}">${esc(String(it.quantity_on_hand))} ${esc(it.unit)}</td>
+        <td class="mono-num">${money(it.unit_cost)}</td>
+        <td class="mono-num">${esc(String(it.reorder_level || 0))}</td>
+        <td>
+          <div class="hr-emp-actions">
+            <button type="button" title="تسجيل حركة" data-item-move="${it.id}"><span data-lucide="arrow-left-right" style="width:14px;height:14px;"></span></button>
+            ${canManage ? `<button type="button" title="تعديل" data-item-edit="${it.id}"><span data-lucide="pencil" style="width:14px;height:14px;"></span></button>` : ''}
+          </div>
+        </td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  box.querySelectorAll('[data-item-move]').forEach(b => b.addEventListener('click', () => openAcctInventoryMovementModal(Number(b.dataset.itemMove))));
+  if (canManage) box.querySelectorAll('[data-item-edit]').forEach(b => b.addEventListener('click', () => openAcctInventoryItemModal(Number(b.dataset.itemEdit))));
+}
+
+async function openAcctInventoryItemModal(itemId) {
+  const isEdit = !!itemId;
+  const item = isEdit ? (await ACCT.inventory.list()).data.find(i => i.id === itemId) || {} : {};
+  const { data: accounts } = await ACCT.accounts.list({ leafOnly: true, is_active: true });
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:520px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="${isEdit ? 'pencil' : 'plus'}" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ${isEdit ? 'تعديل صنف' : 'إضافة صنف مخزون'}</h3>
+        <button class="modal-close-x" id="acctItemClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="acctItemErr"></div>
+        <form id="acctItemForm" class="hr-form-grid">
+          <div class="form-field full"><label>اسم الصنف *</label><input class="form-input" name="name" required value="${esc(item.name || '')}"></div>
+          <div class="form-field"><label>الفئة</label>
+            <select class="form-select" name="category">
+              <option value="food"       ${item.category === 'food' ? 'selected' : ''}>أطعمة</option>
+              <option value="beverage"   ${item.category === 'beverage' ? 'selected' : ''}>مشروبات</option>
+              <option value="consumable" ${item.category === 'consumable' ? 'selected' : ''}>مستهلكات</option>
+            </select>
+          </div>
+          <div class="form-field"><label>الوحدة</label><input class="form-input" name="unit" value="${esc(item.unit || 'قطعة')}"></div>
+          <div class="form-field"><label>تكلفة الوحدة</label><input class="form-input mono-num" type="number" step="0.01" min="0" name="unit_cost" value="${esc(item.unit_cost || 0)}"></div>
+          <div class="form-field"><label>حد إعادة الطلب</label><input class="form-input mono-num" type="number" step="0.01" min="0" name="reorder_level" value="${esc(item.reorder_level || 0)}"></div>
+          <div class="form-field full"><label>حساب المخزون (دليل الحسابات)</label>
+            <select class="form-select" name="asset_account_id">
+              <option value="">— اختر —</option>
+              ${(accounts || []).filter(a => a.code.startsWith('113')).map(a => `<option value="${a.id}" ${String(a.id) === String(item.asset_account_id) ? 'selected' : ''}>${esc(a.code)} — ${esc(a.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="acctItemCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">${isEdit ? 'حفظ' : 'إضافة'}</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#acctItemClose').addEventListener('click', close);
+  host.querySelector('#acctItemCancel').addEventListener('click', close);
+  host.querySelector('#acctItemForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('acctItemErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      name: (fd.get('name') || '').trim(),
+      category: fd.get('category'),
+      unit: (fd.get('unit') || 'قطعة').trim(),
+      unit_cost: Number(fd.get('unit_cost') || 0),
+      reorder_level: Number(fd.get('reorder_level') || 0),
+      asset_account_id: fd.get('asset_account_id') ? Number(fd.get('asset_account_id')) : null
+    };
+    try {
+      const { error } = isEdit ? await ACCT.inventory.update(itemId, payload) : await ACCT.inventory.create(payload);
+      if (error) throw error;
+      toast(isEdit ? 'تم حفظ التعديلات' : 'تم إضافة الصنف', 'success');
+      close();
+      renderAcctInventoryTable();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function openAcctInventoryMovementModal(itemId) {
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:460px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="arrow-left-right" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> تسجيل حركة مخزون</h3>
+        <button class="modal-close-x" id="acctMovClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="acctMovErr"></div>
+        <form id="acctMovForm" style="display:grid;gap:12px;">
+          <div class="form-field"><label>النوع *</label>
+            <select class="form-select" name="type" required>
+              <option value="in">وارد (شراء/استلام)</option>
+              <option value="out">صادر (استخدام/صرف)</option>
+              <option value="adjustment">تسوية/هدر</option>
+            </select>
+          </div>
+          <div class="form-field"><label>التاريخ *</label><input class="form-input" type="date" name="movement_date" required value="${new Date().toISOString().slice(0,10)}"></div>
+          <div class="form-field"><label>الكمية *</label><input class="form-input mono-num" type="number" step="0.001" min="0.001" name="quantity" required></div>
+          <div class="form-field"><label>تكلفة الوحدة</label><input class="form-input mono-num" type="number" step="0.01" min="0" name="unit_cost" value="0"></div>
+          <div class="form-field"><label>مرجع (اختياري)</label><input class="form-input" name="reference"></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="acctMovCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">تسجيل</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#acctMovClose').addEventListener('click', close);
+  host.querySelector('#acctMovCancel').addEventListener('click', close);
+  host.querySelector('#acctMovForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('acctMovErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    try {
+      const { error } = await ACCT.inventory.recordMovement({
+        item_id: itemId, type: fd.get('type'), movement_date: fd.get('movement_date'),
+        quantity: Number(fd.get('quantity')), unit_cost: Number(fd.get('unit_cost') || 0),
+        reference: (fd.get('reference') || '').trim() || null
+      });
+      if (error) throw error;
+      toast('تم تسجيل الحركة', 'success');
+      close();
+      renderAcctInventoryTable();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
 
 const COMING_SOON_MODULES = {
   hr: {
