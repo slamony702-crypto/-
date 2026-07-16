@@ -92,6 +92,7 @@ export default async function handler(req, res) {
 
   const models = ['gemini-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-flash'];
   let lastError = 'تعذر الاتصال بمزود الذكاء الاصطناعي';
+  const modelErrors = []; // خطأ كل موديل على حدة — للتشخيص بدل إظهار خطأ الأخير فقط
 
   for (const model of models) {
     try {
@@ -109,7 +110,11 @@ export default async function handler(req, res) {
         }
       );
       const gData = await gRes.json();
-      if (!gRes.ok) { lastError = gData?.error?.message || ('HTTP ' + gRes.status); continue; }
+      if (!gRes.ok) {
+        lastError = gData?.error?.message || ('HTTP ' + gRes.status);
+        modelErrors.push(model + ': ' + lastError);
+        continue;
+      }
 
       const parts = gData?.candidates?.[0]?.content?.parts || [];
       const toolCalls = parts.filter(p => p.functionCall).map(p => ({
@@ -121,10 +126,12 @@ export default async function handler(req, res) {
       if (toolCalls.length) return res.status(200).json({ toolCalls, model });
       if (text) return res.status(200).json({ text, model });
       lastError = 'رد فارغ من النموذج';
+      modelErrors.push(model + ': ' + lastError);
     } catch (e) {
       lastError = e.message;
+      modelErrors.push(model + ': ' + lastError);
     }
   }
 
-  return res.status(502).json({ error: lastError });
+  return res.status(502).json({ error: lastError, model_errors: modelErrors });
 }
