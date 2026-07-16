@@ -4851,7 +4851,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v97-2026-07-16-collapsed-card-gradient';
+const APP_VERSION = 'v98-2026-07-16-voice-suggestions';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -8324,6 +8324,162 @@ function voiceOpenChatAndPrefill(userId, userName, prefillMessage) {
   const targetHash = '#conversations?' + qs;
   if (location.hash === targetHash) { renderApp(); } else { location.hash = targetHash; }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// طبقة الاقتراحات الذكية للأوامر الصوتية ("يمكن تقصد؟")
+// طبقة إضافية معزولة تمامًا فوق tryVoiceCommand — لا تعدّل منطق المطابقة
+// الأصلي: لو الأمر مفهوم ينفَّذ فورًا زي الأول، ولو مش مفهوم بنعرض شيت
+// اقتراحات مبني على مطابقة أوسع (أفعال محتملة + اسم موظف محتمل) بدل
+// التحويل الصامت للبحث. لو مفيش أي اقتراح منطقي → بحث عادي زي زمان.
+// ═══════════════════════════════════════════════════════════════════
+
+// مطابقة أوسع من الصارمة: بترجّع كل الأفعال المحتملة مرتّبة بدرجة القرب
+function voiceActionCandidatesLoose(normText) {
+  const words = normText.split(/\s+/).filter(Boolean);
+  const scores = {};
+  for (const cmd of VOICE_COMMANDS) {
+    for (const k of cmd.keys) {
+      const nk = normalizeArabic(k);
+      const kw = nk.split(/\s+/).filter(Boolean).length;
+      for (let s = 0; s + kw <= words.length; s++) {
+        const win = words.slice(s, s + kw).join(' ');
+        const d = levenshteinDist(win, nk);
+        const allowed = Math.max(2, Math.floor(nk.length * 0.55));
+        if (d > allowed) continue;
+        const sim = 1 - d / Math.max(win.length, nk.length);
+        if (!scores[cmd.action] || sim > scores[cmd.action]) scores[cmd.action] = sim;
+      }
+    }
+  }
+  return Object.entries(scores)
+    .sort((a, b) => b[1] - a[1])
+    .map(([action, sim]) => ({ action, sim }));
+}
+
+// بحث مرن عن اسم موظف داخل الكلام المنطوق (مقارنة محلية بعد جلبة واحدة)
+async function voiceFindPersonLoose(rawText) {
+  try {
+    const stop = new Set(['رساله','مهمه','مهام','تقرير','اجتماع','اجتماعات','ارسل','ابعت','ابعث','اسند','كلم','قوله','قولها','افتح','وريني','اشوف','شوف','عايز','عاوز','ابغي','ابغى','بغيت','اريد','سوي','اعمل','ضيف','حط','المهمه','المطلوب','بخصوص','الصيانه','الجوده','الرئيسيه','الاشعارات','التقارير','طلب','جديد','جديده']);
+    const words = normalizeArabic(stripVoiceCommandPreposition(rawText))
+      .split(/\s+/).filter(w => w.length >= 3 && !stop.has(w));
+    if (!words.length) return null;
+    const { data: users } = await sb.from('users').select('id, full_name').eq('is_active', true).limit(300);
+    if (!users || !users.length) return null;
+    let best = null;
+    for (const u of users) {
+      const parts = normalizeArabic(u.full_name).split(/\s+/).filter(p => p.length >= 3);
+      for (const w of words) {
+        for (const p of parts) {
+          const d = levenshteinDist(w, p);
+          if (d > Math.max(1, Math.floor(p.length * 0.34))) continue;
+          const sim = 1 - d / Math.max(w.length, p.length);
+          if (!best || sim > best.sim) best = { user: u, sim };
+        }
+      }
+    }
+    return best && best.sim >= 0.6 ? best.user : null;
+  } catch (e) { return null; }
+}
+
+// اقتراحات عامة (بدون اسم موظف) لكل فعل محتمل
+const VOICE_GENERIC_SUGGESTIONS = {
+  assign:            { label: 'إسناد مهمة جديدة', icon: 'clipboard-list', run: () => window.openQuickAddTaskModal(null, null, null) },
+  message:           { label: 'فتح التواصل الداخلي لإرسال رسالة', icon: 'message-circle', run: () => { location.hash = '#conversations'; } },
+  tasks:             { label: 'عرض المهام والتكليفات', icon: 'check-square', run: () => { location.hash = '#department_tasks'; } },
+  meetings:          { label: 'فتح الاجتماعات', icon: 'calendar', run: () => { location.hash = '#meetings'; } },
+  reports:           { label: 'فتح التقارير', icon: 'bar-chart-3', run: () => { location.hash = '#reports'; } },
+  nav_meetings:      { label: 'فتح الاجتماعات', icon: 'calendar', run: () => { location.hash = '#meetings'; } },
+  nav_maintenance:   { label: 'فتح الصيانة', icon: 'wrench', run: () => { location.hash = '#maintenance'; } },
+  nav_quality:       { label: 'فتح الجودة', icon: 'shield-check', run: () => { location.hash = '#quality'; } },
+  nav_dashboard:     { label: 'فتح لوحة التحكم', icon: 'layout-dashboard', run: () => { location.hash = '#dashboard'; } },
+  nav_notifications: { label: 'فتح الإشعارات', icon: 'bell', run: () => { location.hash = '#notifications'; } },
+  nav_maint_new:     { label: 'رفع طلب صيانة جديد', icon: 'wrench', run: () => { location.hash = '#maintenance_new'; } }
+};
+
+// يبني حتى 3 اقتراحات: لو لقينا اسم موظف بنشخصن الاقتراحات عليه
+async function buildVoiceSuggestions(rawText) {
+  const normText = normalizeArabic(rawText);
+  const cands = voiceActionCandidatesLoose(normText).slice(0, 4);
+  const person = await voiceFindPersonLoose(rawText);
+  const out = [];
+  const seen = new Set();
+  const push = (action) => {
+    if (seen.has(action) || out.length >= 3) return;
+    seen.add(action);
+    if (person && (action === 'message')) {
+      out.push({ label: `إرسال رسالة إلى ${person.full_name}`, icon: 'message-circle', run: () => voiceOpenChatAndPrefill(person.id, person.full_name, null) });
+    } else if (person && action === 'assign') {
+      out.push({ label: `إسناد مهمة إلى ${person.full_name}`, icon: 'clipboard-list', run: () => window.openQuickAddTaskModal(person.id, person.full_name, null) });
+    } else if (person && action === 'tasks') {
+      out.push({ label: `عرض مهام ${person.full_name}`, icon: 'check-square', run: () => { location.hash = '#tasks?search=' + encodeURIComponent(person.full_name); } });
+    } else if (person && (action === 'meetings' || action === 'nav_meetings')) {
+      out.push({ label: `عرض اجتماعات ${person.full_name}`, icon: 'calendar', run: () => { location.hash = '#meetings?search=' + encodeURIComponent(person.full_name); } });
+    } else {
+      const g = VOICE_GENERIC_SUGGESTIONS[action];
+      if (g) out.push(g);
+    }
+  };
+  cands.forEach(c => push(c.action));
+  // لقينا شخص لكن مفيش فعل واضح؟ اقترح عليه الأفعال الثلاثة الأكثر استخدامًا
+  if (person && !out.length) { push('message'); push('assign'); push('tasks'); }
+  return out;
+}
+
+// شيت "يمكن تقصد؟" — يعرض ما سمعناه + الاقتراحات + خيار البحث العادي
+function showVoiceSuggestionsSheet(rawText, suggestions, onSearchFallback) {
+  document.getElementById('voiceSuggestOverlay')?.remove();
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.id = 'voiceSuggestOverlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:420px;max-width:94%;">
+      <div class="panel-header">
+        <h3 style="display:flex;align-items:center;gap:7px;"><span data-lucide="mic" style="width:16px;height:16px;color:#8B5CF6;"></span> مش متأكد من قصدك</h3>
+        <button class="modal-close-x" id="vsClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 4px;">سمعتك بتقول:</p>
+        <p style="font-size:13.5px;font-weight:700;color:var(--text);background:rgba(139,92,246,0.07);border:1px solid rgba(139,92,246,0.2);border-radius:10px;padding:8px 12px;margin:0 0 14px;">«${esc(rawText)}»</p>
+        ${suggestions.length ? `<p style="font-size:12.5px;color:var(--text-muted);margin:0 0 8px;">يمكن تقصد:</p>` : ''}
+        <div style="display:grid;gap:8px;">
+          ${suggestions.map((s, i) => `
+            <button type="button" class="btn" data-vs-idx="${i}" style="justify-content:flex-start;gap:9px;background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:11px 14px;border-radius:12px;font-size:13px;text-align:right;">
+              <span data-lucide="${s.icon}" style="width:15px;height:15px;flex-shrink:0;"></span> ${esc(s.label)}
+            </button>`).join('')}
+          <button type="button" class="btn btn-outline" id="vsSearchBtn" style="justify-content:flex-start;gap:9px;padding:11px 14px;border-radius:12px;font-size:13px;text-align:right;">
+            <span data-lucide="search" style="width:15px;height:15px;flex-shrink:0;"></span> ابحث في المنصة عن «${esc(rawText.length > 30 ? rawText.slice(0, 30) + '…' : rawText)}»
+          </button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#vsClose').addEventListener('click', close);
+  host.addEventListener('click', (e) => { if (e.target === host) close(); });
+  host.querySelectorAll('[data-vs-idx]').forEach(b => b.addEventListener('click', () => {
+    const s = suggestions[Number(b.dataset.vsIdx)];
+    close();
+    try { s.run(); } catch (e) { fwReport('voiceSuggestionRun', e); }
+  }));
+  host.querySelector('#vsSearchBtn').addEventListener('click', () => {
+    close();
+    if (onSearchFallback) onSearchFallback();
+  });
+}
+
+// نقطة الدخول الموحّدة للمايك: أمر واضح → تنفيذ فوري. غير واضح → اقتراحات.
+// مفيش اقتراحات منطقية → بحث عادي (نفس السلوك القديم بالظبط).
+async function handleVoiceTranscript(rawText, onSearchFallback) {
+  let handled = false;
+  try { handled = await tryVoiceCommand(rawText); } catch (e) { fwReport('tryVoiceCommand', e); }
+  if (handled) return;
+  let suggestions = [];
+  try { suggestions = await buildVoiceSuggestions(rawText); } catch (e) { fwReport('buildVoiceSuggestions', e); }
+  if (!suggestions.length) { if (onSearchFallback) onSearchFallback(); return; }
+  showVoiceSuggestionsSheet(rawText, suggestions, onSearchFallback);
+}
+
 // ============ لوحة أمثلة الأوامر الصوتية ============
 function openVoiceHelpModal() {
   const existing = document.getElementById('voiceHelpOverlay');
@@ -8421,9 +8577,11 @@ function wireGlobalVoiceButton(onTranscribed) {
     recognition.lang = 'ar-SA';
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
-    recognition.onresult = (e) => {
+    recognition.onresult = async (e) => {
       input.value = e.results[0][0].transcript;
-      if (onTranscribed) onTranscribed();
+      // أمر واضح → تنفيذ فوري. غير واضح → شيت اقتراحات. لا اقتراحات → بحث عادي
+      try { await handleVoiceTranscript(input.value, () => { if (onTranscribed) onTranscribed(); }); }
+      catch (err) { if (onTranscribed) onTranscribed(); }
     };
     recognition.onerror = (e) => {
       toast(e && e.error === 'not-allowed' ? 'يجب السماح باستخدام المايكروفون من إعدادات المتصفح' : 'تعذّر التعرف على الصوت، حاول مرة أخرى', 'error');
@@ -30547,13 +30705,12 @@ function ensureMobileShell() {
           rec.onresult = async (ev) => {
             const t = ev.results[0][0].transcript;
             if (sInput) { sInput.value = t; sClear?.classList.add('show'); }
-            // جرّب الأمر الصوتي أولاً (زي 'ارسل رسالة'، 'افتح الاجتماعات'، إلخ)
-            let handled = false;
+            // أمر واضح → تنفيذ فوري. غير واضح → شيت "يمكن تقصد؟". لا اقتراحات → بحث عادي
             try {
-              if (typeof tryVoiceCommand === 'function') handled = await tryVoiceCommand(t);
-            } catch(e) {}
-            // لو مش أمر معروف → بحث عادي
-            if (!handled) location.hash = '#search?q=' + encodeURIComponent(t);
+              await handleVoiceTranscript(t, () => { location.hash = '#search?q=' + encodeURIComponent(t); });
+            } catch(e) {
+              location.hash = '#search?q=' + encodeURIComponent(t);
+            }
           };
           rec.onend = () => sMic.classList.remove('is-listening');
           rec.onerror = (ev) => {
