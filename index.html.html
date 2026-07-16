@@ -4820,7 +4820,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v89-2026-07-16-ops-orders-inventory';
+const APP_VERSION = 'v90-2026-07-16-ops-issues-settings';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -6797,19 +6797,134 @@ const OPS = {
     }
   },
 
+  // ─── إعدادات وحدة التشغيل ───────────────────────────────────────
+  settings: {
+    async get() {
+      const { data, error } = await sb.from('ops_settings').select('*').eq('id', 1).maybeSingle();
+      return { data, error };
+    },
+    async save(payload) {
+      const { data, error } = await sb.from('ops_settings').update(payload).eq('id', 1).select().single();
+      return { data, error };
+    }
+  },
+
+  // ─── المشكلات التشغيلية والتصعيد ────────────────────────────────
+  issues: {
+    validate(data) {
+      const errors = [];
+      if (!data.branch_id) errors.push('الفرع مطلوب');
+      if (!data.title || !data.title.trim()) errors.push('عنوان المشكلة مطلوب');
+      if (!['service', 'food_quality', 'equipment', 'safety', 'staff', 'other'].includes(data.category)) errors.push('فئة المشكلة غير صحيحة');
+      return errors;
+    },
+    async list(filters = {}) {
+      let q = sb.from('ops_issues').select('*, branches(name), reporter:reported_by(full_name)').order('created_at', { ascending: false });
+      if (filters.branch_id) q = q.eq('branch_id', filters.branch_id);
+      if (filters.status) q = q.eq('status', filters.status);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('ops_issues').select('*, branches(name), reporter:reported_by(full_name)').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      const errs = OPS.issues.validate(payload);
+      if (errs.length) return OPS._err(errs.join('؛ '));
+      const { data, error } = await sb.from('ops_issues').insert({ ...payload, reported_by: CURRENT_USER?.id }).select().single();
+      if (!error && data.severity === 'critical') {
+        try {
+          const { data: settings } = await OPS.settings.get();
+          if (settings?.auto_escalate_critical_issues) {
+            await OPS.issues.escalate(data.id, settings.default_escalation_assignee_id, 'تصعيد تلقائي لمشكلة حرجة');
+          }
+        } catch (e) { fwReport('opsAutoEscalateCritical', e); }
+      }
+      return { data, error };
+    },
+    async setStatus(id, status) {
+      const payload = { status };
+      if (status === 'resolved' || status === 'closed') { payload.resolved_by = CURRENT_USER?.id; payload.resolved_at = new Date().toISOString(); }
+      const { data, error } = await sb.from('ops_issues').update(payload).eq('id', id).select().single();
+      return { data, error };
+    },
+    // يحوّل المشكلة إلى مهمة في «مهام وتكليفات» الموجودة أصلًا، بدل تكرار منطق مهام جديد
+    async escalate(issueId, assigneeId, reason) {
+      if (!assigneeId) return OPS._err('حدد المسؤول عن التصعيد');
+      const { data: issue } = await OPS.issues.get(issueId);
+      if (!issue) return OPS._err('المشكلة غير موجودة');
+      const { data: settings } = await OPS.settings.get();
+      const priority = settings?.issue_escalation_task_priority || 'high';
+      const dueDatetime = new Date(Date.now() + 24 * 3600 * 1000).toISOString().slice(0, 16);
+
+      const { data: task, error: taskErr } = await sb.from('department_tasks').insert({
+        title: 'تصعيد مشكلة تشغيلية: ' + issue.title,
+        description: (issue.description || '') + (reason ? '\n\nسبب التصعيد: ' + reason : ''),
+        assigned_by: CURRENT_USER?.id,
+        assigned_to: assigneeId,
+        due_datetime: dueDatetime,
+        priority
+      }).select().single();
+      if (taskErr) return OPS._err(taskErr.message);
+
+      try {
+        await sb.from('notifications').insert({
+          user_id: assigneeId,
+          title: 'مشكلة تشغيلية مُصعَّدة إليك',
+          body: issue.title + ' — فرع ' + (issue.branches?.name || ''),
+          link: '#department_tasks'
+        });
+      } catch (e) { fwReport('opsEscalateNotify', e); }
+
+      await sb.from('ops_issue_escalations').insert({
+        issue_id: issueId, task_id: task.id, escalated_to: assigneeId, escalated_by: CURRENT_USER?.id, reason: reason || null
+      });
+
+      const { data, error } = await sb.from('ops_issues').update({ status: 'escalated', escalated_task_id: task.id }).eq('id', issueId).select().single();
+      return { data, error };
+    },
+    async escalations(issueId) {
+      const { data, error } = await sb.from('ops_issue_escalations').select('*, to_user:escalated_to(full_name), by_user:escalated_by(full_name)').eq('issue_id', issueId).order('created_at', { ascending: false });
+      return { data: data || [], error };
+    }
+  },
+
   dashboard: {
     async summary(branchId) {
       let shiftsQ = sb.from('ops_shifts').select('id, status', { count: 'exact' }).is('deleted_at', null).eq('status', 'in_progress');
       let checklistsQ = sb.from('ops_daily_checklists').select('id', { count: 'exact' }).eq('status', 'in_progress');
       let ordersQ = sb.from('ops_orders').select('id, status', { count: 'exact' }).in('status', ['open', 'preparing', 'ready']);
-      if (branchId) { shiftsQ = shiftsQ.eq('branch_id', branchId); checklistsQ = checklistsQ.eq('branch_id', branchId); ordersQ = ordersQ.eq('branch_id', branchId); }
-      const [activeShifts, pendingChecklists, openOrders] = await Promise.all([shiftsQ, checklistsQ, ordersQ]);
+      let issuesQ = sb.from('ops_issues').select('id, status', { count: 'exact' }).in('status', ['open', 'in_progress', 'escalated']);
+      if (branchId) { shiftsQ = shiftsQ.eq('branch_id', branchId); checklistsQ = checklistsQ.eq('branch_id', branchId); ordersQ = ordersQ.eq('branch_id', branchId); issuesQ = issuesQ.eq('branch_id', branchId); }
+      const [activeShifts, pendingChecklists, openOrders, openIssues] = await Promise.all([shiftsQ, checklistsQ, ordersQ, issuesQ]);
       return {
         activeShifts: activeShifts.count || 0,
         pendingChecklists: pendingChecklists.count || 0,
         openOrders: openOrders.count || 0,
-        error: activeShifts.error || pendingChecklists.error || openOrders.error || null
+        openIssues: openIssues.count || 0,
+        error: activeShifts.error || pendingChecklists.error || openOrders.error || issuesQ.error || null
       };
+    },
+    // لوحة متابعة موحّدة لكل الفروع — مبنية فوق بيانات موجودة، بدون جداول جديدة
+    async branchStatus() {
+      const [{ data: branches }, { data: shifts }, { data: orders }, { data: issues }, { data: lowStock }] = await Promise.all([
+        sb.from('branches').select('id, name').eq('is_active', true).order('name'),
+        sb.from('ops_shifts').select('branch_id, status').is('deleted_at', null).eq('status', 'in_progress'),
+        sb.from('ops_orders').select('branch_id, status').in('status', ['open', 'preparing', 'ready']),
+        sb.from('ops_issues').select('branch_id, status, severity').in('status', ['open', 'in_progress', 'escalated']),
+        sb.from('ops_branch_inventory_levels').select('branch_id, quantity_on_hand, reorder_level')
+      ]);
+      const rows = (branches || []).map(b => ({
+        branch_id: b.id,
+        branch_name: b.name,
+        activeShifts: (shifts || []).filter(s => s.branch_id === b.id).length,
+        openOrders: (orders || []).filter(o => o.branch_id === b.id).length,
+        openIssues: (issues || []).filter(i => i.branch_id === b.id).length,
+        criticalIssues: (issues || []).filter(i => i.branch_id === b.id && i.severity === 'critical').length,
+        lowStockItems: (lowStock || []).filter(l => l.branch_id === b.id && Number(l.quantity_on_hand) <= Number(l.reorder_level)).length
+      }));
+      return { data: rows, error: null };
     }
   }
 };
@@ -9249,7 +9364,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', ops_issues: 'المشكلات التشغيلية', ops_issue_detail: 'تفاصيل المشكلة', ops_settings: 'إعدادات التشغيل', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -13849,6 +13964,9 @@ async function route() {
     else if (page === 'ops_branch_inventory') await pageOpsBranchInventory(body);
     else if (page === 'ops_stock_transfers') await pageOpsStockTransfers(body);
     else if (page === 'ops_waste') await pageOpsWaste(body);
+    else if (page === 'ops_issues') await pageOpsIssues(body);
+    else if (page === 'ops_issue_detail') await pageOpsIssueDetail(body, param);
+    else if (page === 'ops_settings') await pageOpsSettings(body);
     else if (page === 'meetings') await pageMeetings(body, query);
     else if (page === 'meetings_calendar') await pageMeetingsCalendar(body, query);
     else if (page === 'meeting_detail') await pageMeetingDetail(body, param, query);
@@ -22529,13 +22647,18 @@ async function pageOpsDashboard(body) {
         <a href="#ops_branch_inventory" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="boxes" style="width:12px;height:12px;"></span> مخزون الفروع</a>
         <a href="#ops_stock_transfers" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="arrow-left-right" style="width:12px;height:12px;"></span> نقل مخزون</a>
         <a href="#ops_waste" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="trash-2" style="width:12px;height:12px;"></span> سجل الهدر</a>
+        <a href="#ops_issues" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="alert-triangle" style="width:12px;height:12px;"></span> المشكلات التشغيلية</a>
+        ${canManage ? `<a href="#ops_settings" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="settings" style="width:12px;height:12px;"></span> إعدادات التشغيل</a>` : ''}
         ${canManage ? `<span class="mod-hero-badge hb-scope"><span data-lucide="shield-check" style="width:12px;height:12px;"></span> صلاحية إدارة كاملة</span>` : ''}
       </div>
     </div>
 
     <div class="mod-stats" id="opsKpis">
-      ${[1,2,3].map(() => `<div class="mod-stat"><div class="skeleton skeleton-row" style="width:60%;height:24px;"></div><div class="skeleton skeleton-row" style="width:80%;margin-top:8px;"></div></div>`).join('')}
+      ${[1,2,3,4].map(() => `<div class="mod-stat"><div class="skeleton skeleton-row" style="width:60%;height:24px;"></div><div class="skeleton skeleton-row" style="width:80%;margin-top:8px;"></div></div>`).join('')}
     </div>
+
+    <div class="mod-section-title"><span data-lucide="building-2" style="width:16px;height:16px;"></span> حالة الفروع</div>
+    <div id="opsBranchStatus"><div class="skeleton skeleton-row"></div></div>
 
     <div class="mod-section-title"><span data-lucide="calendar-clock" style="width:16px;height:16px;"></span> ورديات اليوم</div>
     <div id="opsTodayShifts"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
@@ -22549,7 +22672,30 @@ async function pageOpsDashboard(body) {
       <div class="mod-stat"><div class="mod-stat-val">${summary.activeShifts}</div><div class="mod-stat-lbl">ورديات جارية الآن</div></div>
       <div class="mod-stat"><div class="mod-stat-val">${summary.pendingChecklists}</div><div class="mod-stat-lbl">قوائم فتح/إغلاق بانتظار الإكمال</div></div>
       <div class="mod-stat"><div class="mod-stat-val">${summary.openOrders}</div><div class="mod-stat-lbl">طلبات مفتوحة قيد التنفيذ</div></div>
+      <div class="mod-stat"><div class="mod-stat-val">${summary.openIssues}</div><div class="mod-stat-lbl">مشكلات تشغيلية مفتوحة</div></div>
     `;
+  }
+
+  const { data: branchStatus } = await OPS.dashboard.branchStatus();
+  const bsBox = document.getElementById('opsBranchStatus');
+  if (bsBox) {
+    if (!branchStatus.length) {
+      bsBox.innerHTML = `<div class="hr-empty"><span data-lucide="building-2"></span><p class="hr-empty-title">لا توجد فروع نشطة</p></div>`;
+    } else {
+      bsBox.innerHTML = `
+        <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+          <thead><tr><th>الفرع</th><th>ورديات جارية</th><th>طلبات مفتوحة</th><th>مشكلات مفتوحة</th><th>أصناف منخفضة المخزون</th></tr></thead>
+          <tbody>${branchStatus.map(r => `<tr>
+            <td>${esc(r.branch_name)}</td>
+            <td class="mono-num">${r.activeShifts}</td>
+            <td class="mono-num">${r.openOrders}</td>
+            <td class="mono-num">${r.criticalIssues > 0 ? `<span style="color:#b91c1c;font-weight:800;">${r.openIssues}</span>` : r.openIssues}</td>
+            <td class="mono-num">${r.lowStockItems}</td>
+          </tr>`).join('')}</tbody>
+        </table></div></div></div>
+      `;
+    }
+    if (window.lucide) lucide.createIcons();
   }
 
   const today = new Date().toISOString().slice(0, 10);
@@ -23985,6 +24131,318 @@ async function openOpsWasteCreateModal() {
       toast('تم تسجيل الهدر', 'success');
       close();
       renderOpsWasteTable();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// وحدة التشغيل (Operations) — المرحلة 3.c: المشكلات والتصعيد + الإعدادات
+// ═══════════════════════════════════════════════════════════════════
+async function pageOpsIssues(body) {
+  body.innerHTML = `
+    <a href="#operations" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لتشغيل المطاعم</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="alert-triangle" style="width:22px;height:22px;color:#123F32;"></span> المشكلات التشغيلية</h2>
+        <p>الإبلاغ عن مشكلات التشغيل ومتابعتها؛ المشكلات الحرجة تُصعَّد تلقائيًا كمهمة في «مهام وتكليفات».</p>
+      </div>
+      <button type="button" class="btn" id="opsAddIssueBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> إبلاغ عن مشكلة</button>
+    </div>
+    <div class="panel"><div class="panel-body" id="opsIssuesBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="opsModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  document.getElementById('opsAddIssueBtn').addEventListener('click', () => openOpsIssueCreateModal());
+  await renderOpsIssuesTable();
+}
+
+async function renderOpsIssuesTable() {
+  const box = document.getElementById('opsIssuesBody');
+  if (!box) return;
+  const { data: rows, error } = await OPS.issues.list();
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="alert-triangle"></span><p class="hr-empty-title">لا توجد مشكلات مسجَّلة</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const catLbl = { service: 'خدمة', food_quality: 'جودة الطعام', equipment: 'معدات', safety: 'سلامة', staff: 'موظفين', other: 'أخرى' };
+  const sevLbl = { low: 'منخفضة', medium: 'متوسطة', high: 'عالية', critical: 'حرجة' };
+  const statusLbl = { open: 'مفتوحة', in_progress: 'قيد المعالجة', escalated: 'مُصعَّدة', resolved: 'تم الحل', closed: 'مغلقة' };
+  const statusCls = { open: 'st-empty', in_progress: 'st-late', escalated: 'st-late', resolved: 'st-present', closed: 'st-present' };
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>الفرع</th><th>العنوان</th><th>الفئة</th><th>الخطورة</th><th>الحالة</th></tr></thead>
+      <tbody>${rows.map(i => `
+        <tr class="hr-emp-row" onclick="location.hash='#ops_issue_detail/${i.id}'">
+          <td>${esc(i.branches?.name || '—')}</td>
+          <td><strong>${esc(i.title)}</strong></td>
+          <td>${esc(catLbl[i.category])}</td>
+          <td>${i.severity === 'critical' ? `<span style="color:#b91c1c;font-weight:800;">${esc(sevLbl[i.severity])}</span>` : esc(sevLbl[i.severity])}</td>
+          <td><span class="hr-att-cell ${statusCls[i.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(statusLbl[i.status])}</span></td>
+        </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+}
+
+async function openOpsIssueCreateModal() {
+  const { data: branches } = await sb.from('branches').select('id, name').eq('is_active', true).order('name');
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:480px;max-width:96%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> إبلاغ عن مشكلة تشغيلية</h3>
+        <button class="modal-close-x" id="opsIssueClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="opsIssueErr"></div>
+        <form id="opsIssueForm" class="hr-form-grid">
+          <div class="form-field full"><label>الفرع *</label>
+            <select class="form-select" name="branch_id" required>
+              <option value="">اختر فرعًا</option>
+              ${(branches || []).map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>الفئة *</label>
+            <select class="form-select" name="category" required>
+              <option value="service">خدمة</option>
+              <option value="food_quality">جودة الطعام</option>
+              <option value="equipment">معدات</option>
+              <option value="safety">سلامة</option>
+              <option value="staff">موظفين</option>
+              <option value="other">أخرى</option>
+            </select>
+          </div>
+          <div class="form-field"><label>الخطورة *</label>
+            <select class="form-select" name="severity" required>
+              <option value="low">منخفضة</option>
+              <option value="medium" selected>متوسطة</option>
+              <option value="high">عالية</option>
+              <option value="critical">حرجة (تصعيد تلقائي)</option>
+            </select>
+          </div>
+          <div class="form-field full"><label>العنوان *</label><input class="form-input" name="title" required></div>
+          <div class="form-field full"><label>الوصف</label><textarea class="form-input" name="description" rows="3"></textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="opsIssueCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">إبلاغ</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#opsIssueClose').addEventListener('click', close);
+  host.querySelector('#opsIssueCancel').addEventListener('click', close);
+  host.querySelector('#opsIssueForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('opsIssueErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      branch_id: Number(fd.get('branch_id')),
+      category: fd.get('category'),
+      severity: fd.get('severity'),
+      title: (fd.get('title') || '').trim(),
+      description: (fd.get('description') || '').trim() || null
+    };
+    try {
+      const { error } = await OPS.issues.create(payload);
+      if (error) throw error;
+      toast('تم تسجيل المشكلة', 'success');
+      close();
+      renderOpsIssuesTable();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function pageOpsIssueDetail(body, idParam) {
+  const issueId = Number(idParam);
+  if (!issueId) { body.innerHTML = '<p class="error-msg show">معرف المشكلة غير صحيح</p>'; return; }
+  const { data: issue, error } = await OPS.issues.get(issueId);
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!issue) { body.innerHTML = '<p class="empty-state">المشكلة غير موجودة</p>'; return; }
+
+  const catLbl = { service: 'خدمة', food_quality: 'جودة الطعام', equipment: 'معدات', safety: 'سلامة', staff: 'موظفين', other: 'أخرى' };
+  const sevLbl = { low: 'منخفضة', medium: 'متوسطة', high: 'عالية', critical: 'حرجة' };
+  const statusLbl = { open: 'مفتوحة', in_progress: 'قيد المعالجة', escalated: 'مُصعَّدة', resolved: 'تم الحل', closed: 'مغلقة' };
+  const canAct = !['resolved', 'closed'].includes(issue.status);
+
+  body.innerHTML = `
+    <a href="#ops_issues" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للمشكلات</a>
+    <div class="hr-emp-hero">
+      <div class="hr-emp-hero-content">
+        <div class="hr-emp-hero-avatar"><span data-lucide="alert-triangle" style="width:28px;height:28px;"></span></div>
+        <div class="hr-emp-hero-info">
+          <h2 class="hr-emp-hero-name">${esc(issue.title)}</h2>
+          <div class="hr-emp-hero-meta">
+            <span>${esc(issue.branches?.name || '—')}</span>
+            <span>${esc(catLbl[issue.category])}</span>
+            <span>${esc(sevLbl[issue.severity])}</span>
+            <span>${esc(statusLbl[issue.status])}</span>
+          </div>
+        </div>
+        <div class="hr-emp-hero-actions">
+          ${canAct && issue.status === 'open' ? `<button type="button" class="hr-emp-hero-btn" data-issue-status="in_progress">بدء المعالجة</button>` : ''}
+          ${canAct ? `<button type="button" class="hr-emp-hero-btn" id="opsIssueEscalateBtn">تصعيد</button>` : ''}
+          ${canAct ? `<button type="button" class="hr-emp-hero-btn" data-issue-status="resolved">تم الحل</button>` : ''}
+        </div>
+      </div>
+    </div>
+    ${issue.description ? `<div class="panel"><div class="panel-body">${esc(issue.description)}</div></div>` : ''}
+    <div class="mod-section-title"><span data-lucide="arrow-up-right" style="width:16px;height:16px;"></span> سجل التصعيد</div>
+    <div id="opsIssueEscBody"><div class="skeleton skeleton-row"></div></div>
+    <div id="opsModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  body.querySelectorAll('[data-issue-status]').forEach(b => b.addEventListener('click', async () => {
+    const { error } = await OPS.issues.setStatus(issueId, b.dataset.issueStatus);
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    pageOpsIssueDetail(body, idParam);
+  }));
+  const escBtn = document.getElementById('opsIssueEscalateBtn');
+  if (escBtn) escBtn.addEventListener('click', () => openOpsIssueEscalateModal(issueId, body, idParam));
+
+  const { data: escalations } = await OPS.issues.escalations(issueId);
+  const escBox = document.getElementById('opsIssueEscBody');
+  if (!escalations.length) {
+    escBox.innerHTML = `<div class="hr-empty"><span data-lucide="arrow-up-right"></span><p class="hr-empty-title">لم يتم تصعيد هذه المشكلة</p></div>`;
+  } else {
+    escBox.innerHTML = `
+      <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+        <thead><tr><th>صُعِّدت إلى</th><th>بواسطة</th><th>السبب</th><th>التاريخ</th></tr></thead>
+        <tbody>${escalations.map(e => `<tr>
+          <td>${esc(e.to_user?.full_name || '—')}</td>
+          <td>${esc(e.by_user?.full_name || '—')}</td>
+          <td>${esc(e.reason || '—')}</td>
+          <td class="mono-num">${new Date(e.created_at).toLocaleDateString('ar-SA')}</td>
+        </tr>`).join('')}</tbody>
+      </table></div></div></div>
+    `;
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+async function openOpsIssueEscalateModal(issueId, body, idParam) {
+  const ESCALATION_ROLES = ['operations_manager', 'department_manager', 'maintenance_officer', 'quality_manager', 'admin', 'company_manager'];
+  const { data: users } = await sb.from('users').select('id, full_name, role').in('role', ESCALATION_ROLES).eq('is_active', true).order('full_name');
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:440px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="arrow-up-right" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> تصعيد المشكلة</h3>
+        <button class="modal-close-x" id="opsEscClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="opsEscErr"></div>
+        <form id="opsEscForm" class="hr-form-grid">
+          <div class="form-field full"><label>تصعيد إلى *</label>
+            <select class="form-select" name="assignee_id" required>
+              <option value="">اختر مسؤولًا</option>
+              ${(users || []).map(u => `<option value="${u.id}">${esc(u.full_name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field full"><label>سبب التصعيد</label><textarea class="form-input" name="reason" rows="2"></textarea></div>
+          <p style="font-size:12px;color:var(--text-muted);margin:0;">سيُنشأ تكليف في «مهام وتكليفات» للمسؤول المختار.</p>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="opsEscCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">تصعيد</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#opsEscClose').addEventListener('click', close);
+  host.querySelector('#opsEscCancel').addEventListener('click', close);
+  host.querySelector('#opsEscForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('opsEscErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    try {
+      const { error } = await OPS.issues.escalate(issueId, Number(fd.get('assignee_id')), (fd.get('reason') || '').trim() || null);
+      if (error) throw error;
+      toast('تم تصعيد المشكلة', 'success');
+      close();
+      pageOpsIssueDetail(body, idParam);
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ─── إعدادات التشغيل ──────────────────────────────────────────────────
+async function pageOpsSettings(body) {
+  if (!isOpsManager()) { body.innerHTML = '<p class="empty-state">لا تملك صلاحية الوصول لهذه الصفحة</p>'; return; }
+  const { data: settings, error } = await OPS.settings.get();
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  const { data: users } = await sb.from('users').select('id, full_name').eq('is_active', true).order('full_name');
+
+  body.innerHTML = `
+    <a href="#operations" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لتشغيل المطاعم</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="settings" style="width:22px;height:22px;color:#123F32;"></span> إعدادات التشغيل</h2>
+        <p>ضبط سلوك التصعيد التلقائي وتنبيهات المخزون المنخفض.</p>
+      </div>
+    </div>
+    <div class="panel"><div class="panel-body">
+      <div class="error-msg" id="opsSetErr"></div>
+      <form id="opsSetForm" class="hr-form-grid">
+        <div class="form-field full" style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="opsSetAutoEsc" name="auto_escalate_critical_issues" ${settings?.auto_escalate_critical_issues ? 'checked' : ''}>
+          <label for="opsSetAutoEsc" style="margin:0;">تصعيد المشكلات الحرجة تلقائيًا عند الإبلاغ</label>
+        </div>
+        <div class="form-field full"><label>المسؤول الافتراضي عن التصعيد التلقائي</label>
+          <select class="form-select" name="default_escalation_assignee_id">
+            <option value="">—</option>
+            ${(users || []).map(u => `<option value="${u.id}" ${settings?.default_escalation_assignee_id === u.id ? 'selected' : ''}>${esc(u.full_name)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-field"><label>أولوية مهمة التصعيد</label>
+          <select class="form-select" name="issue_escalation_task_priority">
+            <option value="high" ${settings?.issue_escalation_task_priority === 'high' ? 'selected' : ''}>عالية</option>
+            <option value="medium" ${settings?.issue_escalation_task_priority === 'medium' ? 'selected' : ''}>متوسطة</option>
+            <option value="low" ${settings?.issue_escalation_task_priority === 'low' ? 'selected' : ''}>منخفضة</option>
+          </select>
+        </div>
+        <div class="form-field full" style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="opsSetLowStock" name="low_stock_alerts_enabled" ${settings?.low_stock_alerts_enabled ? 'checked' : ''}>
+          <label for="opsSetLowStock" style="margin:0;">تفعيل تنبيهات المخزون المنخفض في لوحة الفروع</label>
+        </div>
+        <div class="full" style="display:flex;justify-content:flex-end;">
+          <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">حفظ الإعدادات</button>
+        </div>
+      </form>
+    </div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  document.getElementById('opsSetForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('opsSetErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      auto_escalate_critical_issues: fd.get('auto_escalate_critical_issues') === 'on',
+      default_escalation_assignee_id: fd.get('default_escalation_assignee_id') ? Number(fd.get('default_escalation_assignee_id')) : null,
+      issue_escalation_task_priority: fd.get('issue_escalation_task_priority'),
+      low_stock_alerts_enabled: fd.get('low_stock_alerts_enabled') === 'on'
+    };
+    try {
+      const { error } = await OPS.settings.save(payload);
+      if (error) throw error;
+      toast('تم حفظ الإعدادات', 'success');
     } catch (err) {
       errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
     }
