@@ -4851,7 +4851,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v98-2026-07-16-voice-suggestions';
+const APP_VERSION = 'v99-2026-07-16-pwa-mic-fix';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -7854,20 +7854,37 @@ function wireOneVoiceInput(el) {
     if (recognizing) { recognition && recognition.stop(); return; }
     recognition = new SR();
     recognition.lang = 'ar-SA';
-    recognition.interimResults = false;
+    // interimResults=true ضروري: أندرويد في التطبيق المثبّت (PWA) كثيرًا لا
+    // يسلّم نتيجة نهائية أبدًا — بس بيسلّم نتائج مؤقتة. بنجمّعها وننفّذ في onend
+    recognition.interimResults = true;
     recognition.maxAlternatives = 1;
+    let collected = '', hadError = false;
     recognition.onresult = (e) => {
-      const text = e.results[0][0].transcript;
-      const sep = el.value && !/\s$/.test(el.value) ? ' ' : '';
-      el.value = (el.value || '') + sep + text;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-      el.focus();
+      let t = '';
+      for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+      if (t.trim()) collected = t.trim();
     };
     recognition.onerror = (e) => {
-      toast(e && e.error === 'not-allowed' ? 'يجب السماح باستخدام المايكروفون من إعدادات المتصفح' : 'تعذّر التعرف على الصوت، حاول مرة أخرى', 'error');
+      const code = e && e.error;
+      if (code === 'no-speech') return; // onend هيعرض "لم أسمع شيئًا"
+      hadError = true;
+      if (code === 'aborted') return; // المستخدم أوقف التسجيل بنفسه — بلا رسالة
+      toast(code === 'not-allowed' ? 'يجب السماح باستخدام المايكروفون من إعدادات المتصفح'
+        : code === 'network' ? 'التعرف الصوتي يحتاج اتصال إنترنت — تأكد من الشبكة'
+        : 'تعذّر التعرف على الصوت، حاول مرة أخرى', 'error');
     };
-    recognition.onend = () => { recognizing = false; btn.classList.remove('recording'); };
+    recognition.onend = () => {
+      recognizing = false; btn.classList.remove('recording');
+      if (collected) {
+        const sep = el.value && !/\s$/.test(el.value) ? ' ' : '';
+        el.value = (el.value || '') + sep + collected;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        el.focus();
+      } else if (!hadError) {
+        toast('لم أسمع شيئًا — تكلم مباشرة بعد الضغط على المايك', 'warning');
+      }
+    };
     try { recognition.start(); recognizing = true; btn.classList.add('recording'); }
     catch (e) { recognizing = false; toast('تعذّر تشغيل المايكروفون، حاول مرة أخرى', 'error'); }
   });
@@ -8575,18 +8592,36 @@ function wireGlobalVoiceButton(onTranscribed) {
     if (recognizing) { recognition && recognition.stop(); return; }
     recognition = new SR();
     recognition.lang = 'ar-SA';
-    recognition.interimResults = false;
+    // interimResults=true ضروري: أندرويد في التطبيق المثبّت (PWA) كثيرًا لا
+    // يسلّم نتيجة نهائية أبدًا — بس بيسلّم نتائج مؤقتة. بنجمّعها وننفّذ في onend
+    recognition.interimResults = true;
     recognition.maxAlternatives = 1;
-    recognition.onresult = async (e) => {
-      input.value = e.results[0][0].transcript;
-      // أمر واضح → تنفيذ فوري. غير واضح → شيت اقتراحات. لا اقتراحات → بحث عادي
-      try { await handleVoiceTranscript(input.value, () => { if (onTranscribed) onTranscribed(); }); }
-      catch (err) { if (onTranscribed) onTranscribed(); }
+    let collected = '', hadError = false;
+    recognition.onresult = (e) => {
+      let t = '';
+      for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+      if (t.trim()) { collected = t.trim(); input.value = collected; }
     };
     recognition.onerror = (e) => {
-      toast(e && e.error === 'not-allowed' ? 'يجب السماح باستخدام المايكروفون من إعدادات المتصفح' : 'تعذّر التعرف على الصوت، حاول مرة أخرى', 'error');
+      const code = e && e.error;
+      if (code === 'no-speech') return; // onend هيعرض "لم أسمع شيئًا"
+      hadError = true;
+      if (code === 'aborted') return; // المستخدم أوقف التسجيل بنفسه — بلا رسالة
+      toast(code === 'not-allowed' ? 'يجب السماح باستخدام المايكروفون من إعدادات المتصفح'
+        : code === 'network' ? 'التعرف الصوتي يحتاج اتصال إنترنت — تأكد من الشبكة'
+        : 'تعذّر التعرف على الصوت، حاول مرة أخرى', 'error');
     };
-    recognition.onend = () => { recognizing = false; btn.classList.remove('recording'); };
+    recognition.onend = async () => {
+      recognizing = false; btn.classList.remove('recording');
+      if (collected) {
+        input.value = collected;
+        // أمر واضح → تنفيذ فوري. غير واضح → شيت اقتراحات. لا اقتراحات → بحث عادي
+        try { await handleVoiceTranscript(collected, () => { if (onTranscribed) onTranscribed(); }); }
+        catch (err) { if (onTranscribed) onTranscribed(); }
+      } else if (!hadError) {
+        toast('لم أسمع شيئًا — تكلم مباشرة بعد الضغط على المايك', 'warning');
+      }
+    };
     try { recognition.start(); recognizing = true; btn.classList.add('recording'); }
     catch (e) { recognizing = false; toast('تعذّر تشغيل المايكروفون، حاول مرة أخرى', 'error'); }
   });
@@ -30700,23 +30735,41 @@ function ensureMobileShell() {
         if (!SR) { openMobileSearchSheet(); return; }
         try {
           const rec = new SR();
-          rec.lang = 'ar-SA'; rec.interimResults = false; rec.maxAlternatives = 1;
+          // interimResults=true ضروري: أندرويد في التطبيق المثبّت (PWA) كثيرًا لا
+          // يسلّم نتيجة نهائية أبدًا — بنجمّع النتائج المؤقتة وننفّذ في onend
+          rec.lang = 'ar-SA'; rec.interimResults = true; rec.maxAlternatives = 1;
           sMic.classList.add('is-listening');
-          rec.onresult = async (ev) => {
-            const t = ev.results[0][0].transcript;
-            if (sInput) { sInput.value = t; sClear?.classList.add('show'); }
-            // أمر واضح → تنفيذ فوري. غير واضح → شيت "يمكن تقصد؟". لا اقتراحات → بحث عادي
-            try {
-              await handleVoiceTranscript(t, () => { location.hash = '#search?q=' + encodeURIComponent(t); });
-            } catch(e) {
-              location.hash = '#search?q=' + encodeURIComponent(t);
+          let collected = '', hadError = false;
+          rec.onresult = (ev) => {
+            let t = '';
+            for (let i = 0; i < ev.results.length; i++) t += ev.results[i][0].transcript;
+            if (t.trim()) {
+              collected = t.trim();
+              if (sInput) { sInput.value = collected; sClear?.classList.add('show'); }
             }
           };
-          rec.onend = () => sMic.classList.remove('is-listening');
+          rec.onend = async () => {
+            sMic.classList.remove('is-listening');
+            if (collected) {
+              // أمر واضح → تنفيذ فوري. غير واضح → شيت "يمكن تقصد؟". لا اقتراحات → بحث عادي
+              try {
+                await handleVoiceTranscript(collected, () => { location.hash = '#search?q=' + encodeURIComponent(collected); });
+              } catch(e) {
+                location.hash = '#search?q=' + encodeURIComponent(collected);
+              }
+            } else if (!hadError) {
+              toast('لم أسمع شيئًا — تكلم مباشرة بعد الضغط على المايك', 'warning');
+            }
+          };
           rec.onerror = (ev) => {
             sMic.classList.remove('is-listening');
-            const msg = ev && ev.error === 'not-allowed' ? 'يجب السماح باستخدام المايكروفون من إعدادات المتصفح' : 'تعذّر التعرف على الصوت، حاول مرة أخرى';
-            toast(msg, 'error');
+            const code = ev && ev.error;
+            if (code === 'no-speech') return; // onend هيعرض "لم أسمع شيئًا"
+            hadError = true;
+            if (code === 'aborted') return; // المستخدم أوقف التسجيل بنفسه — بلا رسالة
+            toast(code === 'not-allowed' ? 'يجب السماح باستخدام المايكروفون من إعدادات المتصفح'
+              : code === 'network' ? 'التعرف الصوتي يحتاج اتصال إنترنت — تأكد من الشبكة'
+              : 'تعذّر التعرف على الصوت، حاول مرة أخرى', 'error');
           };
           rec.start();
         } catch(e) { sMic.classList.remove('is-listening'); toast('تعذّر تشغيل المايكروفون، حاول مرة أخرى', 'error'); openMobileSearchSheet(); }
