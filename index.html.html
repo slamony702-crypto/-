@@ -1656,6 +1656,30 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
   background: linear-gradient(135deg, rgba(16,185,129,0.45) 0%, rgba(52,211,153,0.35) 45%, rgba(139,92,246,0.45) 100%);
 }
 
+/* ═══ المساعد الذكي (AI Assistant) ═══ */
+.aia-chat { display: flex; flex-direction: column; background: var(--surface); border-radius: 18px; border: 1.5px solid transparent; background-image: linear-gradient(var(--surface), var(--surface)), linear-gradient(135deg, #10B981 0%, #34D399 45%, #8B5CF6 100%); background-origin: border-box; background-clip: padding-box, border-box; overflow: hidden; height: calc(100vh - 300px); min-height: 420px; }
+.aia-messages { flex: 1; overflow-y: auto; padding: 16px 14px; display: flex; flex-direction: column; gap: 12px; }
+.aia-msg { max-width: 82%; padding: 11px 14px; border-radius: 16px; font-size: 13.5px; line-height: 1.8; word-break: break-word; }
+.aia-msg.user { align-self: flex-start; background: linear-gradient(135deg, #12372F, #245B4B); color: #fff; border-bottom-left-radius: 5px; }
+.aia-msg.assistant { align-self: flex-end; background: #F0F7F3; color: #0F172A; border: 1px solid #E2E8F0; border-bottom-right-radius: 5px; }
+:root[data-theme="dark"] .aia-msg.assistant { background: var(--surface); color: var(--text); border-color: var(--border); }
+.aia-tools-chips { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+.aia-tool-chip { font-size: 10px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: rgba(139,92,246,0.1); color: #6D28D9; border: 1px solid rgba(139,92,246,0.25); }
+.aia-typing { align-self: flex-end; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); padding: 8px 14px; }
+.aia-typing .dots span { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #8B5CF6; margin: 0 1.5px; animation: aiaBlink 1.2s infinite; }
+.aia-typing .dots span:nth-child(2) { animation-delay: .2s; } .aia-typing .dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes aiaBlink { 0%,80%,100% { opacity: .25; } 40% { opacity: 1; } }
+.aia-input-bar { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border); background: var(--surface); }
+.aia-input-bar input { flex: 1; border: 1.5px solid var(--border); border-radius: 14px; padding: 11px 14px; font-family: inherit; font-size: 13.5px; background: var(--surface); color: var(--text); outline: none; }
+.aia-input-bar input:focus { border-color: #34D399; }
+.aia-send-btn { width: 46px; height: 46px; border-radius: 14px; border: none; background: linear-gradient(135deg, #12372F, #2E9E4C); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: transform .12s ease; }
+.aia-send-btn:hover { transform: scale(1.05); }
+.aia-send-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.aia-suggestions { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; padding: 10px 4px; }
+.aia-suggest-chip { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-radius: 14px; border: 1.5px solid rgba(139,92,246,0.25); background: rgba(139,92,246,0.05); color: var(--text); font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; text-align: right; transition: all .15s ease; }
+.aia-suggest-chip:hover { border-color: #8B5CF6; background: rgba(139,92,246,0.1); }
+@media (max-width: 768px) { .aia-chat { height: calc(100vh - 340px); } .aia-msg { max-width: 92%; } }
+
 /* Form modal grid */
 .hr-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .hr-form-grid .full { grid-column: 1 / -1; }
@@ -4851,7 +4875,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v100-2026-07-16-voice-name-rescue';
+const APP_VERSION = 'v101-2026-07-16-ai-assistant';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -6961,6 +6985,201 @@ const OPS = {
 };
 window.OPS = OPS;
 function isOpsManager() { return CURRENT_USER && ['admin', 'company_manager', 'operations_manager'].includes(CURRENT_USER.role); }
+
+// ═══════════════════════════════════════════════════════════════════
+// المساعد الذكي (AI Assistant) — المرحلة 1: قراءة فقط
+// القاعدة الذهبية: كل أداة تجلب بياناتها من هنا (المتصفح) بجلسة
+// المستخدم نفسه، فتخضع لـ RLS تلقائيًا — الخادم لا يلمس قاعدة البيانات.
+// ═══════════════════════════════════════════════════════════════════
+const AIA_TOOL_LABELS = {
+  get_overdue_tasks: 'المهام المتأخرة',
+  get_branches_status: 'حالة الفروع',
+  get_expiring_documents: 'الوثائق القاربة على الانتهاء',
+  get_financial_summary: 'الملخص المالي'
+};
+
+const AIA = {
+
+  // ─── أدوات القراءة (تعمل بصلاحيات المستخدم الحالي فقط) ───────────
+  tools: {
+    async get_overdue_tasks() {
+      const { data, error } = await sb.from('department_tasks')
+        .select('title, due_datetime, status, assignee:assigned_to(full_name)')
+        .neq('status', 'completed')
+        .lt('due_datetime', new Date().toISOString())
+        .order('due_datetime')
+        .limit(30);
+      if (error) return { error: error.message };
+      return {
+        count: (data || []).length,
+        tasks: (data || []).map(t => ({
+          title: t.title,
+          assignee: t.assignee?.full_name || 'غير محدد',
+          due: t.due_datetime,
+          status: t.status
+        }))
+      };
+    },
+
+    async get_branches_status() {
+      const { data, error } = await OPS.dashboard.branchStatus();
+      if (error) return { error: error.message };
+      return { branches: data || [] };
+    },
+
+    async get_expiring_documents(args) {
+      const days = Math.min(Math.max(Number(args?.days) || 30, 1), 365);
+      const today = new Date().toISOString().slice(0, 10);
+      const target = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+      const { data, error } = await sb.from('hr_employee_profile')
+        .select('iqama_expiry, passport_expiry, contract_end_date, users:user_id(full_name)')
+        .or(`iqama_expiry.lte.${target},passport_expiry.lte.${target},contract_end_date.lte.${target}`)
+        .limit(150);
+      if (error) return { error: error.message };
+      const rows = [];
+      (data || []).forEach(p => {
+        const nm = p.users?.full_name || 'غير معروف';
+        const push = (d, type) => { if (d && d >= today && d <= target) rows.push({ employee: nm, document: type, expires: d }); };
+        push(p.iqama_expiry, 'إقامة');
+        push(p.passport_expiry, 'جواز سفر');
+        push(p.contract_end_date, 'عقد عمل');
+      });
+      rows.sort((a, b) => a.expires.localeCompare(b.expires));
+      return { days, count: rows.length, documents: rows.slice(0, 30) };
+    },
+
+    async get_financial_summary() {
+      const [banks, drafts, bills, invoices] = await Promise.all([
+        sb.from('acct_bank_accounts').select('bank_name, account_name, opening_balance').is('deleted_at', null).eq('is_active', true),
+        sb.from('acct_journal_entries').select('id', { count: 'exact', head: true }).eq('status', 'draft').is('deleted_at', null),
+        sb.from('acct_bills').select('total').eq('status', 'approved'),
+        sb.from('acct_invoices').select('total').in('status', ['issued', 'partially_paid']).is('deleted_at', null)
+      ]);
+      const sum = rows => (rows || []).reduce((s, r) => s + Number(r.total || 0), 0);
+      return {
+        bank_accounts: (banks.data || []).map(b => ({ bank: b.bank_name, account: b.account_name, opening_balance: Number(b.opening_balance) })),
+        note_on_banks: 'الأرصدة المعروضة هي الأرصدة الافتتاحية المسجلة',
+        draft_journal_entries: drafts.count || 0,
+        unpaid_vendor_bills: { count: (bills.data || []).length, total: sum(bills.data) },
+        uncollected_customer_invoices: { count: (invoices.data || []).length, total: sum(invoices.data) }
+      };
+    }
+  },
+
+  // ─── الجلسات والرسائل ────────────────────────────────────────────
+  sessions: {
+    async list() {
+      const { data, error } = await sb.from('ai_sessions').select('id, title, updated_at')
+        .eq('user_id', CURRENT_USER.id).is('deleted_at', null)
+        .order('updated_at', { ascending: false }).limit(20);
+      return { data: data || [], error };
+    },
+    async create(title) {
+      const { data, error } = await sb.from('ai_sessions')
+        .insert({ user_id: CURRENT_USER.id, title: (title || 'محادثة جديدة').slice(0, 80) })
+        .select().single();
+      return { data, error };
+    },
+    async messages(sessionId) {
+      const { data, error } = await sb.from('ai_session_messages')
+        .select('role, content, tools_used, created_at')
+        .eq('session_id', sessionId).order('created_at');
+      return { data: data || [], error };
+    },
+    async addMessage(sessionId, role, content, toolsUsed) {
+      const { error } = await sb.from('ai_session_messages')
+        .insert({ session_id: sessionId, role, content, tools_used: toolsUsed && toolsUsed.length ? toolsUsed : null });
+      if (!error) await sb.from('ai_sessions').update({ updated_at: new Date().toISOString() }).eq('id', sessionId);
+      return { error };
+    },
+    async remove(id) {
+      const { error } = await sb.from('ai_sessions').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+      return { error };
+    }
+  },
+
+  // سجل التدقيق — يُكتب دائمًا بصمت ولا يوقف التجربة لو فشل
+  async _audit(sessionId, action, toolName, detail) {
+    try {
+      await sb.from('ai_audit_log').insert({
+        session_id: sessionId || null, user_id: CURRENT_USER?.id,
+        action, tool_name: toolName || null, detail: detail || null
+      });
+    } catch (e) { /* صمت مقصود */ }
+  },
+
+  // الحد اليومي: عدد أسئلة المستخدم اليوم مقابل ai_settings.daily_message_limit
+  async checkDailyLimit() {
+    try {
+      const { data: settings } = await sb.from('ai_settings').select('is_enabled, daily_message_limit, extra_instructions').eq('id', 1).maybeSingle();
+      if (settings && settings.is_enabled === false) return { ok: false, reason: 'المساعد الذكي موقوف حاليًا من الإدارة' };
+      const limit = settings ? Number(settings.daily_message_limit) : 50;
+      const { data: own } = await sb.from('ai_sessions').select('id').eq('user_id', CURRENT_USER.id).limit(200);
+      const ids = (own || []).map(s => s.id);
+      if (!ids.length) return { ok: true, extra: settings?.extra_instructions || null };
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const { count } = await sb.from('ai_session_messages').select('id', { count: 'exact', head: true })
+        .in('session_id', ids).eq('role', 'user').gte('created_at', today.toISOString());
+      if ((count || 0) >= limit) return { ok: false, reason: `وصلت للحد اليومي (${limit} سؤالًا) — عد غدًا` };
+      return { ok: true, extra: settings?.extra_instructions || null };
+    } catch (e) { return { ok: true, extra: null }; }
+  },
+
+  // ─── حلقة المحادثة: سؤال → (أدوات؟) → تنفيذ محلي بصلاحيات المستخدم → إجابة ───
+  async ask(sessionId, question, historyMessages, onStatus, extraInstructions) {
+    const contents = [];
+    (historyMessages || []).slice(-10).forEach(m => {
+      contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] });
+    });
+    contents.push({ role: 'user', parts: [{ text: question }] });
+
+    const toolsUsed = [];
+    for (let step = 0; step < 4; step++) {
+      const res = await fetch('/api/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents, extraInstructions: extraInstructions || null })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'تعذر الاتصال بالمساعد');
+
+      if (data.text) return { text: data.text, toolsUsed };
+
+      if (Array.isArray(data.toolCalls) && data.toolCalls.length) {
+        contents.push({ role: 'model', parts: data.toolCalls.map(c => ({ functionCall: { name: c.name, args: c.args || {} } })) });
+        const respParts = [];
+        for (const call of data.toolCalls) {
+          if (onStatus) onStatus(AIA_TOOL_LABELS[call.name] || call.name);
+          let result;
+          const fn = AIA.tools[call.name];
+          if (!fn) {
+            result = { error: 'أداة غير مصرح بها' };
+            await AIA._audit(sessionId, 'blocked', call.name, null);
+          } else {
+            try {
+              result = await fn(call.args || {});
+              const summary = result && typeof result === 'object'
+                ? { keys: Object.keys(result), count: result.count ?? (Array.isArray(result.branches) ? result.branches.length : undefined) }
+                : null;
+              await AIA._audit(sessionId, 'tool_call', call.name, summary);
+            } catch (e) {
+              result = { error: e.message };
+              await AIA._audit(sessionId, 'error', call.name, { message: e.message });
+            }
+          }
+          if (!toolsUsed.includes(call.name)) toolsUsed.push(call.name);
+          respParts.push({ functionResponse: { name: call.name, response: { result } } });
+        }
+        contents.push({ role: 'user', parts: respParts });
+        continue;
+      }
+
+      throw new Error('رد غير متوقع من المساعد');
+    }
+    throw new Error('تجاوز المساعد حد الخطوات المسموح — جرّب سؤالًا أبسط');
+  }
+};
+window.AIA = AIA;
 
 // ─── ZATCA Phase 1 — TLV-encoded Base64 QR string ────────────────────
 // Tags: 1=Seller name, 2=VAT number, 3=Timestamp(ISO), 4=Invoice total, 5=VAT total.
@@ -9560,7 +9779,7 @@ async function logout() {
 // وصفحة تعريفية فقط (pageComingSoonModule) — كل شاشاتها الداخلية محمية.
 // حسابات المراجعة في MODULE_PREVIEW_USERS فقط هي اللي تشوف الشاشات الحقيقية.
 // لإطلاق مديول للجميع: امسح مفتاحه من PREVIEW_MODULES — تعديل سطر واحد فقط.
-const PREVIEW_MODULES = ['hr', 'accounting', 'operations'];
+const PREVIEW_MODULES = ['hr', 'accounting', 'operations', 'ai_agents'];
 const MODULE_PREVIEW_USERS = ['test_admin'];
 function canAccessModule(moduleKey) {
   if (!PREVIEW_MODULES.includes(moduleKey)) return true;
@@ -9572,6 +9791,7 @@ function gatedModuleForPage(page) {
   if (p === 'hr' || p.startsWith('hr_')) return 'hr';
   if (p === 'accounting' || p.startsWith('acct_')) return 'accounting';
   if (p === 'operations' || p.startsWith('ops_')) return 'operations';
+  if (p === 'ai_assistant' || p.startsWith('ai_')) return 'ai_agents';
   return null;
 }
 
@@ -9597,6 +9817,9 @@ const MENU_GROUPS = [
     { key: 'hr', label: 'الموارد البشرية', icon: 'users-round', badge: 'قريبًا' },
     { key: 'accounting', label: 'الحسابات والمالية', icon: 'landmark', badge: 'قريبًا' },
   ]},
+  { key: '__ai', label: 'مركز الذكاء الاصطناعي', icon: 'sparkles', defaultOpen: false, items: [
+    { key: 'ai_assistant', label: 'المساعد الذكي', icon: 'sparkles', badge: 'قريبًا' },
+  ]},
   { key: '__cafe', label: 'ركن الكافيه', icon: 'coffee', defaultOpen: false, items: [
     { key: 'cafe', label: 'ركن الكافيه', icon: 'coffee' },
   ]},
@@ -9614,7 +9837,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', ops_issues: 'المشكلات التشغيلية', ops_issue_detail: 'تفاصيل المشكلة', ops_settings: 'إعدادات التشغيل', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', ops_issues: 'المشكلات التشغيلية', ops_issue_detail: 'تفاصيل المشكلة', ops_settings: 'إعدادات التشغيل', ai_assistant: 'المساعد الذكي', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -13851,7 +14074,7 @@ async function renderShellOnce() {
   } catch (e) { /* تجاهل بصمت لو فشل الحساب */ }
 
   // المديولات القادمة (Placeholder Overview) — تظهر للجميع لأنها صفحات عرض فقط
-  const ALWAYS_VISIBLE = ['hr', 'accounting', 'operations'];
+  const ALWAYS_VISIBLE = ['hr', 'accounting', 'operations', 'ai_assistant'];
   const openGroupsRaw = localStorage.getItem('sidebar_open_groups');
   const openGroups = openGroupsRaw ? JSON.parse(openGroupsRaw) : null;
   function isGroupOpen(g) { return openGroups ? openGroups.includes(g.key) : g.defaultOpen; }
@@ -14223,6 +14446,7 @@ async function route() {
     else if (page === 'ops_issues') await pageOpsIssues(body);
     else if (page === 'ops_issue_detail') await pageOpsIssueDetail(body, param);
     else if (page === 'ops_settings') await pageOpsSettings(body);
+    else if (page === 'ai_assistant') await pageAiAssistant(body);
     else if (page === 'meetings') await pageMeetings(body, query);
     else if (page === 'meetings_calendar') await pageMeetingsCalendar(body, query);
     else if (page === 'meeting_detail') await pageMeetingDetail(body, param, query);
@@ -22910,6 +23134,30 @@ const COMING_SOON_MODULES = {
       { title: 'المرحلة 3 — التحضير والهدر', sub: 'خطط التحضير • تسجيل الهدر • تحليل الأسباب', status: 'قيد التخطيط' },
       { title: 'المرحلة 4 — المشكلات والتقارير', sub: 'قناة المشكلات • التصعيد • التقارير التشغيلية', status: 'مقرَّرة' }
     ]
+  },
+  ai_agents: {
+    title: 'المساعد الذكي',
+    subtitle: 'موظف رقمي يقرأ بيانات المنصة الحقيقية ويجيب أسئلة الإدارة فورًا — مع بقاء كل القرارات الحساسة في يد الإنسان.',
+    icon: 'sparkles',
+    stats: [
+      { val: 'قراءة', lbl: 'المرحلة الأولى — بلا أي تنفيذ' },
+      { val: '4+', lbl: 'أدوات قراءة ذكية' },
+      { val: 'RLS', lbl: 'يرى فقط ما يراه المستخدم' },
+      { val: 'تدقيق', lbl: 'سجل كامل لكل استخدام' }
+    ],
+    features: [
+      { icon: 'clipboard-list', title: 'المهام المتأخرة', desc: 'يستخرج التكليفات المتأخرة عبر كل الأقسام مع المسؤولين والمواعيد.' },
+      { icon: 'building-2', title: 'حالة الفروع', desc: 'صورة لحظية للورديات والطلبات والمشكلات والمخزون في كل فرع.' },
+      { icon: 'file-check', title: 'الوثائق القاربة على الانتهاء', desc: 'إقامات وجوازات وعقود الموظفين قبل انتهائها بوقت كافٍ.' },
+      { icon: 'landmark', title: 'الملخص المالي', desc: 'أرصدة البنوك، القيود المعلقة، المستحقات للموردين وعلى العملاء.' },
+      { icon: 'shield-check', title: 'أمان صارم', desc: 'لا يتجاوز صلاحياتك أبدًا، ولا ينفذ أي إجراء مالي أو إداري.' },
+      { icon: 'history', title: 'سجل تدقيق', desc: 'كل سؤال وكل أداة استُخدمت تُسجَّل ولا تُحذف.' }
+    ],
+    roadmap: [
+      { title: 'المرحلة 1 — قراءة وتحليل', sub: 'محادثة ذكية • 4 أدوات قراءة • سجل تدقيق', status: 'الأولى' },
+      { title: 'المرحلة 2 — مسودات بموافقة', sub: 'مسودات مهام وتقارير تنتظر اعتمادك', status: 'قيد التخطيط' },
+      { title: 'المرحلة 3 — مهام دورية', sub: 'ملخص يومي تلقائي • مراقبة الوثائق والفروقات', status: 'مقرَّرة' }
+    ]
   }
 };
 
@@ -24736,6 +24984,166 @@ async function pageOpsSettings(body) {
       errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
     }
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// المساعد الذكي — شاشة المحادثة (المرحلة 1: قراءة فقط)
+// ═══════════════════════════════════════════════════════════════════
+// تحويل نص المساعد لعرض آمن: escape كامل ثم **غامق** وأسطر جديدة فقط
+function aiaRenderText(text) {
+  let h = esc(text || '');
+  h = h.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  h = h.replace(/\n/g, '<br>');
+  return h;
+}
+
+async function pageAiAssistant(body) {
+  let currentSessionId = null;
+  let history = [];   // [{role:'user'|'assistant', content}]
+  let busy = false;
+
+  const SUGGESTIONS = [
+    { icon: 'clipboard-list', text: 'اعرض المهام المتأخرة مع المسؤولين عنها' },
+    { icon: 'building-2', text: 'إيه حالة الفروع التشغيلية دلوقتي؟' },
+    { icon: 'file-check', text: 'مين عنده وثائق هتنتهي خلال 30 يوم؟' },
+    { icon: 'landmark', text: 'اعطني ملخص مالي سريع' }
+  ];
+
+  body.innerHTML = `
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="sparkles" style="width:22px;height:22px;color:#8B5CF6;"></span> المساعد الذكي</h2>
+        <p>مساعد قراءة وتحليل — يجيب من بيانات المنصة الحقيقية بصلاحياتك أنت، ولا ينفذ أي إجراء.</p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <select class="form-select" id="aiaSessionSelect" style="max-width:200px;"><option value="">محادثة جديدة</option></select>
+      </div>
+    </div>
+
+    <div class="aia-chat">
+      <div class="aia-messages" id="aiaMessages">
+        <div id="aiaEmpty">
+          <div style="text-align:center;padding:20px 10px 6px;">
+            <div style="width:54px;height:54px;border-radius:50%;background:rgba(139,92,246,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 10px;"><span data-lucide="sparkles" style="width:26px;height:26px;color:#8B5CF6;"></span></div>
+            <p style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:4px;">أهلًا ${esc((CURRENT_USER.full_name || '').split(' ')[0])} 👋</p>
+            <p style="font-size:12px;color:var(--text-muted);">اسألني عن المهام، الفروع، الوثائق، أو الوضع المالي — أو جرّب اقتراحًا:</p>
+          </div>
+          <div class="aia-suggestions">
+            ${SUGGESTIONS.map((s, i) => `<button type="button" class="aia-suggest-chip" data-aia-suggest="${i}"><span data-lucide="${s.icon}" style="width:16px;height:16px;color:#8B5CF6;flex-shrink:0;"></span> ${esc(s.text)}</button>`).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="aia-input-bar">
+        <input type="text" id="aiaInput" placeholder="اكتب سؤالك..." autocomplete="off">
+        <button type="button" class="aia-send-btn" id="aiaSendBtn" title="إرسال"><span data-lucide="send" style="width:18px;height:18px;"></span></button>
+      </div>
+    </div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  const msgsBox = document.getElementById('aiaMessages');
+  const input = document.getElementById('aiaInput');
+  const sendBtn = document.getElementById('aiaSendBtn');
+  const sessionSelect = document.getElementById('aiaSessionSelect');
+
+  function scrollDown() { msgsBox.scrollTop = msgsBox.scrollHeight; }
+  function hideEmpty() { document.getElementById('aiaEmpty')?.remove(); }
+
+  function appendMsg(role, content, toolsUsed) {
+    hideEmpty();
+    const div = document.createElement('div');
+    div.className = 'aia-msg ' + role;
+    div.innerHTML = aiaRenderText(content) +
+      (toolsUsed && toolsUsed.length
+        ? `<div class="aia-tools-chips">${toolsUsed.map(t => `<span class="aia-tool-chip">${esc(AIA_TOOL_LABELS[t] || t)}</span>`).join('')}</div>`
+        : '');
+    msgsBox.appendChild(div);
+    scrollDown();
+  }
+
+  function showTyping(label) {
+    removeTyping();
+    const div = document.createElement('div');
+    div.className = 'aia-typing';
+    div.id = 'aiaTyping';
+    div.innerHTML = `<span class="dots"><span></span><span></span><span></span></span><span id="aiaTypingLbl">${esc(label || 'يفكر...')}</span>`;
+    msgsBox.appendChild(div);
+    scrollDown();
+  }
+  function updateTyping(label) { const el = document.getElementById('aiaTypingLbl'); if (el) el.textContent = label; }
+  function removeTyping() { document.getElementById('aiaTyping')?.remove(); }
+
+  async function loadSessionsList() {
+    const { data } = await AIA.sessions.list();
+    sessionSelect.innerHTML = '<option value="">محادثة جديدة</option>' +
+      (data || []).map(s => `<option value="${s.id}" ${s.id === currentSessionId ? 'selected' : ''}>${esc(s.title || 'محادثة')}</option>`).join('');
+  }
+
+  async function openSession(id) {
+    currentSessionId = id;
+    history = [];
+    msgsBox.innerHTML = '';
+    const { data: msgs } = await AIA.sessions.messages(id);
+    (msgs || []).forEach(m => {
+      history.push({ role: m.role, content: m.content });
+      appendMsg(m.role, m.content, m.tools_used);
+    });
+    if (window.lucide) lucide.createIcons();
+  }
+
+  sessionSelect.addEventListener('change', async () => {
+    if (busy) { sessionSelect.value = currentSessionId || ''; return; }
+    const v = sessionSelect.value;
+    if (!v) { currentSessionId = null; history = []; location.hash = '#ai_assistant'; renderApp(); return; }
+    await openSession(Number(v));
+  });
+
+  async function send(text) {
+    const q = (text || input.value || '').trim();
+    if (!q || busy) return;
+    busy = true; sendBtn.disabled = true; input.value = '';
+
+    try {
+      const limit = await AIA.checkDailyLimit();
+      if (!limit.ok) { toast(limit.reason, 'warning'); busy = false; sendBtn.disabled = false; return; }
+
+      if (!currentSessionId) {
+        const { data: sess, error: sErr } = await AIA.sessions.create(q);
+        if (sErr) throw sErr;
+        currentSessionId = sess.id;
+        loadSessionsList();
+      }
+
+      appendMsg('user', q);
+      await AIA.sessions.addMessage(currentSessionId, 'user', q);
+      await AIA._audit(currentSessionId, 'question', null, null);
+      showTyping('يفكر...');
+
+      const { text: answer, toolsUsed } = await AIA.ask(
+        currentSessionId, q, history,
+        (toolLabel) => updateTyping('يقرأ: ' + toolLabel + '...'),
+        limit.extra
+      );
+
+      removeTyping();
+      history.push({ role: 'user', content: q });
+      history.push({ role: 'assistant', content: answer });
+      appendMsg('assistant', answer, toolsUsed);
+      await AIA.sessions.addMessage(currentSessionId, 'assistant', answer, toolsUsed);
+      await AIA._audit(currentSessionId, 'answer', null, { tools: toolsUsed });
+    } catch (err) {
+      removeTyping();
+      appendMsg('assistant', 'عذرًا، حدث خطأ: ' + (err.message || 'تعذر الاتصال') + '\nحاول مرة أخرى.');
+      await AIA._audit(currentSessionId, 'error', null, { message: err.message });
+    }
+    busy = false; sendBtn.disabled = false; input.focus();
+  }
+
+  sendBtn.addEventListener('click', () => send());
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+  body.querySelectorAll('[data-aia-suggest]').forEach(b => b.addEventListener('click', () => send(SUGGESTIONS[Number(b.dataset.aiaSuggest)].text)));
+
+  await loadSessionsList();
 }
 
 async function pageComingSoonModule(body, key) {
@@ -30989,6 +31397,7 @@ function openMobileMoreSheet() {
             { key:'operations', hash:'#operations', icon:'chef-hat', label:'تشغيل المطاعم' },
             { key:'hr', hash:'#hr', icon:'users-round', label:'الموارد البشرية' },
             { key:'accounting', hash:'#accounting', icon:'landmark', label:'الحسابات والمالية' },
+            { key:'ai_assistant', hash:'#ai_assistant', icon:'sparkles', label:'المساعد الذكي' },
             { key:'emergency', hash:'#emergency', icon:'siren', label:'تواصل طارئ' },
             { key:'myday', hash:'#myday', icon:'sun', label:'أعمالي اليوم' },
             { key:'vision', hash:'#vision', icon:'compass', label:'رؤية الشركة' },
