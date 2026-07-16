@@ -4875,7 +4875,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v103-2026-07-16-pay-p1-partners';
+const APP_VERSION = 'v104-2026-07-16-pay-p2-p3';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -7345,6 +7345,275 @@ const PAY = {
     explanation.push(`العمولة النهائية: ${commission.toFixed(2)} ر.س`);
 
     return { basis: Math.round(basis * 100) / 100, commission, explanation };
+  },
+
+  // ═══ P2: كشوف الشركاء والمطابقة ═══════════════════════════════════
+  statements: {
+    async list(filters = {}) {
+      let q = sb.from('pay_statements').select('*, pay_partners(name)').order('period_start', { ascending: false });
+      if (filters.partner_id) q = q.eq('partner_id', filters.partner_id);
+      if (filters.status) q = q.eq('status', filters.status);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('pay_statements').select('*, pay_partners(name)').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async lines(statementId) {
+      const { data, error } = await sb.from('pay_statement_lines')
+        .select('*, matched_order:matched_order_id(order_number, total_amount)')
+        .eq('statement_id', statementId).order('id');
+      return { data: data || [], error };
+    },
+    // إنشاء كشف ببنوده دفعة واحدة، مع حساب الإجماليات من البنود
+    async create(payload, lines) {
+      if (!payload.partner_id) return { data: null, error: { message: 'الشريك مطلوب' } };
+      if (!Array.isArray(lines) || !lines.length) return { data: null, error: { message: 'أضف بنود الكشف أولًا' } };
+      const gross = lines.reduce((s, l) => s + (Number(l.gross_amount) || 0), 0);
+      const fees = lines.reduce((s, l) => s + (Number(l.commission_fee) || 0) + (Number(l.delivery_fee) || 0) + (Number(l.other_fee) || 0), 0);
+      const net = lines.reduce((s, l) => s + (Number(l.net_amount) || 0), 0);
+      const { data, error } = await sb.from('pay_statements').insert({
+        ...payload,
+        gross_total: Math.round(gross * 100) / 100,
+        fees_total: Math.round(fees * 100) / 100,
+        net_total: Math.round(net * 100) / 100,
+        created_by: CURRENT_USER?.id
+      }).select().single();
+      if (error) return { data, error };
+      const rows = lines.map(l => ({
+        statement_id: data.id,
+        external_order_ref: (l.external_order_ref || '').trim() || null,
+        order_date: l.order_date || null,
+        gross_amount: Number(l.gross_amount) || 0,
+        commission_fee: Number(l.commission_fee) || 0,
+        delivery_fee: Number(l.delivery_fee) || 0,
+        other_fee: Number(l.other_fee) || 0,
+        net_amount: Number(l.net_amount) || 0
+      }));
+      const { error: lErr } = await sb.from('pay_statement_lines').insert(rows);
+      return { data, error: lErr || null };
+    },
+    // تحليل CSV/نص ملصوق: مرجع الطلب, التاريخ, الإجمالي, العمولة, التوصيل, رسوم أخرى, الصافي
+    parseCsv(text) {
+      const lines = (text || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+      const out = [], errors = [];
+      lines.forEach((line, i) => {
+        // تجاهل سطر العناوين لو موجود
+        if (i === 0 && /مرجع|ref|order/i.test(line) && !/\d/.test(line.split(',')[2] || '')) return;
+        const c = line.split(',').map(s => s.trim());
+        if (c.length < 3) { errors.push(`سطر ${i + 1}: أقل من 3 أعمدة`); return; }
+        const num = v => { const n = Number(v); return isNaN(n) ? 0 : n; };
+        const row = {
+          external_order_ref: c[0] || null,
+          order_date: /^\d{4}-\d{2}-\d{2}$/.test(c[1] || '') ? c[1] : null,
+          gross_amount: num(c[2]),
+          commission_fee: num(c[3]),
+          delivery_fee: num(c[4]),
+          other_fee: num(c[5]),
+          net_amount: c[6] !== undefined && c[6] !== '' ? num(c[6]) : num(c[2]) - num(c[3]) - num(c[4]) - num(c[5])
+        };
+        if (!row.external_order_ref && !row.gross_amount) { errors.push(`سطر ${i + 1}: بلا مرجع ولا مبلغ`); return; }
+        out.push(row);
+      });
+      return { rows: out, errors };
+    },
+    // محرك المطابقة: (1) تطابق بمرجع الطلب — (2) تطابق بالمبلغ ونفس اليوم
+    // DECISION: سماحية فرق المبلغ 0.05 ر.س (فروق تقريب الهللات فقط)
+    async runMatching(statementId) {
+      const { data: st, error: stErr } = await PAY.statements.get(statementId);
+      if (stErr || !st) return { error: stErr || { message: 'الكشف غير موجود' } };
+      const { data: lines } = await PAY.statements.lines(statementId);
+      const padStart = new Date(new Date(st.period_start).getTime() - 3 * 86400000).toISOString();
+      const padEnd = new Date(new Date(st.period_end).getTime() + 4 * 86400000).toISOString();
+      const { data: orders, error: oErr } = await sb.from('ops_orders')
+        .select('id, order_number, total_amount, completed_at, created_at')
+        .eq('pay_partner_id', st.partner_id)
+        .gte('created_at', padStart).lte('created_at', padEnd)
+        .limit(2000);
+      if (oErr) return { error: oErr };
+      const byRef = {}; const pool = [];
+      (orders || []).forEach(o => { if (o.order_number) byRef[o.order_number.trim().toLowerCase()] = o; pool.push(o); });
+      const usedIds = new Set();
+      let matched = 0, exceptions = 0, unmatched = 0;
+      const TOLERANCE = 0.05;
+      for (const l of (lines || [])) {
+        let order = null, status = 'unmatched', reason = null;
+        const ref = (l.external_order_ref || '').trim().toLowerCase();
+        if (ref && byRef[ref]) order = byRef[ref];
+        if (!order && l.order_date) {
+          // تطابق احتياطي: نفس اليوم + نفس المبلغ (مرة واحدة لكل طلب)
+          const c = pool.filter(o => !usedIds.has(o.id) &&
+            (o.completed_at || o.created_at || '').slice(0, 10) === l.order_date &&
+            Math.abs(Number(o.total_amount) - Number(l.gross_amount)) <= TOLERANCE);
+          if (c.length === 1) order = c[0];
+        }
+        if (order) {
+          const diff = Math.abs(Number(order.total_amount) - Number(l.gross_amount));
+          if (diff <= TOLERANCE) { status = 'matched'; usedIds.add(order.id); matched++; }
+          else { status = 'exception'; reason = `فرق مبلغ: الكشف ${Number(l.gross_amount).toFixed(2)} مقابل الطلب ${Number(order.total_amount).toFixed(2)}`; exceptions++; }
+        } else { unmatched++; reason = null; }
+        await sb.from('pay_statement_lines').update({
+          matched_order_id: order ? order.id : null,
+          match_status: status,
+          exception_reason: reason
+        }).eq('id', l.id);
+      }
+      const newStatus = (unmatched === 0 && exceptions === 0) ? 'reconciled' : 'reconciling';
+      await sb.from('pay_statements').update({ status: newStatus }).eq('id', statementId);
+      return { data: { matched, exceptions, unmatched, status: newStatus }, error: null };
+    },
+    // DECISION: اعتماد الكشف يتطلب صفر بنود غير مطابقة — بنود الفروقات
+    // (exception) مسموحة بشرط وجود سبب موثق عليها، وتُعالج في المقاصة
+    async approve(id) {
+      const { count } = await sb.from('pay_statement_lines').select('id', { count: 'exact', head: true })
+        .eq('statement_id', id).eq('match_status', 'unmatched');
+      if ((count || 0) > 0) return { error: { message: `لا يمكن الاعتماد — يوجد ${count} بند غير مطابق. شغّل المطابقة أو راجع البنود.` } };
+      const { data, error } = await sb.from('pay_statements').update({ status: 'approved' }).eq('id', id).select().single();
+      return { data, error };
+    }
+  },
+
+  // ═══ P3: المقاصة والتسويات والتحويلات ═══════════════════════════
+  clearing: {
+    async list() {
+      const { data, error } = await sb.from('pay_clearing_batches')
+        .select('*, pay_partners(name)').order('created_at', { ascending: false });
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('pay_clearing_batches').select('*, pay_partners(name)').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async items(batchId) {
+      const { data, error } = await sb.from('pay_clearing_items').select('*').eq('batch_id', batchId).order('id');
+      return { data: data || [], error };
+    },
+    async create(payload) {
+      if (!payload.partner_id) return { data: null, error: { message: 'الشريك مطلوب' } };
+      const { data, error } = await sb.from('pay_clearing_batches')
+        .insert({ ...payload, created_by: CURRENT_USER?.id }).select().single();
+      return { data, error };
+    },
+    // الحساب: يسحب الكشوف المعتمدة غير المُقاصة داخل الفترة ويحوّلها لبنود
+    // DECISION: بند الكشف بالموجب = صافي الكشف مستحق لنا على الشريك
+    // (الشريك حصّل من العملاء). الرصيد السالب يُرحَّل كتسوية يدوية.
+    async calculate(batchId) {
+      const { data: batch } = await PAY.clearing.get(batchId);
+      if (!batch) return { error: { message: 'الدفعة غير موجودة' } };
+      if (!['draft', 'calculated'].includes(batch.status)) return { error: { message: 'لا يمكن إعادة الحساب بعد الاعتماد' } };
+      const { data: stmts, error: sErr } = await sb.from('pay_statements')
+        .select('id, statement_no, period_start, period_end, gross_total, fees_total, net_total')
+        .eq('partner_id', batch.partner_id).eq('status', 'approved').is('cleared_batch_id', null)
+        .gte('period_start', batch.period_start).lte('period_end', batch.period_end);
+      if (sErr) return { error: sErr };
+      if (!stmts || !stmts.length) return { error: { message: 'لا توجد كشوف معتمدة غير مُقاصة داخل هذه الفترة' } };
+
+      // احذف بنود الكشوف السابقة (إعادة حساب آمنة) مع إبقاء التسويات اليدوية
+      const { data: oldItems } = await PAY.clearing.items(batchId);
+      for (const it of (oldItems || []).filter(i => i.source_type === 'statement')) {
+        await sb.from('pay_clearing_items').delete().eq('id', it.id);
+        if (it.statement_id) await sb.from('pay_statements').update({ cleared_batch_id: null }).eq('id', it.statement_id);
+      }
+
+      let gross = 0, fees = 0;
+      for (const s of stmts) {
+        await sb.from('pay_clearing_items').insert({
+          batch_id: batchId, source_type: 'statement', statement_id: s.id,
+          description: `كشف ${s.statement_no || '#' + s.id} (${s.period_start} → ${s.period_end})`,
+          amount: Number(s.net_total), created_by: CURRENT_USER?.id
+        });
+        await sb.from('pay_statements').update({ cleared_batch_id: batchId }).eq('id', s.id);
+        gross += Number(s.gross_total); fees += Number(s.fees_total);
+      }
+      const { data: allItems } = await PAY.clearing.items(batchId);
+      const adjustments = (allItems || []).filter(i => i.source_type === 'adjustment').reduce((t, i) => t + Number(i.amount), 0);
+      const net = (allItems || []).reduce((t, i) => t + Number(i.amount), 0);
+      const { data, error } = await sb.from('pay_clearing_batches').update({
+        status: 'calculated',
+        gross_total: Math.round(gross * 100) / 100,
+        fees_total: Math.round(fees * 100) / 100,
+        adjustments_total: Math.round(adjustments * 100) / 100,
+        net_receivable: Math.round(net * 100) / 100,
+        calculated_at: new Date().toISOString()
+      }).eq('id', batchId).select().single();
+      return { data, error };
+    },
+    async addAdjustment(batchId, description, amount) {
+      if (!description || !description.trim()) return { error: { message: 'وصف التسوية مطلوب' } };
+      const { error } = await sb.from('pay_clearing_items').insert({
+        batch_id: batchId, source_type: 'adjustment',
+        description: description.trim(), amount: Number(amount) || 0, created_by: CURRENT_USER?.id
+      });
+      return { error };
+    },
+    async approve(id) {
+      const { data, error } = await sb.from('pay_clearing_batches')
+        .update({ status: 'approved', approved_by: CURRENT_USER?.id, approved_at: new Date().toISOString() })
+        .eq('id', id).select().single();
+      return { data, error };
+    },
+    async cancel(id) {
+      // فك ارتباط الكشوف حتى تدخل دفعة أخرى
+      await sb.from('pay_statements').update({ cleared_batch_id: null }).eq('cleared_batch_id', id);
+      const { data, error } = await sb.from('pay_clearing_batches').update({ status: 'cancelled' }).eq('id', id).select().single();
+      return { data, error };
+    }
+  },
+
+  payouts: {
+    async listForBatch(batchId) {
+      const { data, error } = await sb.from('pay_payouts')
+        .select('*, acct_bank_accounts(bank_name, account_name)').eq('batch_id', batchId).order('created_at');
+      return { data: data || [], error };
+    },
+    // تسجيل التحويل + قيد محاسبي مسودة اختياري + إقفال الدفعة
+    // DECISION (القيد): تحويل وارد من شريك = مدين حساب البنك (من دليل
+    // الحسابات عبر coa_account_id) / دائن «العملاء» 1120 كذمم الشريك.
+    // يبقى مسودة لمراجعة المحاسب قبل الترحيل — لا ترحيل تلقائي أبدًا.
+    async record(batch, payload, createJournal) {
+      const { data: payout, error } = await sb.from('pay_payouts').insert({
+        batch_id: batch.id, partner_id: batch.partner_id,
+        direction: payload.direction, amount: Number(payload.amount),
+        bank_account_id: payload.bank_account_id || null,
+        bank_ref: (payload.bank_ref || '').trim() || null,
+        payout_date: payload.payout_date, status: 'confirmed',
+        notes: (payload.notes || '').trim() || null, created_by: CURRENT_USER?.id
+      }).select().single();
+      if (error) return { data: null, error };
+
+      if (createJournal && payload.bank_account_id) {
+        try {
+          const { data: bank } = await sb.from('acct_bank_accounts').select('coa_account_id, bank_name').eq('id', payload.bank_account_id).maybeSingle();
+          const { data: recvAcc } = await sb.from('acct_chart_of_accounts').select('id').eq('code', '1120').maybeSingle();
+          if (bank?.coa_account_id && recvAcc?.id) {
+            const { data: period } = await sb.from('acct_periods').select('id')
+              .lte('start_date', payload.payout_date).gte('end_date', payload.payout_date).limit(1).maybeSingle();
+            if (period) {
+              const isIncoming = payload.direction === 'incoming';
+              const { data: je } = await sb.from('acct_journal_entries').insert({
+                entry_no: 'JE-PAYOUT-' + payout.id,
+                entry_date: payload.payout_date, period_id: period.id,
+                description: `تسوية ${batch.batch_no} — ${isIncoming ? 'تحويل وارد من' : 'تحويل صادر إلى'} الشريك`,
+                source_type: 'pay_settlement', source_id: payout.id,
+                status: 'draft', created_by: CURRENT_USER?.id
+              }).select().single();
+              if (je) {
+                const amt = Number(payload.amount);
+                await sb.from('acct_journal_lines').insert([
+                  { entry_id: je.id, line_no: 1, account_id: isIncoming ? bank.coa_account_id : recvAcc.id, debit: amt, credit: 0, description: isIncoming ? 'وارد بنكي من شريك مدفوعات' : 'إثبات مستحق الشريك' },
+                  { entry_id: je.id, line_no: 2, account_id: isIncoming ? recvAcc.id : bank.coa_account_id, debit: 0, credit: amt, description: isIncoming ? 'تسوية ذمم الشريك' : 'تحويل بنكي صادر لشريك' }
+                ]);
+                await sb.from('pay_payouts').update({ journal_entry_id: je.id }).eq('id', payout.id);
+              }
+            }
+          }
+        } catch (e) { fwReport('payPayoutJournal', e); }
+      }
+
+      await sb.from('pay_clearing_batches').update({ status: 'settled' }).eq('id', batch.id);
+      return { data: payout, error: null };
+    }
   }
 };
 window.PAY = PAY;
@@ -10005,7 +10274,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', acct_pay_partners: 'شركاء المدفوعات', acct_pay_partner: 'تفاصيل الشريك', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', ops_issues: 'المشكلات التشغيلية', ops_issue_detail: 'تفاصيل المشكلة', ops_settings: 'إعدادات التشغيل', ai_assistant: 'المساعد الذكي', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', acct_pay_partners: 'شركاء المدفوعات', acct_pay_partner: 'تفاصيل الشريك', acct_pay_statements: 'كشوف الشركاء', acct_pay_statement: 'تفاصيل الكشف', acct_pay_clearing: 'المقاصة والتسويات', acct_pay_clearing_batch: 'تفاصيل دفعة المقاصة', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', ops_issues: 'المشكلات التشغيلية', ops_issue_detail: 'تفاصيل المشكلة', ops_settings: 'إعدادات التشغيل', ai_assistant: 'المساعد الذكي', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -14601,6 +14870,10 @@ async function route() {
     else if (page === 'acct_budgets') await pageAcctBudgets(body, query);
     else if (page === 'acct_pay_partners') await pageAcctPayPartners(body);
     else if (page === 'acct_pay_partner') await pageAcctPayPartnerDetail(body, param);
+    else if (page === 'acct_pay_statements') await pageAcctPayStatements(body);
+    else if (page === 'acct_pay_statement') await pageAcctPayStatementDetail(body, param);
+    else if (page === 'acct_pay_clearing') await pageAcctPayClearing(body);
+    else if (page === 'acct_pay_clearing_batch') await pageAcctPayClearingBatch(body, param);
     else if (page === 'operations') await pageOpsDashboard(body);
     else if (page === 'ops_shift_templates') await pageOpsShiftTemplates(body);
     else if (page === 'ops_shifts') await pageOpsShifts(body);
@@ -20150,6 +20423,8 @@ async function pageAcctDashboard(body) {
         <a href="#acct_vat_returns" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="percent" style="width:12px;height:12px;"></span> إقرارات VAT</a>
         <a href="#acct_budgets" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="wallet-cards" style="width:12px;height:12px;"></span> الموازنات</a>
         <a href="#acct_pay_partners" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="handshake" style="width:12px;height:12px;"></span> شركاء المدفوعات</a>
+        <a href="#acct_pay_statements" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="file-spreadsheet" style="width:12px;height:12px;"></span> كشوف الشركاء</a>
+        <a href="#acct_pay_clearing" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="scale" style="width:12px;height:12px;"></span> المقاصة والتسويات</a>
         ${canManage ? `<span class="mod-hero-badge hb-scope"><span data-lucide="shield-check" style="width:12px;height:12px;"></span> صلاحية إدارة كاملة</span>` : ''}
       </div>
     </div>
@@ -25491,6 +25766,513 @@ async function openPayContractModal(partnerId) {
       toast('تم إنشاء العقد كمسودة', 'success');
       close();
       renderPayContractsTable(partnerId, isFinanceManager());
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// المدفوعات P2 — كشوف الشركاء والمطابقة
+// ═══════════════════════════════════════════════════════════════════
+const PAY_STMT_STATUS = { imported: 'مستورد', reconciling: 'قيد المطابقة', reconciled: 'مُطابق', approved: 'معتمد', cancelled: 'ملغي' };
+const PAY_STMT_STATUS_CLS = { imported: 'st-empty', reconciling: 'st-late', reconciled: 'st-present', approved: 'st-present', cancelled: 'st-absent' };
+
+async function pageAcctPayStatements(body) {
+  const canManage = isFinanceManager();
+  body.innerHTML = `
+    <a href="#accounting" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الحسابات</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="file-spreadsheet" style="width:22px;height:22px;color:#123F32;"></span> كشوف الشركاء</h2>
+        <p>استيراد كشوف تسوية منصات التوصيل والشركاء (CSV أو يدوي) ومطابقتها مع الطلبات.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="payAddStmtBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> استيراد كشف</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body" id="payStmtsBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="payModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) document.getElementById('payAddStmtBtn').addEventListener('click', () => openPayStatementCreateModal());
+  await renderPayStatementsTable();
+}
+
+async function renderPayStatementsTable() {
+  const box = document.getElementById('payStmtsBody');
+  if (!box) return;
+  const { data: rows, error } = await PAY.statements.list();
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="file-spreadsheet"></span><p class="hr-empty-title">لا توجد كشوف بعد</p><p class="hr-empty-sub">استورد أول كشف تسوية من شريك.</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>الشريك</th><th>الفترة</th><th>الإجمالي</th><th>الرسوم</th><th>الصافي</th><th>الحالة</th></tr></thead>
+      <tbody>${rows.map(s => `
+        <tr class="hr-emp-row" onclick="location.hash='#acct_pay_statement/${s.id}'">
+          <td><strong>${esc(s.pay_partners?.name || '—')}</strong></td>
+          <td class="mono-num">${esc(s.period_start)} ← ${esc(s.period_end)}</td>
+          <td class="mono-num">${money(s.gross_total)}</td>
+          <td class="mono-num">${money(s.fees_total)}</td>
+          <td class="mono-num" style="font-weight:800;">${money(s.net_total)}</td>
+          <td><span class="hr-att-cell ${PAY_STMT_STATUS_CLS[s.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(PAY_STMT_STATUS[s.status])}</span></td>
+        </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+}
+
+async function openPayStatementCreateModal() {
+  const { data: partners } = await PAY.partners.list({ is_active: true });
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:600px;max-width:97%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="file-spreadsheet" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> استيراد كشف شريك</h3>
+        <button class="modal-close-x" id="paySClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="paySErr"></div>
+        <form id="paySForm" class="hr-form-grid">
+          <div class="form-field"><label>الشريك *</label>
+            <select class="form-select" name="partner_id" required>
+              <option value="">اختر شريكًا</option>
+              ${(partners || []).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>رقم الكشف</label><input class="form-input mono-num" name="statement_no"></div>
+          <div class="form-field"><label>من *</label><input class="form-input" type="date" name="period_start" required></div>
+          <div class="form-field"><label>إلى *</label><input class="form-input" type="date" name="period_end" required></div>
+          <div class="form-field full"><label>ملف CSV (اختياري)</label><input class="form-input" type="file" id="paySFile" accept=".csv,text/csv"></div>
+          <div class="form-field full">
+            <label>بنود الكشف * <span style="font-weight:400;color:var(--text-muted);">(سطر لكل طلب: مرجع الطلب, التاريخ YYYY-MM-DD, الإجمالي, العمولة, التوصيل, رسوم أخرى, الصافي)</span></label>
+            <textarea class="form-input mono-num" name="lines" id="paySLines" rows="7" placeholder="ORD-2026-00015, 2026-07-10, 118.50, 18.00, 15.00, 0, 85.50"></textarea>
+          </div>
+          <div class="form-field full"><label>ملاحظات</label><textarea class="form-input" name="notes" rows="2"></textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="paySCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">استيراد الكشف</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#paySClose').addEventListener('click', close);
+  host.querySelector('#paySCancel').addEventListener('click', close);
+  host.querySelector('#paySFile').addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => { document.getElementById('paySLines').value = String(reader.result || ''); toast('تم تحميل الملف — راجع البنود ثم استورد', 'success'); };
+    reader.readAsText(f, 'utf-8');
+  });
+  host.querySelector('#paySForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('paySErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const parsed = PAY.statements.parseCsv(fd.get('lines'));
+    if (parsed.errors.length) {
+      errBox.textContent = 'أخطاء في البنود: ' + parsed.errors.slice(0, 3).join(' • ');
+      errBox.classList.add('show');
+      return;
+    }
+    const payload = {
+      partner_id: Number(fd.get('partner_id')),
+      statement_no: (fd.get('statement_no') || '').trim() || null,
+      period_start: fd.get('period_start'),
+      period_end: fd.get('period_end'),
+      source: (document.getElementById('paySFile').files || []).length ? 'csv' : 'manual',
+      notes: (fd.get('notes') || '').trim() || null
+    };
+    try {
+      const { data, error } = await PAY.statements.create(payload, parsed.rows);
+      if (error) throw error;
+      toast(`تم استيراد الكشف (${parsed.rows.length} بندًا)`, 'success');
+      close();
+      location.hash = '#acct_pay_statement/' + data.id;
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function pageAcctPayStatementDetail(body, idParam) {
+  const stmtId = Number(idParam);
+  if (!stmtId) { body.innerHTML = '<p class="error-msg show">معرف الكشف غير صحيح</p>'; return; }
+  const { data: st, error } = await PAY.statements.get(stmtId);
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!st) { body.innerHTML = '<p class="empty-state">الكشف غير موجود</p>'; return; }
+  const canManage = isFinanceManager();
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  body.innerHTML = `
+    <a href="#acct_pay_statements" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للكشوف</a>
+    <div class="hr-emp-hero">
+      <div class="hr-emp-hero-content">
+        <div class="hr-emp-hero-avatar"><span data-lucide="file-spreadsheet" style="width:28px;height:28px;"></span></div>
+        <div class="hr-emp-hero-info">
+          <h2 class="hr-emp-hero-name">كشف ${esc(st.statement_no || '#' + st.id)} — ${esc(st.pay_partners?.name || '')}</h2>
+          <div class="hr-emp-hero-meta">
+            <span class="mono-num">${esc(st.period_start)} ← ${esc(st.period_end)}</span>
+            <span>${esc(PAY_STMT_STATUS[st.status])}</span>
+          </div>
+        </div>
+        <div class="hr-emp-hero-actions">
+          ${canManage && ['imported', 'reconciling'].includes(st.status) ? `<button type="button" class="hr-emp-hero-btn" id="payRunMatchBtn"><span data-lucide="git-branch" style="width:13px;height:13px;"></span> تشغيل المطابقة</button>` : ''}
+          ${canManage && ['reconciling', 'reconciled'].includes(st.status) ? `<button type="button" class="hr-emp-hero-btn" id="payApproveStmtBtn"><span data-lucide="check-check" style="width:13px;height:13px;"></span> اعتماد الكشف</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="hr-info-grid" style="margin-bottom:18px;">
+      ${_hrInfo('إجمالي الكشف', money(st.gross_total) + ' ر.س')}
+      ${_hrInfo('إجمالي الرسوم', money(st.fees_total) + ' ر.س')}
+      ${_hrInfo('صافي الكشف', money(st.net_total) + ' ر.س')}
+      ${_hrInfo('المصدر', st.source === 'csv' ? 'ملف CSV' : 'إدخال يدوي')}
+    </div>
+
+    <div class="mod-section-title"><span data-lucide="list" style="width:16px;height:16px;"></span> البنود والمطابقة</div>
+    <div id="payStmtLinesBody"><div class="skeleton skeleton-row"></div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  if (canManage) {
+    document.getElementById('payRunMatchBtn')?.addEventListener('click', async () => {
+      toast('جاري المطابقة...', 'success');
+      const { data, error: mErr } = await PAY.statements.runMatching(stmtId);
+      if (mErr) { toast('تعذّرت المطابقة: ' + mErr.message, 'error'); return; }
+      toast(`المطابقة: ${data.matched} مطابق • ${data.exceptions} فرق • ${data.unmatched} غير مطابق`, data.unmatched ? 'warning' : 'success');
+      pageAcctPayStatementDetail(body, idParam);
+    });
+    document.getElementById('payApproveStmtBtn')?.addEventListener('click', async () => {
+      if (!(await customConfirm('اعتماد الكشف؟ بعد الاعتماد يدخل في المقاصة ولا تُعدَّل بنوده.'))) return;
+      const { error: aErr } = await PAY.statements.approve(stmtId);
+      if (aErr) { toast(aErr.message, 'error'); return; }
+      toast('تم اعتماد الكشف', 'success');
+      pageAcctPayStatementDetail(body, idParam);
+    });
+  }
+
+  const { data: lines } = await PAY.statements.lines(stmtId);
+  const box = document.getElementById('payStmtLinesBody');
+  const mLbl = { unmatched: 'غير مطابق', matched: 'مطابق', exception: 'فرق' };
+  const mCls = { unmatched: 'st-empty', matched: 'st-present', exception: 'st-absent' };
+  box.innerHTML = `
+    <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>مرجع الشريك</th><th>التاريخ</th><th>الإجمالي</th><th>الرسوم</th><th>الصافي</th><th>الطلب المطابق</th><th>الحالة</th></tr></thead>
+      <tbody>${(lines || []).map(l => `<tr ${l.match_status === 'exception' ? 'style="background:rgba(220,38,38,0.04);"' : ''}>
+        <td class="mono-num">${esc(l.external_order_ref || '—')}</td>
+        <td class="mono-num">${esc(l.order_date || '—')}</td>
+        <td class="mono-num">${money(l.gross_amount)}</td>
+        <td class="mono-num">${money(Number(l.commission_fee) + Number(l.delivery_fee) + Number(l.other_fee))}</td>
+        <td class="mono-num">${money(l.net_amount)}</td>
+        <td class="mono-num">${l.matched_order ? esc(l.matched_order.order_number) : '—'}${l.exception_reason ? `<div style="font-size:10px;color:#b91c1c;">${esc(l.exception_reason)}</div>` : ''}</td>
+        <td><span class="hr-att-cell ${mCls[l.match_status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(mLbl[l.match_status])}</span></td>
+      </tr>`).join('')}</tbody>
+    </table></div></div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// المدفوعات P3 — المقاصة والتسويات والتحويلات
+// ═══════════════════════════════════════════════════════════════════
+const PAY_CLR_STATUS = { draft: 'مسودة', calculated: 'محسوبة', approved: 'معتمدة', settled: 'مُسوَّاة', cancelled: 'ملغاة' };
+const PAY_CLR_STATUS_CLS = { draft: 'st-empty', calculated: 'st-late', approved: 'st-present', settled: 'st-present', cancelled: 'st-absent' };
+
+async function pageAcctPayClearing(body) {
+  const canManage = isFinanceManager();
+  body.innerHTML = `
+    <a href="#accounting" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الحسابات</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="scale" style="width:22px;height:22px;color:#123F32;"></span> المقاصة والتسويات</h2>
+        <p>تجميع الكشوف المعتمدة في صافي واحد لكل شريك، ثم الاعتماد وتسجيل التحويل بإثباته.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="payAddClrBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> دفعة مقاصة جديدة</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body" id="payClrBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="payModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) document.getElementById('payAddClrBtn').addEventListener('click', () => openPayClearingCreateModal());
+  await renderPayClearingTable();
+}
+
+async function renderPayClearingTable() {
+  const box = document.getElementById('payClrBody');
+  if (!box) return;
+  const { data: rows, error } = await PAY.clearing.list();
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="scale"></span><p class="hr-empty-title">لا توجد دفعات مقاصة بعد</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>الرقم</th><th>الشريك</th><th>الفترة</th><th>الصافي المستحق</th><th>الحالة</th></tr></thead>
+      <tbody>${rows.map(b => `
+        <tr class="hr-emp-row" onclick="location.hash='#acct_pay_clearing_batch/${b.id}'">
+          <td class="mono-num">${esc(b.batch_no || '#' + b.id)}</td>
+          <td><strong>${esc(b.pay_partners?.name || '—')}</strong></td>
+          <td class="mono-num">${esc(b.period_start)} ← ${esc(b.period_end)}</td>
+          <td class="mono-num" style="font-weight:800;color:${Number(b.net_receivable) >= 0 ? '#12372F' : '#b91c1c'};">${money(b.net_receivable)} ${Number(b.net_receivable) >= 0 ? '(لنا)' : '(علينا)'}</td>
+          <td><span class="hr-att-cell ${PAY_CLR_STATUS_CLS[b.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(PAY_CLR_STATUS[b.status])}</span></td>
+        </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+}
+
+async function openPayClearingCreateModal() {
+  const { data: partners } = await PAY.partners.list({ is_active: true });
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:460px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> دفعة مقاصة جديدة</h3>
+        <button class="modal-close-x" id="payClrClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="payClrErr"></div>
+        <form id="payClrForm" class="hr-form-grid">
+          <div class="form-field full"><label>الشريك *</label>
+            <select class="form-select" name="partner_id" required>
+              <option value="">اختر شريكًا</option>
+              ${(partners || []).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>من *</label><input class="form-input" type="date" name="period_start" required></div>
+          <div class="form-field"><label>إلى *</label><input class="form-input" type="date" name="period_end" required></div>
+          <div class="form-field full"><label>ملاحظات</label><textarea class="form-input" name="notes" rows="2"></textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="payClrCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">إنشاء</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#payClrClose').addEventListener('click', close);
+  host.querySelector('#payClrCancel').addEventListener('click', close);
+  host.querySelector('#payClrForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('payClrErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    try {
+      const { data, error } = await PAY.clearing.create({
+        partner_id: Number(fd.get('partner_id')),
+        period_start: fd.get('period_start'),
+        period_end: fd.get('period_end'),
+        notes: (fd.get('notes') || '').trim() || null
+      });
+      if (error) throw error;
+      toast('تم إنشاء الدفعة', 'success');
+      close();
+      location.hash = '#acct_pay_clearing_batch/' + data.id;
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function pageAcctPayClearingBatch(body, idParam) {
+  const batchId = Number(idParam);
+  if (!batchId) { body.innerHTML = '<p class="error-msg show">معرف الدفعة غير صحيح</p>'; return; }
+  const { data: b, error } = await PAY.clearing.get(batchId);
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!b) { body.innerHTML = '<p class="empty-state">الدفعة غير موجودة</p>'; return; }
+  const canManage = isFinanceManager();
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  body.innerHTML = `
+    <a href="#acct_pay_clearing" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للمقاصة</a>
+    <div class="hr-emp-hero">
+      <div class="hr-emp-hero-content">
+        <div class="hr-emp-hero-avatar"><span data-lucide="scale" style="width:28px;height:28px;"></span></div>
+        <div class="hr-emp-hero-info">
+          <h2 class="hr-emp-hero-name">${esc(b.batch_no || '#' + b.id)} — ${esc(b.pay_partners?.name || '')}</h2>
+          <div class="hr-emp-hero-meta">
+            <span class="mono-num">${esc(b.period_start)} ← ${esc(b.period_end)}</span>
+            <span>${esc(PAY_CLR_STATUS[b.status])}</span>
+          </div>
+        </div>
+        <div class="hr-emp-hero-actions">
+          ${canManage && ['draft', 'calculated'].includes(b.status) ? `<button type="button" class="hr-emp-hero-btn" id="payClrCalcBtn"><span data-lucide="calculator" style="width:13px;height:13px;"></span> احسب الصافي</button>` : ''}
+          ${canManage && ['draft', 'calculated'].includes(b.status) ? `<button type="button" class="hr-emp-hero-btn" id="payClrAdjBtn"><span data-lucide="plus" style="width:13px;height:13px;"></span> تسوية يدوية</button>` : ''}
+          ${canManage && b.status === 'calculated' ? `<button type="button" class="hr-emp-hero-btn" id="payClrApproveBtn"><span data-lucide="check-check" style="width:13px;height:13px;"></span> اعتماد</button>` : ''}
+          ${canManage && b.status === 'approved' ? `<button type="button" class="hr-emp-hero-btn" id="payClrPayoutBtn"><span data-lucide="landmark" style="width:13px;height:13px;"></span> تسجيل التحويل</button>` : ''}
+          ${canManage && ['draft', 'calculated'].includes(b.status) ? `<button type="button" class="hr-emp-hero-btn" id="payClrCancelBtn"><span data-lucide="ban" style="width:13px;height:13px;"></span> إلغاء الدفعة</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="hr-info-grid" style="margin-bottom:18px;">
+      ${_hrInfo('إجمالي المبيعات', money(b.gross_total) + ' ر.س')}
+      ${_hrInfo('إجمالي الرسوم والعمولات', money(b.fees_total) + ' ر.س')}
+      ${_hrInfo('التسويات اليدوية', money(b.adjustments_total) + ' ر.س')}
+      ${_hrInfo('الصافي المستحق ' + (Number(b.net_receivable) >= 0 ? '(لنا)' : '(علينا)'), money(b.net_receivable) + ' ر.س')}
+    </div>
+
+    <div class="mod-section-title"><span data-lucide="list" style="width:16px;height:16px;"></span> بنود المقاصة</div>
+    <div id="payClrItemsBody"><div class="skeleton skeleton-row"></div></div>
+
+    <div class="mod-section-title"><span data-lucide="landmark" style="width:16px;height:16px;"></span> التحويلات</div>
+    <div id="payClrPayoutsBody"><div class="skeleton skeleton-row"></div></div>
+    <div id="payModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  if (canManage) {
+    document.getElementById('payClrCalcBtn')?.addEventListener('click', async () => {
+      const { error: cErr } = await PAY.clearing.calculate(batchId);
+      if (cErr) { toast(cErr.message, 'error'); return; }
+      toast('تم حساب صافي الدفعة', 'success');
+      pageAcctPayClearingBatch(body, idParam);
+    });
+    document.getElementById('payClrAdjBtn')?.addEventListener('click', async () => {
+      const desc = await customPrompt('وصف التسوية اليدوية (مثال: تعويض طلبات تالفة):');
+      if (!desc) return;
+      const amtStr = await customPrompt('المبلغ بالريال (موجب = لنا على الشريك، سالب = علينا له):', '0');
+      if (amtStr === null) return;
+      const { error: adjErr } = await PAY.clearing.addAdjustment(batchId, desc, Number(amtStr) || 0);
+      if (adjErr) { toast(adjErr.message, 'error'); return; }
+      toast('أُضيفت التسوية — أعد الحساب لتحديث الصافي', 'success');
+      pageAcctPayClearingBatch(body, idParam);
+    });
+    document.getElementById('payClrApproveBtn')?.addEventListener('click', async () => {
+      if (!(await customConfirm('اعتماد الدفعة؟ بعد الاعتماد لا يُعاد حسابها — التعديل عبر تسوية في دورة لاحقة.'))) return;
+      const { error: aErr } = await PAY.clearing.approve(batchId);
+      if (aErr) { toast(aErr.message, 'error'); return; }
+      toast('تم اعتماد الدفعة', 'success');
+      pageAcctPayClearingBatch(body, idParam);
+    });
+    document.getElementById('payClrCancelBtn')?.addEventListener('click', async () => {
+      if (!(await customConfirm('إلغاء الدفعة؟ ستُفك الكشوف المرتبطة لتدخل دفعة أخرى.'))) return;
+      const { error: xErr } = await PAY.clearing.cancel(batchId);
+      if (xErr) { toast(xErr.message, 'error'); return; }
+      toast('تم إلغاء الدفعة', 'success');
+      location.hash = '#acct_pay_clearing';
+    });
+    document.getElementById('payClrPayoutBtn')?.addEventListener('click', () => openPayPayoutModal(b, body, idParam));
+  }
+
+  const { data: items } = await PAY.clearing.items(batchId);
+  const itemsBox = document.getElementById('payClrItemsBody');
+  if (!(items || []).length) {
+    itemsBox.innerHTML = `<div class="hr-empty"><span data-lucide="list"></span><p class="hr-empty-title">لا توجد بنود — اضغط "احسب الصافي" لسحب الكشوف المعتمدة</p></div>`;
+  } else {
+    itemsBox.innerHTML = `
+      <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+        <thead><tr><th>النوع</th><th>الوصف</th><th>المبلغ</th></tr></thead>
+        <tbody>${items.map(i => `<tr>
+          <td>${i.source_type === 'statement' ? 'كشف' : 'تسوية يدوية'}</td>
+          <td>${esc(i.description)}</td>
+          <td class="mono-num" style="font-weight:700;color:${Number(i.amount) >= 0 ? '#12372F' : '#b91c1c'};">${money(i.amount)}</td>
+        </tr>`).join('')}</tbody>
+      </table></div></div></div>
+    `;
+  }
+
+  const { data: payouts } = await PAY.payouts.listForBatch(batchId);
+  const poBox = document.getElementById('payClrPayoutsBody');
+  if (!(payouts || []).length) {
+    poBox.innerHTML = `<div class="hr-empty"><span data-lucide="landmark"></span><p class="hr-empty-title">لا توجد تحويلات مسجَّلة</p></div>`;
+  } else {
+    poBox.innerHTML = `
+      <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+        <thead><tr><th>الاتجاه</th><th>المبلغ</th><th>البنك</th><th>المرجع البنكي</th><th>التاريخ</th><th>القيد</th></tr></thead>
+        <tbody>${payouts.map(p => `<tr>
+          <td>${p.direction === 'incoming' ? 'وارد من الشريك' : 'صادر للشريك'}</td>
+          <td class="mono-num" style="font-weight:800;">${money(p.amount)}</td>
+          <td>${esc(p.acct_bank_accounts?.bank_name || '—')}</td>
+          <td class="mono-num">${esc(p.bank_ref || '—')}</td>
+          <td class="mono-num">${esc(p.payout_date)}</td>
+          <td>${p.journal_entry_id ? `<a href="#acct_journal_entry/${p.journal_entry_id}" style="color:#12372F;font-weight:700;">عرض القيد</a>` : '—'}</td>
+        </tr>`).join('')}</tbody>
+      </table></div></div></div>
+    `;
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+async function openPayPayoutModal(batch, body, idParam) {
+  const { data: banks } = await sb.from('acct_bank_accounts').select('id, bank_name, account_name').is('deleted_at', null).eq('is_active', true);
+  const net = Number(batch.net_receivable) || 0;
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:480px;max-width:96%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="landmark" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> تسجيل التحويل البنكي</h3>
+        <button class="modal-close-x" id="payPoClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="payPoErr"></div>
+        <form id="payPoForm" class="hr-form-grid">
+          <div class="form-field"><label>الاتجاه *</label>
+            <select class="form-select" name="direction">
+              <option value="incoming" ${net >= 0 ? 'selected' : ''}>وارد من الشريك (لنا)</option>
+              <option value="outgoing" ${net < 0 ? 'selected' : ''}>صادر للشريك (علينا)</option>
+            </select>
+          </div>
+          <div class="form-field"><label>المبلغ *</label><input class="form-input mono-num" type="number" step="0.01" min="0.01" name="amount" required value="${Math.abs(net).toFixed(2)}"></div>
+          <div class="form-field full"><label>الحساب البنكي</label>
+            <select class="form-select" name="bank_account_id">
+              <option value="">—</option>
+              ${(banks || []).map(x => `<option value="${x.id}">${esc(x.bank_name)} — ${esc(x.account_name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>المرجع البنكي</label><input class="form-input mono-num" name="bank_ref"></div>
+          <div class="form-field"><label>تاريخ التحويل *</label><input class="form-input" type="date" name="payout_date" required value="${new Date().toISOString().slice(0,10)}"></div>
+          <div class="form-field full" style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="payPoJournal" checked>
+            <label for="payPoJournal" style="margin:0;">إنشاء قيد محاسبي مسودة (يراجعه المحاسب قبل الترحيل)</label>
+          </div>
+          <div class="form-field full"><label>ملاحظات</label><textarea class="form-input" name="notes" rows="2"></textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="payPoCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">تسجيل وإقفال التسوية</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#payPoClose').addEventListener('click', close);
+  host.querySelector('#payPoCancel').addEventListener('click', close);
+  host.querySelector('#payPoForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('payPoErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    try {
+      const { error } = await PAY.payouts.record(batch, {
+        direction: fd.get('direction'),
+        amount: Number(fd.get('amount')),
+        bank_account_id: fd.get('bank_account_id') ? Number(fd.get('bank_account_id')) : null,
+        bank_ref: fd.get('bank_ref'),
+        payout_date: fd.get('payout_date'),
+        notes: fd.get('notes')
+      }, document.getElementById('payPoJournal').checked);
+      if (error) throw error;
+      toast('تم تسجيل التحويل وإقفال التسوية', 'success');
+      close();
+      pageAcctPayClearingBatch(body, idParam);
     } catch (err) {
       errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
     }
