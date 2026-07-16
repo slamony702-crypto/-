@@ -4875,7 +4875,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v104-2026-07-16-pay-p2-p3';
+const APP_VERSION = 'v105-2026-07-16-ai-settlements-settings';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -6997,7 +6997,8 @@ const AIA_TOOL_LABELS = {
   get_expiring_documents: 'الوثائق القاربة على الانتهاء',
   get_financial_summary: 'الملخص المالي',
   get_recent_decisions: 'آخر القرارات',
-  get_open_maintenance_requests: 'طلبات الصيانة المفتوحة'
+  get_open_maintenance_requests: 'طلبات الصيانة المفتوحة',
+  get_partners_settlements: 'تسويات الشركاء'
 };
 
 const AIA = {
@@ -7102,6 +7103,33 @@ const AIA = {
           status: r.status,
           created_at: r.created_at
         }))
+      };
+    },
+
+    async get_partners_settlements() {
+      const [partnersRes, stmtsRes, batchesRes, payoutsRes] = await Promise.all([
+        sb.from('pay_partners').select('id, name, partner_type').is('deleted_at', null).eq('is_active', true),
+        sb.from('pay_statements').select('partner_id, net_total, status, cleared_batch_id'),
+        sb.from('pay_clearing_batches').select('partner_id, batch_no, net_receivable, status'),
+        sb.from('pay_payouts').select('partner_id, direction, amount, payout_date').order('payout_date', { ascending: false }).limit(50)
+      ]);
+      if (partnersRes.error) return { error: partnersRes.error.message };
+      const stmts = stmtsRes.data || [], batches = batchesRes.data || [], payouts = payoutsRes.data || [];
+      const partners = (partnersRes.data || []).map(p => {
+        const pendingStmts = stmts.filter(s => s.partner_id === p.id && s.status === 'approved' && !s.cleared_batch_id);
+        const openBatches = batches.filter(b => b.partner_id === p.id && ['calculated', 'approved'].includes(b.status));
+        const lastPayout = payouts.find(x => x.partner_id === p.id) || null;
+        return {
+          partner: p.name,
+          type: PAY_PARTNER_TYPE_LABELS[p.partner_type] || p.partner_type,
+          approved_statements_awaiting_clearing: { count: pendingStmts.length, net_total: Math.round(pendingStmts.reduce((t, s) => t + Number(s.net_total), 0) * 100) / 100 },
+          open_clearing_batches: openBatches.map(b => ({ batch_no: b.batch_no, net_receivable: Number(b.net_receivable), status: b.status === 'approved' ? 'معتمدة بانتظار التحويل' : 'محسوبة بانتظار الاعتماد' })),
+          last_payout: lastPayout ? { direction: lastPayout.direction === 'incoming' ? 'وارد منه' : 'صادر له', amount: Number(lastPayout.amount), date: lastPayout.payout_date } : null
+        };
+      });
+      return {
+        note: 'القيم الموجبة مستحقة لنا على الشريك (هو حصّل من العملاء)',
+        partners
       };
     }
   },
@@ -10274,7 +10302,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', acct_pay_partners: 'شركاء المدفوعات', acct_pay_partner: 'تفاصيل الشريك', acct_pay_statements: 'كشوف الشركاء', acct_pay_statement: 'تفاصيل الكشف', acct_pay_clearing: 'المقاصة والتسويات', acct_pay_clearing_batch: 'تفاصيل دفعة المقاصة', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', ops_issues: 'المشكلات التشغيلية', ops_issue_detail: 'تفاصيل المشكلة', ops_settings: 'إعدادات التشغيل', ai_assistant: 'المساعد الذكي', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', acct_pay_partners: 'شركاء المدفوعات', acct_pay_partner: 'تفاصيل الشريك', acct_pay_statements: 'كشوف الشركاء', acct_pay_statement: 'تفاصيل الكشف', acct_pay_clearing: 'المقاصة والتسويات', acct_pay_clearing_batch: 'تفاصيل دفعة المقاصة', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', ops_issues: 'المشكلات التشغيلية', ops_issue_detail: 'تفاصيل المشكلة', ops_settings: 'إعدادات التشغيل', ai_assistant: 'المساعد الذكي', ai_settings: 'إعدادات المساعد الذكي', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -14890,6 +14918,7 @@ async function route() {
     else if (page === 'ops_issue_detail') await pageOpsIssueDetail(body, param);
     else if (page === 'ops_settings') await pageOpsSettings(body);
     else if (page === 'ai_assistant') await pageAiAssistant(body);
+    else if (page === 'ai_settings') await pageAiSettings(body);
     else if (page === 'meetings') await pageMeetings(body, query);
     else if (page === 'meetings_calendar') await pageMeetingsCalendar(body, query);
     else if (page === 'meeting_detail') await pageMeetingDetail(body, param, query);
@@ -26301,7 +26330,8 @@ async function pageAiAssistant(body) {
     { icon: 'file-check', text: 'مين عنده وثائق هتنتهي خلال 30 يوم؟' },
     { icon: 'landmark', text: 'اعطني ملخص مالي سريع' },
     { icon: 'gavel', text: 'إيه آخر القرارات اللي اتاخدت في الاجتماعات؟' },
-    { icon: 'wrench', text: 'اعرض طلبات الصيانة المفتوحة حسب الخطورة' }
+    { icon: 'wrench', text: 'اعرض طلبات الصيانة المفتوحة حسب الخطورة' },
+    { icon: 'handshake', text: 'كم صافي مستحقاتنا عند شركاء المدفوعات؟' }
   ];
 
   body.innerHTML = `
@@ -26312,6 +26342,7 @@ async function pageAiAssistant(body) {
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <select class="form-select" id="aiaSessionSelect" style="max-width:200px;"><option value="">محادثة جديدة</option></select>
+        ${['admin', 'company_manager'].includes(CURRENT_USER.role) ? `<a href="#ai_settings" class="btn btn-outline" title="إعدادات المساعد" style="padding:9px 12px;border-radius:12px;"><span data-lucide="settings" style="width:15px;height:15px;"></span></a>` : ''}
       </div>
     </div>
 
@@ -26439,6 +26470,61 @@ async function pageAiAssistant(body) {
   body.querySelectorAll('[data-aia-suggest]').forEach(b => b.addEventListener('click', () => send(SUGGESTIONS[Number(b.dataset.aiaSuggest)].text)));
 
   await loadSessionsList();
+}
+
+// ─── إعدادات المساعد الذكي (للإدارة العليا فقط) ─────────────────────
+async function pageAiSettings(body) {
+  if (!['admin', 'company_manager'].includes(CURRENT_USER.role)) {
+    body.innerHTML = '<p class="empty-state">لا تملك صلاحية الوصول لهذه الصفحة</p>';
+    return;
+  }
+  const { data: s, error } = await sb.from('ai_settings').select('*').eq('id', 1).maybeSingle();
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+
+  body.innerHTML = `
+    <a href="#ai_assistant" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للمساعد الذكي</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="settings" style="width:22px;height:22px;color:#8B5CF6;"></span> إعدادات المساعد الذكي</h2>
+        <p>تحكم في تشغيل المساعد وحدوده وشخصيته — بدون أي تعديل كود.</p>
+      </div>
+    </div>
+    <div class="panel"><div class="panel-body">
+      <div class="error-msg" id="aiSetErr"></div>
+      <form id="aiSetForm" class="hr-form-grid">
+        <div class="form-field full" style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="aiSetEnabled" ${s?.is_enabled !== false ? 'checked' : ''}>
+          <label for="aiSetEnabled" style="margin:0;">المساعد الذكي مفعَّل (إيقافه يمنع الأسئلة الجديدة فورًا لكل المستخدمين)</label>
+        </div>
+        <div class="form-field"><label>اسم المساعد الظاهر</label><input class="form-input" name="assistant_name" value="${esc(s?.assistant_name || 'المساعد الذكي')}"></div>
+        <div class="form-field"><label>الحد اليومي للأسئلة لكل مستخدم</label><input class="form-input mono-num" type="number" min="1" max="1000" name="daily_message_limit" value="${Number(s?.daily_message_limit) || 50}"></div>
+        <div class="form-field full">
+          <label>تعليمات إضافية للمساعد <span style="font-weight:400;color:var(--text-muted);">(تُضاف لشخصيته — مثال: "ركّز دائمًا على فرع العليا"، حد أقصى 2000 حرف)</span></label>
+          <textarea class="form-input" name="extra_instructions" rows="4" maxlength="2000">${esc(s?.extra_instructions || '')}</textarea>
+        </div>
+        <div class="full" style="display:flex;justify-content:flex-end;">
+          <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">حفظ الإعدادات</button>
+        </div>
+      </form>
+    </div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  document.getElementById('aiSetForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('aiSetErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      is_enabled: document.getElementById('aiSetEnabled').checked,
+      assistant_name: (fd.get('assistant_name') || '').trim() || 'المساعد الذكي',
+      daily_message_limit: Math.min(Math.max(Number(fd.get('daily_message_limit')) || 50, 1), 1000),
+      extra_instructions: (fd.get('extra_instructions') || '').trim() || null
+    };
+    const { error: uErr } = await sb.from('ai_settings').update(payload).eq('id', 1);
+    if (uErr) { errBox.textContent = uErr.message; errBox.classList.add('show'); return; }
+    toast('تم حفظ إعدادات المساعد', 'success');
+  });
 }
 
 async function pageComingSoonModule(body, key) {
