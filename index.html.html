@@ -3564,31 +3564,29 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 }
 
 /* ============ فورم رفع طلب الصيانة (Request Center) ============ */
-.mt-stepper { display: flex; align-items: center; overflow-x: auto; padding: 6px 2px 12px; margin-bottom: 18px; -webkit-overflow-scrolling: touch; }
-.mt-step { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.mt-step-num { width: 30px; height: 30px; border-radius: 50%; background: #E2E8F0; color: #64748B; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0; transition: all .2s ease; }
-.mt-step.active .mt-step-num { background: #123F32; color: #fff; box-shadow: 0 2px 8px rgba(18,55,47,0.3); }
-.mt-step-txt { line-height: 1.3; }
-.mt-step-txt .t { font-size: 12.5px; font-weight: 700; color: #0F172A; white-space: nowrap; }
-.mt-step-txt .s { font-size: 10px; color: #64748B; white-space: nowrap; }
-.mt-step-line { width: 30px; height: 2px; background: #E2E8F0; margin: 0 8px; flex-shrink: 0; }
-/* نسخة مضغوطة للموبايل — بديل عن الصف الأفقي القابل للتمرير اللي كان بيبان
-   مقطوع/مزدحم على شاشة ضيقة. شريط تقدّم بسيط + اسم الخطوة الحالية بس */
-.mt-stepper-mobile { display: none; }
+/* ستيبر موحّد (ديسكتوب + موبايل): دوائر مرقّمة يربط بينها خط، والعنوان تحت
+   كل دايرة. بيتوزّع على عرض الشاشة بالكامل بدون سكرول أفقي ولا قصّ */
+.mt-stepper { display: flex; align-items: flex-start; padding: 12px 4px 14px; margin-bottom: 18px; }
+.mt-step { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; flex-shrink: 0; }
+.mt-step-num { width: 34px; height: 34px; border-radius: 50%; background: #fff; border: 2px solid #E2E8F0; color: #94A3B8; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13.5px; flex-shrink: 0; transition: all .2s ease; }
+.mt-step.active .mt-step-num { background: linear-gradient(135deg, #12372F, #2E9E4C); border-color: transparent; color: #fff; box-shadow: 0 3px 10px rgba(18,55,47,0.35); }
+.mt-step.done .mt-step-num { background: #DFF5E9; border-color: #2E9E4C; color: #12372F; }
+.mt-step-txt { line-height: 1.25; }
+.mt-step-txt .t { display: block; font-size: 11.5px; font-weight: 800; color: #64748B; white-space: nowrap; }
+.mt-step.active .mt-step-txt .t { color: #12372F; }
+.mt-step-txt .s { display: block; font-size: 9.5px; color: #94A3B8; white-space: nowrap; margin-top: 1px; }
+/* الخط الواصل: بياخد المساحة المتبقية بالتساوي ومظبوط رأسيًا على منتصف الدايرة */
+.mt-step-line { flex: 1; height: 2.5px; border-radius: 2px; background: #E2E8F0; margin: 16px 4px 0; min-width: 10px; }
+:root[data-theme="dark"] .mt-step-num { background: var(--surface); border-color: var(--border); color: var(--text-muted); }
+:root[data-theme="dark"] .mt-step-txt .t { color: var(--text-muted); }
+:root[data-theme="dark"] .mt-step.active .mt-step-txt .t { color: var(--text); }
+:root[data-theme="dark"] .mt-step-line { background: var(--border); }
 @media (max-width: 768px) {
-  .mt-stepper { display: none; }
-  .mt-stepper-mobile {
-    display: flex; align-items: center; gap: 10px;
-    background: var(--surface); border-radius: 14px; padding: 12px 14px;
-    margin-bottom: 16px;
-    border: 1.5px solid transparent;
-    background-image: linear-gradient(var(--surface), var(--surface)), linear-gradient(135deg, #10B981 0%, #34D399 45%, #8B5CF6 100%);
-    background-origin: border-box; background-clip: padding-box, border-box;
-  }
-  .msm-dots { display: flex; gap: 5px; flex: 1; }
-  .msm-dot { flex: 1; height: 6px; border-radius: 3px; background: #E2E8F0; transition: background .2s ease; }
-  .msm-dot.done, .msm-dot.active { background: linear-gradient(135deg, #10B981, #8B5CF6); }
-  .msm-label { font-size: 12px; font-weight: 700; color: #12372F; white-space: nowrap; flex-shrink: 0; }
+  .mt-stepper { padding: 10px 0 12px; }
+  .mt-step-num { width: 30px; height: 30px; font-size: 12.5px; }
+  .mt-step-txt .t { font-size: 9.5px; white-space: normal; max-width: 58px; }
+  .mt-step-txt .s { display: none; }
+  .mt-step-line { margin-top: 14px; min-width: 6px; margin-left: 2px; margin-right: 2px; }
 }
 
 .mt-chips { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -4820,7 +4818,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v91-2026-07-16-select-sheet-coverage';
+const APP_VERSION = 'v92-2026-07-16-maint-stepper-circles';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -27815,10 +27813,6 @@ async function pageMaintenanceNew(body, param) {
           <span class="mt-step-txt"><span class="t">${s[0]}</span><span class="s">${s[1]}</span></span>
         </div>
       `).join('')}
-    </div>
-    <div class="mt-stepper-mobile">
-      <div class="msm-dots">${MT_NEW_STEPS.map((s, i) => `<span class="msm-dot ${i===0?'active':''}"></span>`).join('')}</div>
-      <span class="msm-label">1 من ${MT_NEW_STEPS.length} — ${esc(MT_NEW_STEPS[0][0])}</span>
     </div>
 
     ${noBranches ? `
