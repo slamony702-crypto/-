@@ -4820,7 +4820,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v88-2026-07-16-ops-shifts';
+const APP_VERSION = 'v89-2026-07-16-ops-orders-inventory';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -5749,6 +5749,10 @@ const ACCT = {
     async postReceiptJournal(receiptId) {
       const { data, error } = await sb.rpc('create_journal_for_receipt', { p_receipt_id: receiptId });
       return { data, error };
+    },
+    async postOpsOrderJournal(orderId) {
+      const { data, error } = await sb.rpc('create_journal_for_ops_order', { p_order_id: orderId });
+      return { data, error };
     }
   },
 
@@ -6585,16 +6589,226 @@ const OPS = {
     }
   },
 
+  // ─── خطط التحضير اليومية ─────────────────────────────────────────
+  prepPlans: {
+    async list(filters = {}) {
+      let q = sb.from('ops_prep_plans').select('*, branches(name)').order('plan_date', { ascending: false });
+      if (filters.branch_id) q = q.eq('branch_id', filters.branch_id);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('ops_prep_plans').select('*, branches(name)').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload, items) {
+      const { data, error } = await sb.from('ops_prep_plans').insert({ ...payload, created_by: CURRENT_USER?.id }).select().single();
+      if (error) return { data, error };
+      if (Array.isArray(items) && items.length) {
+        const rows = items.map(it => ({ plan_id: data.id, item_name: it.item_name, unit: it.unit || 'unit', planned_quantity: Number(it.planned_quantity) || 0 }));
+        await sb.from('ops_prep_plan_items').insert(rows);
+      }
+      return { data, error };
+    },
+    async items(planId) {
+      const { data, error } = await sb.from('ops_prep_plan_items').select('*').eq('plan_id', planId).order('id');
+      return { data: data || [], error };
+    },
+    async updateItemPrepared(itemId, preparedQty) {
+      const { data, error } = await sb.from('ops_prep_plan_items').update({ prepared_quantity: preparedQty }).eq('id', itemId).select().single();
+      return { data, error };
+    },
+    async setStatus(id, status) {
+      const { data, error } = await sb.from('ops_prep_plans').update({ status }).eq('id', id).select().single();
+      return { data, error };
+    }
+  },
+
+  // ─── طلبات المطعم ────────────────────────────────────────────────
+  orders: {
+    validate(data) {
+      const errors = [];
+      if (!data.branch_id) errors.push('الفرع مطلوب');
+      if (!['dine_in', 'takeaway', 'delivery'].includes(data.order_type)) errors.push('نوع الطلب غير صحيح');
+      return errors;
+    },
+    async list(filters = {}) {
+      let q = sb.from('ops_orders').select('*, branches(name)').order('created_at', { ascending: false });
+      if (filters.branch_id) q = q.eq('branch_id', filters.branch_id);
+      if (filters.status) q = q.eq('status', filters.status);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('ops_orders').select('*, branches(name)').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload, items) {
+      const errs = OPS.orders.validate(payload);
+      if (errs.length) return OPS._err(errs.join('؛ '));
+      const { data, error } = await sb.from('ops_orders').insert({ ...payload, created_by: CURRENT_USER?.id }).select().single();
+      if (error) return { data, error };
+      if (Array.isArray(items) && items.length) {
+        const rows = items.map(it => ({ order_id: data.id, item_name: it.item_name, quantity: Number(it.quantity) || 1, unit_price: Number(it.unit_price) || 0, notes: it.notes || null }));
+        await sb.from('ops_order_items').insert(rows);
+      }
+      await OPS.orders._recalcTotals(data.id);
+      return { data, error };
+    },
+    async items(orderId) {
+      const { data, error } = await sb.from('ops_order_items').select('*').eq('order_id', orderId).order('id');
+      return { data: data || [], error };
+    },
+    async addItem(orderId, item) {
+      const { data, error } = await sb.from('ops_order_items').insert({ order_id: orderId, item_name: item.item_name, quantity: Number(item.quantity) || 1, unit_price: Number(item.unit_price) || 0, notes: item.notes || null }).select().single();
+      if (!error) await OPS.orders._recalcTotals(orderId);
+      return { data, error };
+    },
+    async removeItem(itemId, orderId) {
+      const { error } = await sb.from('ops_order_items').delete().eq('id', itemId);
+      if (!error) await OPS.orders._recalcTotals(orderId);
+      return { error };
+    },
+    // يحسب الإجمالي والضريبة من بنود الطلب مقابل acct_settings.vat_rate
+    async _recalcTotals(orderId) {
+      const [{ data: items }, { data: settings }] = await Promise.all([
+        sb.from('ops_order_items').select('quantity, unit_price').eq('order_id', orderId),
+        sb.from('acct_settings').select('vat_rate').eq('id', 1).maybeSingle()
+      ]);
+      const subtotal = (items || []).reduce((s, it) => s + Number(it.quantity) * Number(it.unit_price), 0);
+      const vatRate = settings ? Number(settings.vat_rate) / 100 : 0.15;
+      const vatAmount = Math.round(subtotal * vatRate * 100) / 100;
+      const total = subtotal + vatAmount;
+      await sb.from('ops_orders').update({ subtotal, vat_amount: vatAmount, total_amount: total }).eq('id', orderId);
+      return { subtotal, vatAmount, total };
+    },
+    async setStatus(id, status) {
+      const payload = { status };
+      if (status === 'completed') payload.completed_at = new Date().toISOString();
+      const { data, error } = await sb.from('ops_orders').update(payload).eq('id', id).select().single();
+      return { data, error };
+    },
+    // إكمال الطلب + توليد قيد محاسبي تلقائي (بنفس منطق طلبات الكافيه)
+    async complete(id) {
+      const { data, error } = await OPS.orders.setStatus(id, 'completed');
+      if (error) return { data, error };
+      try { await ACCT.integrations.postOpsOrderJournal(id); } catch (e) { fwReport('postOpsOrderJournal', e); }
+      return { data, error };
+    }
+  },
+
+  // ─── مخزون الفروع ────────────────────────────────────────────────
+  branchInventory: {
+    async list(branchId) {
+      let q = sb.from('ops_branch_inventory_levels').select('*, acct_inventory_items(name, unit, sku), branches(name)').order('item_id');
+      if (branchId) q = q.eq('branch_id', branchId);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async lowStock(branchId) {
+      let q = sb.from('ops_branch_inventory_levels').select('*, acct_inventory_items(name, unit, sku), branches(name)');
+      if (branchId) q = q.eq('branch_id', branchId);
+      const { data, error } = await q;
+      return { data: (data || []).filter(r => Number(r.quantity_on_hand) <= Number(r.reorder_level)), error };
+    },
+    async setReorderLevel(branchId, itemId, level) {
+      const { data, error } = await sb.from('ops_branch_inventory_levels')
+        .upsert({ branch_id: branchId, item_id: itemId, reorder_level: level }, { onConflict: 'branch_id,item_id' })
+        .select().single();
+      return { data, error };
+    }
+  },
+
+  // ─── نقل المخزون بين الفروع ──────────────────────────────────────
+  stockTransfers: {
+    async list(filters = {}) {
+      let q = sb.from('ops_stock_transfers').select('*, from_branch:from_branch_id(name), to_branch:to_branch_id(name)').order('created_at', { ascending: false });
+      if (filters.branch_id) q = q.or(`from_branch_id.eq.${filters.branch_id},to_branch_id.eq.${filters.branch_id}`);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('ops_stock_transfers').select('*, from_branch:from_branch_id(name), to_branch:to_branch_id(name)').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async items(transferId) {
+      const { data, error } = await sb.from('ops_stock_transfer_items').select('*, acct_inventory_items(name, unit)').eq('transfer_id', transferId);
+      return { data: data || [], error };
+    },
+    async create(payload, items) {
+      if (payload.from_branch_id === payload.to_branch_id) return OPS._err('لا يمكن التحويل لنفس الفرع');
+      const { data, error } = await sb.from('ops_stock_transfers').insert({ ...payload, requested_by: CURRENT_USER?.id }).select().single();
+      if (error) return { data, error };
+      if (Array.isArray(items) && items.length) {
+        const rows = items.map(it => ({ transfer_id: data.id, item_id: it.item_id, quantity: Number(it.quantity) }));
+        await sb.from('ops_stock_transfer_items').insert(rows);
+      }
+      return { data, error };
+    },
+    async markInTransit(id) {
+      const { data, error } = await sb.from('ops_stock_transfers').update({ status: 'in_transit' }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async markReceived(id) {
+      const { data, error } = await sb.from('ops_stock_transfers').update({ status: 'received', received_by: CURRENT_USER?.id }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async cancel(id) {
+      const { data, error } = await sb.from('ops_stock_transfers').update({ status: 'cancelled' }).eq('id', id).select().single();
+      return { data, error };
+    }
+  },
+
+  // ─── سجل الهدر ──────────────────────────────────────────────────
+  waste: {
+    async list(filters = {}) {
+      let q = sb.from('ops_waste_records').select('*, acct_inventory_items(name, unit), branches(name), users(full_name)').order('created_at', { ascending: false });
+      if (filters.branch_id) q = q.eq('branch_id', filters.branch_id);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    // يسجل حركة مخزون محاسبية (adjustment) عبر ACCT.inventory الموجودة أصلًا،
+    // ثم يربط سجل الهدر التشغيلي بها — بدون تكرار منطق ترحيل التكلفة.
+    async record(payload) {
+      const { data: item } = await sb.from('acct_inventory_items').select('unit_cost').eq('id', payload.item_id).maybeSingle();
+      let movementId = null;
+      try {
+        const { data: mov, error: movErr } = await ACCT.inventory.recordMovement({
+          item_id: payload.item_id,
+          type: 'adjustment',
+          quantity: payload.quantity,
+          unit_cost: item?.unit_cost || 0,
+          reference: 'هدر تشغيلي — فرع #' + payload.branch_id
+        });
+        if (movErr) throw movErr;
+        movementId = mov?.id || null;
+      } catch (e) { fwReport('opsWasteRecordMovement', e); }
+      const { data, error } = await sb.from('ops_waste_records').insert({
+        branch_id: payload.branch_id,
+        shift_id: payload.shift_id || null,
+        item_id: payload.item_id,
+        quantity: payload.quantity,
+        reason: payload.reason,
+        notes: payload.notes || null,
+        movement_id: movementId,
+        recorded_by: CURRENT_USER?.id
+      }).select().single();
+      return { data, error };
+    }
+  },
+
   dashboard: {
     async summary(branchId) {
       let shiftsQ = sb.from('ops_shifts').select('id, status', { count: 'exact' }).is('deleted_at', null).eq('status', 'in_progress');
       let checklistsQ = sb.from('ops_daily_checklists').select('id', { count: 'exact' }).eq('status', 'in_progress');
-      if (branchId) { shiftsQ = shiftsQ.eq('branch_id', branchId); checklistsQ = checklistsQ.eq('branch_id', branchId); }
-      const [activeShifts, pendingChecklists] = await Promise.all([shiftsQ, checklistsQ]);
+      let ordersQ = sb.from('ops_orders').select('id, status', { count: 'exact' }).in('status', ['open', 'preparing', 'ready']);
+      if (branchId) { shiftsQ = shiftsQ.eq('branch_id', branchId); checklistsQ = checklistsQ.eq('branch_id', branchId); ordersQ = ordersQ.eq('branch_id', branchId); }
+      const [activeShifts, pendingChecklists, openOrders] = await Promise.all([shiftsQ, checklistsQ, ordersQ]);
       return {
         activeShifts: activeShifts.count || 0,
         pendingChecklists: pendingChecklists.count || 0,
-        error: activeShifts.error || pendingChecklists.error || null
+        openOrders: openOrders.count || 0,
+        error: activeShifts.error || pendingChecklists.error || openOrders.error || null
       };
     }
   }
@@ -9035,7 +9249,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -13628,6 +13842,13 @@ async function route() {
     else if (page === 'ops_shifts') await pageOpsShifts(body);
     else if (page === 'ops_shift_detail') await pageOpsShiftDetail(body, param);
     else if (page === 'ops_checklists') await pageOpsChecklists(body);
+    else if (page === 'ops_prep_plans') await pageOpsPrepPlans(body);
+    else if (page === 'ops_prep_plan_detail') await pageOpsPrepPlanDetail(body, param);
+    else if (page === 'ops_orders') await pageOpsOrders(body);
+    else if (page === 'ops_order_detail') await pageOpsOrderDetail(body, param);
+    else if (page === 'ops_branch_inventory') await pageOpsBranchInventory(body);
+    else if (page === 'ops_stock_transfers') await pageOpsStockTransfers(body);
+    else if (page === 'ops_waste') await pageOpsWaste(body);
     else if (page === 'meetings') await pageMeetings(body, query);
     else if (page === 'meetings_calendar') await pageMeetingsCalendar(body, query);
     else if (page === 'meeting_detail') await pageMeetingDetail(body, param, query);
@@ -22303,12 +22524,17 @@ async function pageOpsDashboard(body) {
         <a href="#ops_shifts" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="calendar-clock" style="width:12px;height:12px;"></span> الورديات</a>
         <a href="#ops_shift_templates" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="clock" style="width:12px;height:12px;"></span> قوالب الورديات</a>
         <a href="#ops_checklists" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="list-checks" style="width:12px;height:12px;"></span> قوائم الفتح والإغلاق</a>
+        <a href="#ops_prep_plans" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="clipboard-list" style="width:12px;height:12px;"></span> خطط التحضير</a>
+        <a href="#ops_orders" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="utensils" style="width:12px;height:12px;"></span> طلبات المطعم</a>
+        <a href="#ops_branch_inventory" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="boxes" style="width:12px;height:12px;"></span> مخزون الفروع</a>
+        <a href="#ops_stock_transfers" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="arrow-left-right" style="width:12px;height:12px;"></span> نقل مخزون</a>
+        <a href="#ops_waste" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="trash-2" style="width:12px;height:12px;"></span> سجل الهدر</a>
         ${canManage ? `<span class="mod-hero-badge hb-scope"><span data-lucide="shield-check" style="width:12px;height:12px;"></span> صلاحية إدارة كاملة</span>` : ''}
       </div>
     </div>
 
     <div class="mod-stats" id="opsKpis">
-      ${[1,2].map(() => `<div class="mod-stat"><div class="skeleton skeleton-row" style="width:60%;height:24px;"></div><div class="skeleton skeleton-row" style="width:80%;margin-top:8px;"></div></div>`).join('')}
+      ${[1,2,3].map(() => `<div class="mod-stat"><div class="skeleton skeleton-row" style="width:60%;height:24px;"></div><div class="skeleton skeleton-row" style="width:80%;margin-top:8px;"></div></div>`).join('')}
     </div>
 
     <div class="mod-section-title"><span data-lucide="calendar-clock" style="width:16px;height:16px;"></span> ورديات اليوم</div>
@@ -22322,6 +22548,7 @@ async function pageOpsDashboard(body) {
     kpiBox.innerHTML = `
       <div class="mod-stat"><div class="mod-stat-val">${summary.activeShifts}</div><div class="mod-stat-lbl">ورديات جارية الآن</div></div>
       <div class="mod-stat"><div class="mod-stat-val">${summary.pendingChecklists}</div><div class="mod-stat-lbl">قوائم فتح/إغلاق بانتظار الإكمال</div></div>
+      <div class="mod-stat"><div class="mod-stat-val">${summary.openOrders}</div><div class="mod-stat-lbl">طلبات مفتوحة قيد التنفيذ</div></div>
     `;
   }
 
@@ -23034,6 +23261,733 @@ async function openOpsChecklistItemsModal(checklistId) {
     close();
     if (checklist.shift_id) renderOpsShiftChecklists(checklist.shift_id);
     renderOpsChecklistsTable();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// وحدة التشغيل (Operations) — المرحلة 3.b: التحضير + الطلبات + المخزون الفرعي + الهدر
+// ═══════════════════════════════════════════════════════════════════
+
+// ─── خطط التحضير اليومية ─────────────────────────────────────────────
+async function pageOpsPrepPlans(body) {
+  const canManage = isOpsManager();
+  body.innerHTML = `
+    <a href="#operations" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لتشغيل المطاعم</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="clipboard-list" style="width:22px;height:22px;color:#123F32;"></span> خطط التحضير اليومية</h2>
+        <p>خطط تحضير المواد لكل فرع ووردية، مع متابعة الكميات المُحضَّرة فعليًا.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="opsAddPrepBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> خطة جديدة</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body" id="opsPrepBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="opsModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) document.getElementById('opsAddPrepBtn').addEventListener('click', () => openOpsPrepPlanCreateModal());
+  await renderOpsPrepPlansTable();
+}
+
+async function renderOpsPrepPlansTable() {
+  const box = document.getElementById('opsPrepBody');
+  if (!box) return;
+  const { data: rows, error } = await OPS.prepPlans.list();
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="clipboard-list"></span><p class="hr-empty-title">لا توجد خطط تحضير بعد</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const statusLbl = { draft: 'مسودة', confirmed: 'مؤكدة', completed: 'مكتملة' };
+  const statusCls = { draft: 'st-empty', confirmed: 'st-late', completed: 'st-present' };
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>الفرع</th><th>التاريخ</th><th>الحالة</th></tr></thead>
+      <tbody>${rows.map(p => `
+        <tr class="hr-emp-row" onclick="location.hash='#ops_prep_plan_detail/${p.id}'">
+          <td>${esc(p.branches?.name || '—')}</td>
+          <td class="mono-num">${esc(p.plan_date)}</td>
+          <td><span class="hr-att-cell ${statusCls[p.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(statusLbl[p.status])}</span></td>
+        </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+}
+
+async function openOpsPrepPlanCreateModal() {
+  const { data: branches } = await sb.from('branches').select('id, name').eq('is_active', true).order('name');
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:480px;max-width:96%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> خطة تحضير جديدة</h3>
+        <button class="modal-close-x" id="opsPrepClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="opsPrepErr"></div>
+        <form id="opsPrepForm" class="hr-form-grid">
+          <div class="form-field full"><label>الفرع *</label>
+            <select class="form-select" name="branch_id" required>
+              <option value="">اختر فرعًا</option>
+              ${(branches || []).map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field full"><label>تاريخ الخطة *</label><input class="form-input" type="date" name="plan_date" required value="${new Date().toISOString().slice(0,10)}"></div>
+          <div class="form-field full"><label>بنود التحضير (اسم البند، الكمية، الوحدة — سطر لكل بند) *</label>
+            <textarea class="form-input" name="items" rows="6" required placeholder="مثال:\nأرز أبيض, 20, كجم\nصدور دجاج, 15, كجم"></textarea>
+          </div>
+          <div class="form-field full"><label>ملاحظات</label><textarea class="form-input" name="notes" rows="2"></textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="opsPrepCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">إنشاء</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#opsPrepClose').addEventListener('click', close);
+  host.querySelector('#opsPrepCancel').addEventListener('click', close);
+  host.querySelector('#opsPrepForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('opsPrepErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const items = (fd.get('items') || '').split('\n').map(s => s.trim()).filter(Boolean).map(line => {
+      const [name, qty, unit] = line.split(',').map(s => (s || '').trim());
+      return { item_name: name, planned_quantity: Number(qty) || 0, unit: unit || 'unit' };
+    });
+    const payload = {
+      branch_id: Number(fd.get('branch_id')),
+      plan_date: fd.get('plan_date'),
+      notes: (fd.get('notes') || '').trim() || null
+    };
+    try {
+      const { error } = await OPS.prepPlans.create(payload, items);
+      if (error) throw error;
+      toast('تم إنشاء خطة التحضير', 'success');
+      close();
+      renderOpsPrepPlansTable();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function pageOpsPrepPlanDetail(body, idParam) {
+  const planId = Number(idParam);
+  if (!planId) { body.innerHTML = '<p class="error-msg show">معرف الخطة غير صحيح</p>'; return; }
+  const { data: plan, error } = await OPS.prepPlans.get(planId);
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!plan) { body.innerHTML = '<p class="empty-state">الخطة غير موجودة</p>'; return; }
+  const canManage = isOpsManager();
+  const statusLbl = { draft: 'مسودة', confirmed: 'مؤكدة', completed: 'مكتملة' };
+
+  body.innerHTML = `
+    <a href="#ops_prep_plans" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لخطط التحضير</a>
+    <div class="hr-emp-hero">
+      <div class="hr-emp-hero-content">
+        <div class="hr-emp-hero-avatar"><span data-lucide="clipboard-list" style="width:28px;height:28px;"></span></div>
+        <div class="hr-emp-hero-info">
+          <h2 class="hr-emp-hero-name">${esc(plan.branches?.name || '—')} — ${esc(plan.plan_date)}</h2>
+          <div class="hr-emp-hero-meta"><span><span data-lucide="info" style="width:13px;height:13px;"></span> ${esc(statusLbl[plan.status])}</span></div>
+        </div>
+        <div class="hr-emp-hero-actions">
+          ${canManage && plan.status === 'draft' ? `<button type="button" class="hr-emp-hero-btn" id="opsPrepConfirmBtn">تأكيد الخطة</button>` : ''}
+          ${canManage && plan.status === 'confirmed' ? `<button type="button" class="hr-emp-hero-btn" id="opsPrepCompleteBtn">إنهاء الخطة</button>` : ''}
+        </div>
+      </div>
+    </div>
+    <div class="mod-section-title"><span data-lucide="list" style="width:16px;height:16px;"></span> البنود</div>
+    <div id="opsPrepItemsBody"><div class="skeleton skeleton-row"></div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) {
+    const confirmBtn = document.getElementById('opsPrepConfirmBtn');
+    if (confirmBtn) confirmBtn.addEventListener('click', async () => { await OPS.prepPlans.setStatus(planId, 'confirmed'); pageOpsPrepPlanDetail(body, idParam); });
+    const completeBtn = document.getElementById('opsPrepCompleteBtn');
+    if (completeBtn) completeBtn.addEventListener('click', async () => { await OPS.prepPlans.setStatus(planId, 'completed'); pageOpsPrepPlanDetail(body, idParam); });
+  }
+
+  const { data: items } = await OPS.prepPlans.items(planId);
+  const box = document.getElementById('opsPrepItemsBody');
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>البند</th><th>الكمية المخططة</th><th>الوحدة</th><th>الكمية المُحضَّرة</th></tr></thead>
+      <tbody>${(items || []).map(it => `<tr>
+        <td>${esc(it.item_name)}</td>
+        <td class="mono-num">${esc(it.planned_quantity)}</td>
+        <td>${esc(it.unit)}</td>
+        <td><input type="number" step="0.01" class="form-input mono-num" style="width:100px;" value="${it.prepared_quantity}" data-prep-item="${it.id}" ${canManage ? '' : 'disabled'}></td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (canManage) {
+    box.querySelectorAll('[data-prep-item]').forEach(inp => inp.addEventListener('change', async () => {
+      await OPS.prepPlans.updateItemPrepared(Number(inp.dataset.prepItem), Number(inp.value) || 0);
+      toast('تم الحفظ', 'success');
+    }));
+  }
+}
+
+// ─── طلبات المطعم ────────────────────────────────────────────────────
+async function pageOpsOrders(body) {
+  body.innerHTML = `
+    <a href="#operations" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لتشغيل المطاعم</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="utensils" style="width:22px;height:22px;color:#123F32;"></span> طلبات المطعم</h2>
+        <p>طلبات الصالة والسفري والتوصيل — إكمال الطلب يولّد قيدًا محاسبيًا تلقائيًا (بنفس منطق طلبات الكافيه).</p>
+      </div>
+      <button type="button" class="btn" id="opsAddOrderBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> طلب جديد</button>
+    </div>
+    <div class="panel"><div class="panel-body" id="opsOrdersBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="opsModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  document.getElementById('opsAddOrderBtn').addEventListener('click', () => openOpsOrderCreateModal());
+  await renderOpsOrdersTable();
+}
+
+async function renderOpsOrdersTable() {
+  const box = document.getElementById('opsOrdersBody');
+  if (!box) return;
+  const { data: rows, error } = await OPS.orders.list();
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="utensils"></span><p class="hr-empty-title">لا توجد طلبات بعد</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const typeLbl = { dine_in: 'صالة', takeaway: 'سفري', delivery: 'توصيل' };
+  const statusLbl = { open: 'مفتوح', preparing: 'قيد التحضير', ready: 'جاهز', completed: 'مكتمل', cancelled: 'ملغي' };
+  const statusCls = { open: 'st-empty', preparing: 'st-late', ready: 'st-late', completed: 'st-present', cancelled: 'st-absent' };
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>رقم الطلب</th><th>الفرع</th><th>النوع</th><th>الإجمالي</th><th>الحالة</th></tr></thead>
+      <tbody>${rows.map(o => `
+        <tr class="hr-emp-row" onclick="location.hash='#ops_order_detail/${o.id}'">
+          <td class="mono-num">${esc(o.order_number)}</td>
+          <td>${esc(o.branches?.name || '—')}</td>
+          <td>${esc(typeLbl[o.order_type])}</td>
+          <td class="mono-num">${money(o.total_amount)}</td>
+          <td><span class="hr-att-cell ${statusCls[o.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(statusLbl[o.status])}</span></td>
+        </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+}
+
+async function openOpsOrderCreateModal() {
+  const { data: branches } = await sb.from('branches').select('id, name').eq('is_active', true).order('name');
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:480px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> طلب جديد</h3>
+        <button class="modal-close-x" id="opsOrderClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="opsOrderErr"></div>
+        <form id="opsOrderForm" class="hr-form-grid">
+          <div class="form-field full"><label>الفرع *</label>
+            <select class="form-select" name="branch_id" required>
+              <option value="">اختر فرعًا</option>
+              ${(branches || []).map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>نوع الطلب *</label>
+            <select class="form-select" name="order_type" required>
+              <option value="dine_in">صالة</option>
+              <option value="takeaway">سفري</option>
+              <option value="delivery">توصيل</option>
+            </select>
+          </div>
+          <div class="form-field"><label>رقم الطاولة</label><input class="form-input" name="table_number"></div>
+          <div class="form-field"><label>اسم العميل</label><input class="form-input" name="customer_name"></div>
+          <div class="form-field"><label>جوال العميل</label><input class="form-input" name="customer_phone"></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="opsOrderCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">إنشاء</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#opsOrderClose').addEventListener('click', close);
+  host.querySelector('#opsOrderCancel').addEventListener('click', close);
+  host.querySelector('#opsOrderForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('opsOrderErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      branch_id: Number(fd.get('branch_id')),
+      order_type: fd.get('order_type'),
+      table_number: (fd.get('table_number') || '').trim() || null,
+      customer_name: (fd.get('customer_name') || '').trim() || null,
+      customer_phone: (fd.get('customer_phone') || '').trim() || null
+    };
+    try {
+      const { data, error } = await OPS.orders.create(payload, []);
+      if (error) throw error;
+      toast('تم إنشاء الطلب', 'success');
+      close();
+      location.hash = '#ops_order_detail/' + data.id;
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function pageOpsOrderDetail(body, idParam) {
+  const orderId = Number(idParam);
+  if (!orderId) { body.innerHTML = '<p class="error-msg show">معرف الطلب غير صحيح</p>'; return; }
+  const { data: order, error } = await OPS.orders.get(orderId);
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!order) { body.innerHTML = '<p class="empty-state">الطلب غير موجود</p>'; return; }
+
+  const typeLbl = { dine_in: 'صالة', takeaway: 'سفري', delivery: 'توصيل' };
+  const statusLbl = { open: 'مفتوح', preparing: 'قيد التحضير', ready: 'جاهز', completed: 'مكتمل', cancelled: 'ملغي' };
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const canEdit = !['completed', 'cancelled'].includes(order.status);
+
+  body.innerHTML = `
+    <a href="#ops_orders" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للطلبات</a>
+    <div class="hr-emp-hero">
+      <div class="hr-emp-hero-content">
+        <div class="hr-emp-hero-avatar"><span data-lucide="utensils" style="width:28px;height:28px;"></span></div>
+        <div class="hr-emp-hero-info">
+          <h2 class="hr-emp-hero-name">${esc(order.order_number)}</h2>
+          <div class="hr-emp-hero-meta">
+            <span>${esc(order.branches?.name || '—')}</span>
+            <span>${esc(typeLbl[order.order_type])}</span>
+            <span>${esc(statusLbl[order.status])}</span>
+          </div>
+        </div>
+        <div class="hr-emp-hero-actions">
+          ${order.status === 'open' ? `<button type="button" class="hr-emp-hero-btn" data-order-status="preparing">قيد التحضير</button>` : ''}
+          ${order.status === 'preparing' ? `<button type="button" class="hr-emp-hero-btn" data-order-status="ready">جاهز</button>` : ''}
+          ${order.status === 'ready' ? `<button type="button" class="hr-emp-hero-btn" id="opsOrderCompleteBtn">إكمال الطلب</button>` : ''}
+          ${canEdit ? `<button type="button" class="hr-emp-hero-btn" data-order-status="cancelled">إلغاء</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="mod-section-title"><span data-lucide="list" style="width:16px;height:16px;"></span> بنود الطلب
+      ${canEdit ? `<button type="button" class="btn btn-outline" id="opsOrderAddItemBtn" style="margin-right:auto;padding:5px 12px;font-size:12.5px;"><span data-lucide="plus" style="width:13px;height:13px;"></span> إضافة بند</button>` : ''}
+    </div>
+    <div id="opsOrderItemsBody"><div class="skeleton skeleton-row"></div></div>
+    <div class="hr-info-grid" style="margin-top:14px;">
+      ${_hrInfo('الإجمالي قبل الضريبة', money(order.subtotal) + ' ر.س')}
+      ${_hrInfo('ضريبة القيمة المضافة', money(order.vat_amount) + ' ر.س')}
+      ${_hrInfo('الإجمالي', money(order.total_amount) + ' ر.س')}
+    </div>
+    <div id="opsModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  body.querySelectorAll('[data-order-status]').forEach(b => b.addEventListener('click', async () => {
+    const status = b.dataset.orderStatus;
+    if (status === 'cancelled' && !(await customConfirm('إلغاء هذا الطلب؟'))) return;
+    const { error } = await OPS.orders.setStatus(orderId, status);
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    pageOpsOrderDetail(body, idParam);
+  }));
+  const completeBtn = document.getElementById('opsOrderCompleteBtn');
+  if (completeBtn) completeBtn.addEventListener('click', async () => {
+    if (!(await customConfirm('إكمال الطلب؟ سيتم توليد قيد محاسبي تلقائي بقيمته.'))) return;
+    const { error } = await OPS.orders.complete(orderId);
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم إكمال الطلب', 'success');
+    pageOpsOrderDetail(body, idParam);
+  });
+  const addItemBtn = document.getElementById('opsOrderAddItemBtn');
+  if (addItemBtn) addItemBtn.addEventListener('click', () => openOpsOrderItemModal(orderId, body, idParam));
+
+  await renderOpsOrderItems(orderId, canEdit);
+}
+
+async function renderOpsOrderItems(orderId, canEdit) {
+  const box = document.getElementById('opsOrderItemsBody');
+  if (!box) return;
+  const { data: items, error } = await OPS.orders.items(orderId);
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (!items.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="list"></span><p class="hr-empty-title">لا توجد بنود بعد</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>الصنف</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي</th><th style="width:50px;"></th></tr></thead>
+      <tbody>${items.map(it => `<tr>
+        <td>${esc(it.item_name)}</td>
+        <td class="mono-num">${esc(it.quantity)}</td>
+        <td class="mono-num">${money(it.unit_price)}</td>
+        <td class="mono-num">${money(it.quantity * it.unit_price)}</td>
+        <td>${canEdit ? `<button type="button" class="danger" title="حذف" data-item-remove="${it.id}"><span data-lucide="x" style="width:14px;height:14px;"></span></button>` : ''}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  box.querySelectorAll('[data-item-remove]').forEach(b => b.addEventListener('click', async () => {
+    await OPS.orders.removeItem(Number(b.dataset.itemRemove), orderId);
+    route();
+  }));
+}
+
+async function openOpsOrderItemModal(orderId, body, idParam) {
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:420px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> إضافة بند</h3>
+        <button class="modal-close-x" id="opsItemClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="opsItemErr"></div>
+        <form id="opsItemForm" class="hr-form-grid">
+          <div class="form-field full"><label>اسم الصنف *</label><input class="form-input" name="item_name" required></div>
+          <div class="form-field"><label>الكمية *</label><input class="form-input mono-num" type="number" step="0.01" min="0.01" name="quantity" required value="1"></div>
+          <div class="form-field"><label>سعر الوحدة *</label><input class="form-input mono-num" type="number" step="0.01" min="0" name="unit_price" required></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="opsItemCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">إضافة</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#opsItemClose').addEventListener('click', close);
+  host.querySelector('#opsItemCancel').addEventListener('click', close);
+  host.querySelector('#opsItemForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('opsItemErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    try {
+      const { error } = await OPS.orders.addItem(orderId, {
+        item_name: (fd.get('item_name') || '').trim(),
+        quantity: Number(fd.get('quantity')),
+        unit_price: Number(fd.get('unit_price'))
+      });
+      if (error) throw error;
+      close();
+      pageOpsOrderDetail(body, idParam);
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ─── مخزون الفروع ────────────────────────────────────────────────────
+async function pageOpsBranchInventory(body) {
+  const { data: branches } = await sb.from('branches').select('id, name').eq('is_active', true).order('name');
+  body.innerHTML = `
+    <a href="#operations" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لتشغيل المطاعم</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="boxes" style="width:22px;height:22px;color:#123F32;"></span> مخزون الفروع</h2>
+        <p>مستوى المخزون الفعلي في كل فرع، منفصل عن إجمالي المخزون في الحسابات.</p>
+      </div>
+      <select class="form-select" id="opsInvBranchFilter" style="max-width:220px;">
+        <option value="">كل الفروع</option>
+        ${(branches || []).map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="panel"><div class="panel-body" id="opsInvBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  document.getElementById('opsInvBranchFilter').addEventListener('change', (e) => renderOpsBranchInventoryTable(e.target.value ? Number(e.target.value) : null));
+  await renderOpsBranchInventoryTable(null);
+}
+
+async function renderOpsBranchInventoryTable(branchId) {
+  const box = document.getElementById('opsInvBody');
+  if (!box) return;
+  const { data: rows, error } = await OPS.branchInventory.list(branchId);
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="boxes"></span><p class="hr-empty-title">لا توجد بيانات مخزون بعد</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>الفرع</th><th>الصنف</th><th>الكمية المتاحة</th><th>حد إعادة الطلب</th><th>الحالة</th></tr></thead>
+      <tbody>${rows.map(r => {
+        const low = Number(r.quantity_on_hand) <= Number(r.reorder_level);
+        return `<tr>
+          <td>${esc(r.branches?.name || '—')}</td>
+          <td>${esc(r.acct_inventory_items?.name || '—')}</td>
+          <td class="mono-num">${esc(r.quantity_on_hand)} ${esc(r.acct_inventory_items?.unit || '')}</td>
+          <td class="mono-num">${esc(r.reorder_level)}</td>
+          <td>${low ? `<span class="hr-pill hr-pill-inactive">منخفض</span>` : `<span class="hr-pill hr-pill-active">جيد</span>`}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+}
+
+// ─── نقل المخزون بين الفروع ──────────────────────────────────────────
+async function pageOpsStockTransfers(body) {
+  body.innerHTML = `
+    <a href="#operations" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لتشغيل المطاعم</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="arrow-left-right" style="width:22px;height:22px;color:#123F32;"></span> نقل المخزون بين الفروع</h2>
+        <p>طلب نقل أصناف من فرع لآخر، مع تحديث مخزون الفرعين تلقائيًا عند تأكيد الاستلام.</p>
+      </div>
+      <button type="button" class="btn" id="opsAddTransferBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> طلب نقل جديد</button>
+    </div>
+    <div class="panel"><div class="panel-body" id="opsTransferBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="opsModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  document.getElementById('opsAddTransferBtn').addEventListener('click', () => openOpsStockTransferCreateModal());
+  await renderOpsStockTransfersTable();
+}
+
+async function renderOpsStockTransfersTable() {
+  const box = document.getElementById('opsTransferBody');
+  if (!box) return;
+  const canManage = isOpsManager();
+  const { data: rows, error } = await OPS.stockTransfers.list();
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="arrow-left-right"></span><p class="hr-empty-title">لا توجد طلبات نقل بعد</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const statusLbl = { pending: 'قيد الانتظار', in_transit: 'في الطريق', received: 'تم الاستلام', cancelled: 'ملغي' };
+  const statusCls = { pending: 'st-empty', in_transit: 'st-late', received: 'st-present', cancelled: 'st-absent' };
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>من فرع</th><th>إلى فرع</th><th>التاريخ</th><th>الحالة</th><th style="width:160px;">إجراءات</th></tr></thead>
+      <tbody>${rows.map(t => `<tr>
+        <td>${esc(t.from_branch?.name || '—')}</td>
+        <td>${esc(t.to_branch?.name || '—')}</td>
+        <td class="mono-num">${esc(t.transfer_date)}</td>
+        <td><span class="hr-att-cell ${statusCls[t.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(statusLbl[t.status])}</span></td>
+        <td>
+          <div class="hr-emp-actions">
+            ${canManage && t.status === 'pending' ? `<button type="button" data-transfer-transit="${t.id}">إرسال</button>` : ''}
+            ${canManage && t.status === 'in_transit' ? `<button type="button" data-transfer-receive="${t.id}">استلام</button>` : ''}
+            ${canManage && t.status === 'pending' ? `<button type="button" class="danger" data-transfer-cancel="${t.id}">إلغاء</button>` : ''}
+          </div>
+        </td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  box.querySelectorAll('[data-transfer-transit]').forEach(b => b.addEventListener('click', async () => { await OPS.stockTransfers.markInTransit(Number(b.dataset.transferTransit)); renderOpsStockTransfersTable(); }));
+  box.querySelectorAll('[data-transfer-receive]').forEach(b => b.addEventListener('click', async () => { await OPS.stockTransfers.markReceived(Number(b.dataset.transferReceive)); toast('تم تحديث مخزون الفرعين', 'success'); renderOpsStockTransfersTable(); }));
+  box.querySelectorAll('[data-transfer-cancel]').forEach(b => b.addEventListener('click', async () => {
+    if (!(await customConfirm('إلغاء طلب النقل؟'))) return;
+    await OPS.stockTransfers.cancel(Number(b.dataset.transferCancel));
+    renderOpsStockTransfersTable();
+  }));
+}
+
+async function openOpsStockTransferCreateModal() {
+  const [{ data: branches }, { data: items }] = await Promise.all([
+    sb.from('branches').select('id, name').eq('is_active', true).order('name'),
+    sb.from('acct_inventory_items').select('id, name, unit').eq('is_active', true).order('name')
+  ]);
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:480px;max-width:96%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> طلب نقل مخزون</h3>
+        <button class="modal-close-x" id="opsTrClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="opsTrErr"></div>
+        <form id="opsTrForm" class="hr-form-grid">
+          <div class="form-field"><label>من فرع *</label>
+            <select class="form-select" name="from_branch_id" required>
+              <option value="">اختر</option>
+              ${(branches || []).map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>إلى فرع *</label>
+            <select class="form-select" name="to_branch_id" required>
+              <option value="">اختر</option>
+              ${(branches || []).map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field full"><label>الصنف *</label>
+            <select class="form-select" name="item_id" required>
+              <option value="">اختر صنفًا</option>
+              ${(items || []).map(i => `<option value="${i.id}">${esc(i.name)} (${esc(i.unit)})</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field full"><label>الكمية *</label><input class="form-input mono-num" type="number" step="0.001" min="0.001" name="quantity" required></div>
+          <div class="form-field full"><label>ملاحظات</label><textarea class="form-input" name="notes" rows="2"></textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="opsTrCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">إرسال الطلب</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#opsTrClose').addEventListener('click', close);
+  host.querySelector('#opsTrCancel').addEventListener('click', close);
+  host.querySelector('#opsTrForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('opsTrErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      from_branch_id: Number(fd.get('from_branch_id')),
+      to_branch_id: Number(fd.get('to_branch_id')),
+      notes: (fd.get('notes') || '').trim() || null
+    };
+    try {
+      const { error } = await OPS.stockTransfers.create(payload, [{ item_id: Number(fd.get('item_id')), quantity: Number(fd.get('quantity')) }]);
+      if (error) throw error;
+      toast('تم إرسال طلب النقل', 'success');
+      close();
+      renderOpsStockTransfersTable();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ─── سجل الهدر ───────────────────────────────────────────────────────
+async function pageOpsWaste(body) {
+  body.innerHTML = `
+    <a href="#operations" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لتشغيل المطاعم</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="trash-2" style="width:22px;height:22px;color:#123F32;"></span> سجل الهدر</h2>
+        <p>تسجيل الهدر يخصم الكمية من مخزون الفرع، ويُنشئ حركة مخزون محاسبية بتكلفتها تلقائيًا.</p>
+      </div>
+      <button type="button" class="btn" id="opsAddWasteBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> تسجيل هدر</button>
+    </div>
+    <div class="panel"><div class="panel-body" id="opsWasteBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="opsModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  document.getElementById('opsAddWasteBtn').addEventListener('click', () => openOpsWasteCreateModal());
+  await renderOpsWasteTable();
+}
+
+async function renderOpsWasteTable() {
+  const box = document.getElementById('opsWasteBody');
+  if (!box) return;
+  const { data: rows, error } = await OPS.waste.list();
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="trash-2"></span><p class="hr-empty-title">لا يوجد هدر مسجَّل</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const reasonLbl = { spoilage: 'تلف', expired: 'منتهي الصلاحية', dropped: 'سقط/كسر', other: 'أخرى' };
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>الفرع</th><th>الصنف</th><th>الكمية</th><th>السبب</th><th>سجّلها</th><th>التاريخ</th></tr></thead>
+      <tbody>${rows.map(w => `<tr>
+        <td>${esc(w.branches?.name || '—')}</td>
+        <td>${esc(w.acct_inventory_items?.name || '—')}</td>
+        <td class="mono-num">${esc(w.quantity)} ${esc(w.acct_inventory_items?.unit || '')}</td>
+        <td>${esc(reasonLbl[w.reason])}</td>
+        <td>${esc(w.users?.full_name || '—')}</td>
+        <td class="mono-num">${new Date(w.created_at).toLocaleDateString('ar-SA')}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+}
+
+async function openOpsWasteCreateModal() {
+  const [{ data: branches }, { data: items }] = await Promise.all([
+    sb.from('branches').select('id, name').eq('is_active', true).order('name'),
+    sb.from('acct_inventory_items').select('id, name, unit').eq('is_active', true).order('name')
+  ]);
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:460px;max-width:96%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> تسجيل هدر</h3>
+        <button class="modal-close-x" id="opsWasteClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="opsWasteErr"></div>
+        <form id="opsWasteForm" class="hr-form-grid">
+          <div class="form-field full"><label>الفرع *</label>
+            <select class="form-select" name="branch_id" required>
+              <option value="">اختر فرعًا</option>
+              ${(branches || []).map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field full"><label>الصنف *</label>
+            <select class="form-select" name="item_id" required>
+              <option value="">اختر صنفًا</option>
+              ${(items || []).map(i => `<option value="${i.id}">${esc(i.name)} (${esc(i.unit)})</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>الكمية *</label><input class="form-input mono-num" type="number" step="0.001" min="0.001" name="quantity" required></div>
+          <div class="form-field"><label>السبب *</label>
+            <select class="form-select" name="reason" required>
+              <option value="spoilage">تلف</option>
+              <option value="expired">منتهي الصلاحية</option>
+              <option value="dropped">سقط/كسر</option>
+              <option value="other">أخرى</option>
+            </select>
+          </div>
+          <div class="form-field full"><label>ملاحظات</label><textarea class="form-input" name="notes" rows="2"></textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="opsWasteCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">تسجيل</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#opsWasteClose').addEventListener('click', close);
+  host.querySelector('#opsWasteCancel').addEventListener('click', close);
+  host.querySelector('#opsWasteForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('opsWasteErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      branch_id: Number(fd.get('branch_id')),
+      item_id: Number(fd.get('item_id')),
+      quantity: Number(fd.get('quantity')),
+      reason: fd.get('reason'),
+      notes: (fd.get('notes') || '').trim() || null
+    };
+    try {
+      const { error } = await OPS.waste.record(payload);
+      if (error) throw error;
+      toast('تم تسجيل الهدر', 'success');
+      close();
+      renderOpsWasteTable();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
   });
 }
 
