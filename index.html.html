@@ -4875,7 +4875,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v102-2026-07-16-ai-tools-5-6';
+const APP_VERSION = 'v103-2026-07-16-pay-p1-partners';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -7220,6 +7220,134 @@ const AIA = {
   }
 };
 window.AIA = AIA;
+
+// ═══════════════════════════════════════════════════════════════════
+// المدفوعات والمقاصات — المرحلة P1: الشركاء الماليون والعقود
+// DECISION: صفحات المدفوعات تعيش تحت موديول الحسابات (routes بادئة
+// acct_) فترث حماية feature flag الحسابات تلقائيًا — test_admin فقط.
+// ═══════════════════════════════════════════════════════════════════
+const PAY_PARTNER_TYPE_LABELS = {
+  delivery_platform: 'منصة توصيل', delivery_company: 'شركة توصيل',
+  payment_gateway: 'بوابة دفع', restaurant_owner: 'مالك مطعم مُدار', other: 'أخرى'
+};
+const PAY_CONTRACT_STATUS_LABELS = { draft: 'مسودة', active: 'ساري', expired: 'منتهي', cancelled: 'ملغي' };
+
+const PAY = {
+
+  partners: {
+    async list(filters = {}) {
+      let q = sb.from('pay_partners').select('*').is('deleted_at', null).order('name');
+      if (filters.partner_type) q = q.eq('partner_type', filters.partner_type);
+      if (filters.is_active != null) q = q.eq('is_active', filters.is_active);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('pay_partners').select('*').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      if (!payload.name || !payload.name.trim()) return { data: null, error: { message: 'اسم الشريك مطلوب' } };
+      const { data, error } = await sb.from('pay_partners').insert({ ...payload, created_by: CURRENT_USER?.id }).select().single();
+      return { data, error };
+    },
+    async update(id, payload) {
+      const { data, error } = await sb.from('pay_partners').update(payload).eq('id', id).select().single();
+      return { data, error };
+    },
+    async remove(id) {
+      const { data: used } = await sb.from('ops_orders').select('id').eq('pay_partner_id', id).limit(1);
+      if (used && used.length) return { error: { message: 'لا يمكن حذف شريك له طلبات مسجَّلة — أوقفه بدلًا من الحذف' } };
+      const { error } = await sb.from('pay_partners').update({ deleted_at: new Date().toISOString(), is_active: false }).eq('id', id);
+      return { error };
+    }
+  },
+
+  contracts: {
+    async listForPartner(partnerId) {
+      const { data, error } = await sb.from('pay_partner_contracts')
+        .select('*').eq('partner_id', partnerId).order('effective_from', { ascending: false });
+      return { data: data || [], error };
+    },
+    async create(payload) {
+      const errs = [];
+      if (!payload.partner_id) errs.push('الشريك مطلوب');
+      if (!payload.effective_from) errs.push('تاريخ السريان مطلوب');
+      if (payload.commission_type !== 'fixed_per_order' && !(Number(payload.commission_rate) > 0)) errs.push('نسبة العمولة مطلوبة');
+      if (errs.length) return { data: null, error: { message: errs.join('؛ ') } };
+      const { data, error } = await sb.from('pay_partner_contracts').insert({ ...payload, created_by: CURRENT_USER?.id }).select().single();
+      return { data, error };
+    },
+    // DECISION: عقد ساري واحد فقط لكل شريك في أي لحظة — التفعيل يُنهي
+    // (expired) أي عقد ساري آخر لنفس الشريك. تعديل الشروط المالية لعقد
+    // ساري ممنوع من الواجهة — يُنشأ إصدار جديد بتاريخ سريان لاحق.
+    async activate(id, partnerId) {
+      await sb.from('pay_partner_contracts').update({ status: 'expired' })
+        .eq('partner_id', partnerId).eq('status', 'active').neq('id', id);
+      const { data, error } = await sb.from('pay_partner_contracts').update({ status: 'active' }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async cancel(id) {
+      const { data, error } = await sb.from('pay_partner_contracts').update({ status: 'cancelled' }).eq('id', id).select().single();
+      return { data, error };
+    },
+    // العقد الساري في تاريخ معين (لمحرك العمولات)
+    async activeFor(partnerId, dateStr) {
+      const d = dateStr || new Date().toISOString().slice(0, 10);
+      const { data, error } = await sb.from('pay_partner_contracts')
+        .select('*').eq('partner_id', partnerId).eq('status', 'active')
+        .lte('effective_from', d).or(`effective_to.is.null,effective_to.gte.${d}`)
+        .order('effective_from', { ascending: false }).limit(1);
+      return { data: (data && data[0]) || null, error };
+    }
+  },
+
+  // ─── محرك العمولات (قابل للتفسير — كل خطوة مذكورة في explanation) ───
+  computeCommission(contract, amounts) {
+    const itemsSubtotal = Number(amounts.itemsSubtotal) || 0;
+    const discount = Number(amounts.discount) || 0;
+    const vat = Number(amounts.vat) || 0;
+    const deliveryFee = Number(amounts.deliveryFee) || 0;
+    const explanation = [];
+
+    let basis;
+    if (contract.commission_basis === 'gross_order') {
+      basis = itemsSubtotal - discount + vat + deliveryFee;
+      explanation.push(`الأساس (إجمالي الطلب): ${itemsSubtotal.toFixed(2)} − خصم ${discount.toFixed(2)} + ضريبة ${vat.toFixed(2)} + توصيل ${deliveryFee.toFixed(2)} = ${basis.toFixed(2)} ر.س`);
+    } else {
+      // DECISION: الافتراضي المؤسسي — صافي المنتجات بعد الخصم، بدون
+      // الضريبة ورسوم التوصيل (التوصية الصريحة في وثيقة المرجع)
+      basis = itemsSubtotal - discount;
+      explanation.push(`الأساس (صافي المنتجات): ${itemsSubtotal.toFixed(2)} − خصم ${discount.toFixed(2)} = ${basis.toFixed(2)} ر.س (بدون ضريبة أو توصيل)`);
+    }
+    if (basis < 0) basis = 0;
+
+    let commission = 0;
+    const rate = Number(contract.commission_rate) || 0;
+    const fixed = Number(contract.fixed_fee) || 0;
+    if (contract.commission_type === 'percentage') {
+      commission = basis * rate / 100;
+      explanation.push(`عمولة ${rate}% × ${basis.toFixed(2)} = ${commission.toFixed(2)} ر.س`);
+    } else if (contract.commission_type === 'fixed_per_order') {
+      commission = fixed;
+      explanation.push(`رسوم ثابتة لكل طلب: ${fixed.toFixed(2)} ر.س`);
+    } else {
+      commission = basis * rate / 100 + fixed;
+      explanation.push(`عمولة ${rate}% × ${basis.toFixed(2)} + رسوم ثابتة ${fixed.toFixed(2)} = ${commission.toFixed(2)} ر.س`);
+    }
+
+    const minFee = Number(contract.min_fee) || 0;
+    if (minFee > 0 && commission < minFee) {
+      explanation.push(`تم تطبيق الحد الأدنى: ${minFee.toFixed(2)} ر.س بدلًا من ${commission.toFixed(2)}`);
+      commission = minFee;
+    }
+    commission = Math.round(commission * 100) / 100;
+    explanation.push(`العمولة النهائية: ${commission.toFixed(2)} ر.س`);
+
+    return { basis: Math.round(basis * 100) / 100, commission, explanation };
+  }
+};
+window.PAY = PAY;
 
 // ─── ZATCA Phase 1 — TLV-encoded Base64 QR string ────────────────────
 // Tags: 1=Seller name, 2=VAT number, 3=Timestamp(ISO), 4=Invoice total, 5=VAT total.
@@ -9877,7 +10005,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', ops_issues: 'المشكلات التشغيلية', ops_issue_detail: 'تفاصيل المشكلة', ops_settings: 'إعدادات التشغيل', ai_assistant: 'المساعد الذكي', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', acct_pay_partners: 'شركاء المدفوعات', acct_pay_partner: 'تفاصيل الشريك', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', ops_issues: 'المشكلات التشغيلية', ops_issue_detail: 'تفاصيل المشكلة', ops_settings: 'إعدادات التشغيل', ai_assistant: 'المساعد الذكي', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -14471,6 +14599,8 @@ async function route() {
     else if (page === 'acct_vat_returns') await pageAcctVatReturns(body, query);
     else if (page === 'acct_reports') await pageAcctReports(body, query);
     else if (page === 'acct_budgets') await pageAcctBudgets(body, query);
+    else if (page === 'acct_pay_partners') await pageAcctPayPartners(body);
+    else if (page === 'acct_pay_partner') await pageAcctPayPartnerDetail(body, param);
     else if (page === 'operations') await pageOpsDashboard(body);
     else if (page === 'ops_shift_templates') await pageOpsShiftTemplates(body);
     else if (page === 'ops_shifts') await pageOpsShifts(body);
@@ -20019,6 +20149,7 @@ async function pageAcctDashboard(body) {
         <a href="#acct_reports" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="file-bar-chart" style="width:12px;height:12px;"></span> التقارير المالية</a>
         <a href="#acct_vat_returns" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="percent" style="width:12px;height:12px;"></span> إقرارات VAT</a>
         <a href="#acct_budgets" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="wallet-cards" style="width:12px;height:12px;"></span> الموازنات</a>
+        <a href="#acct_pay_partners" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="handshake" style="width:12px;height:12px;"></span> شركاء المدفوعات</a>
         ${canManage ? `<span class="mod-hero-badge hb-scope"><span data-lucide="shield-check" style="width:12px;height:12px;"></span> صلاحية إدارة كاملة</span>` : ''}
       </div>
     </div>
@@ -25020,6 +25151,346 @@ async function pageOpsSettings(body) {
       const { error } = await OPS.settings.save(payload);
       if (error) throw error;
       toast('تم حفظ الإعدادات', 'success');
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// المدفوعات P1 — شاشة شركاء المدفوعات
+// ═══════════════════════════════════════════════════════════════════
+async function pageAcctPayPartners(body) {
+  const canManage = isFinanceManager();
+  body.innerHTML = `
+    <a href="#accounting" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للوحة الحسابات</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="handshake" style="width:22px;height:22px;color:#123F32;"></span> شركاء المدفوعات</h2>
+        <p>منصات التوصيل وبوابات الدفع والأطراف المالية — مع عقود العمولات لكل شريك.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="payAddPartnerBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> إضافة شريك</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body" id="payPartnersBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="payModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) document.getElementById('payAddPartnerBtn').addEventListener('click', () => openPayPartnerModal(null));
+  await renderPayPartnersTable();
+}
+
+async function renderPayPartnersTable() {
+  const box = document.getElementById('payPartnersBody');
+  if (!box) return;
+  const { data: rows, error } = await PAY.partners.list();
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="handshake"></span><p class="hr-empty-title">لا يوجد شركاء بعد</p><p class="hr-empty-sub">أضف منصات التوصيل وبوابات الدفع التي تتعامل معها.</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>الكود</th><th>الاسم</th><th>النوع</th><th>الحالة</th></tr></thead>
+      <tbody>${rows.map(p => `
+        <tr class="hr-emp-row" onclick="location.hash='#acct_pay_partner/${p.id}'">
+          <td class="mono-num">${esc(p.code || '—')}</td>
+          <td><strong>${esc(p.name)}</strong></td>
+          <td>${esc(PAY_PARTNER_TYPE_LABELS[p.partner_type] || p.partner_type)}</td>
+          <td><span class="hr-pill hr-pill-${p.is_active ? 'active' : 'inactive'}">${p.is_active ? 'نشط' : 'موقوف'}</span></td>
+        </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+}
+
+async function openPayPartnerModal(partnerId) {
+  const isEdit = !!partnerId;
+  const p = isEdit ? (await PAY.partners.get(partnerId)).data || {} : {};
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:520px;max-width:96%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="${isEdit ? 'pencil' : 'plus'}" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ${isEdit ? 'تعديل شريك' : 'إضافة شريك مدفوعات'}</h3>
+        <button class="modal-close-x" id="payPClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="payPErr"></div>
+        <form id="payPForm" class="hr-form-grid">
+          <div class="form-field full"><label>اسم الشريك *</label><input class="form-input" name="name" required value="${esc(p.name || '')}"></div>
+          <div class="form-field"><label>النوع *</label>
+            <select class="form-select" name="partner_type" required>
+              ${Object.entries(PAY_PARTNER_TYPE_LABELS).map(([k, v]) => `<option value="${k}" ${p.partner_type === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>الاسم القانوني</label><input class="form-input" name="legal_name" value="${esc(p.legal_name || '')}"></div>
+          <div class="form-field"><label>الرقم الضريبي</label><input class="form-input mono-num" name="tax_number" value="${esc(p.tax_number || '')}"></div>
+          <div class="form-field"><label>جهة التواصل</label><input class="form-input" name="contact_name" value="${esc(p.contact_name || '')}"></div>
+          <div class="form-field"><label>الجوال</label><input class="form-input mono-num" name="phone" value="${esc(p.phone || '')}"></div>
+          <div class="form-field"><label>البريد</label><input class="form-input" name="email" value="${esc(p.email || '')}"></div>
+          <div class="form-field"><label>البنك</label><input class="form-input" name="bank_name" value="${esc(p.bank_name || '')}"></div>
+          <div class="form-field"><label>الآيبان</label><input class="form-input mono-num" name="iban" value="${esc(p.iban || '')}"></div>
+          <div class="form-field full"><label>ملاحظات</label><textarea class="form-input" name="notes" rows="2">${esc(p.notes || '')}</textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="payPCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">${isEdit ? 'حفظ' : 'إضافة'}</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#payPClose').addEventListener('click', close);
+  host.querySelector('#payPCancel').addEventListener('click', close);
+  host.querySelector('#payPForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('payPErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {};
+    ['name', 'partner_type', 'legal_name', 'tax_number', 'contact_name', 'phone', 'email', 'bank_name', 'iban', 'notes'].forEach(k => {
+      const v = (fd.get(k) || '').trim();
+      payload[k] = v || (k === 'name' || k === 'partner_type' ? v : null);
+    });
+    try {
+      const { data, error } = isEdit ? await PAY.partners.update(partnerId, payload) : await PAY.partners.create(payload);
+      if (error) throw error;
+      toast(isEdit ? 'تم حفظ التعديلات' : 'تم إضافة الشريك', 'success');
+      close();
+      if (isEdit) renderPayPartnersTable(); else location.hash = '#acct_pay_partner/' + data.id;
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// المدفوعات P1 — تفاصيل الشريك: العقود + محاكي العمولة
+// ═══════════════════════════════════════════════════════════════════
+async function pageAcctPayPartnerDetail(body, idParam) {
+  const partnerId = Number(idParam);
+  if (!partnerId) { body.innerHTML = '<p class="error-msg show">معرف الشريك غير صحيح</p>'; return; }
+  const { data: p, error } = await PAY.partners.get(partnerId);
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!p) { body.innerHTML = '<p class="empty-state">الشريك غير موجود</p>'; return; }
+  const canManage = isFinanceManager();
+
+  body.innerHTML = `
+    <a href="#acct_pay_partners" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للشركاء</a>
+    <div class="hr-emp-hero">
+      <div class="hr-emp-hero-content">
+        <div class="hr-emp-hero-avatar"><span data-lucide="handshake" style="width:28px;height:28px;"></span></div>
+        <div class="hr-emp-hero-info">
+          <h2 class="hr-emp-hero-name">${esc(p.name)}</h2>
+          <div class="hr-emp-hero-meta">
+            <span class="mono-num">${esc(p.code || '')}</span>
+            <span>${esc(PAY_PARTNER_TYPE_LABELS[p.partner_type] || p.partner_type)}</span>
+            <span>${p.is_active ? 'نشط' : 'موقوف'}</span>
+          </div>
+        </div>
+        <div class="hr-emp-hero-actions">
+          ${canManage ? `<button type="button" class="hr-emp-hero-btn" id="payPEditBtn"><span data-lucide="pencil" style="width:13px;height:13px;"></span> تعديل البيانات</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="hr-info-grid" style="margin-bottom:18px;">
+      ${_hrInfo('الاسم القانوني', p.legal_name)}
+      ${_hrInfo('الرقم الضريبي', p.tax_number)}
+      ${_hrInfo('جهة التواصل', p.contact_name)}
+      ${_hrInfo('الجوال', p.phone)}
+      ${_hrInfo('البنك', p.bank_name)}
+      ${_hrInfo('الآيبان', p.iban)}
+    </div>
+
+    <div class="mod-section-title"><span data-lucide="file-signature" style="width:16px;height:16px;"></span> عقود العمولات
+      ${canManage ? `<button type="button" class="btn btn-outline" id="payAddContractBtn" style="margin-right:auto;padding:5px 12px;font-size:12.5px;"><span data-lucide="plus" style="width:13px;height:13px;"></span> عقد جديد</button>` : ''}
+    </div>
+    <div id="payContractsBody"><div class="skeleton skeleton-row"></div></div>
+
+    <div class="mod-section-title"><span data-lucide="calculator" style="width:16px;height:16px;"></span> محاكي العمولة (على العقد الساري)</div>
+    <div class="panel"><div class="panel-body">
+      <div class="hr-form-grid">
+        <div class="form-field"><label>قيمة المنتجات (قبل الضريبة)</label><input class="form-input mono-num" type="number" step="0.01" id="paySimItems" value="100"></div>
+        <div class="form-field"><label>الخصم</label><input class="form-input mono-num" type="number" step="0.01" id="paySimDiscount" value="0"></div>
+        <div class="form-field"><label>الضريبة</label><input class="form-input mono-num" type="number" step="0.01" id="paySimVat" value="15"></div>
+        <div class="form-field"><label>رسوم التوصيل</label><input class="form-input mono-num" type="number" step="0.01" id="paySimDelivery" value="0"></div>
+        <div class="full" style="display:flex;justify-content:flex-end;">
+          <button type="button" class="btn" id="paySimBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;"><span data-lucide="calculator" style="width:14px;height:14px;"></span> احسب العمولة</button>
+        </div>
+      </div>
+      <div id="paySimResult" style="margin-top:12px;"></div>
+    </div></div>
+    <div id="payModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  if (canManage) {
+    document.getElementById('payPEditBtn')?.addEventListener('click', () => openPayPartnerModal(partnerId));
+    document.getElementById('payAddContractBtn')?.addEventListener('click', () => openPayContractModal(partnerId));
+  }
+
+  document.getElementById('paySimBtn').addEventListener('click', async () => {
+    const resBox = document.getElementById('paySimResult');
+    const { data: contract } = await PAY.contracts.activeFor(partnerId, null);
+    if (!contract) {
+      resBox.innerHTML = `<p class="error-msg show">لا يوجد عقد ساري لهذا الشريك اليوم — فعّل عقدًا أولًا.</p>`;
+      return;
+    }
+    const r = PAY.computeCommission(contract, {
+      itemsSubtotal: document.getElementById('paySimItems').value,
+      discount: document.getElementById('paySimDiscount').value,
+      vat: document.getElementById('paySimVat').value,
+      deliveryFee: document.getElementById('paySimDelivery').value
+    });
+    resBox.innerHTML = `
+      <div class="hr-info-grid">
+        ${_hrInfo('أساس العمولة', r.basis.toFixed(2) + ' ر.س')}
+        ${_hrInfo('العمولة النهائية', r.commission.toFixed(2) + ' ر.س')}
+      </div>
+      <div style="margin-top:10px;background:rgba(139,92,246,0.05);border:1px solid rgba(139,92,246,0.2);border-radius:12px;padding:10px 14px;">
+        <p style="font-size:11px;font-weight:800;color:#6D28D9;margin-bottom:6px;">كيف حُسبت؟ (خطوة بخطوة)</p>
+        ${r.explanation.map(x => `<p style="font-size:12px;color:var(--text);margin:2px 0;">• ${esc(x)}</p>`).join('')}
+      </div>
+    `;
+  });
+
+  await renderPayContractsTable(partnerId, canManage);
+}
+
+async function renderPayContractsTable(partnerId, canManage) {
+  const box = document.getElementById('payContractsBody');
+  if (!box) return;
+  const { data: rows, error } = await PAY.contracts.listForPartner(partnerId);
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="file-signature"></span><p class="hr-empty-title">لا توجد عقود بعد</p><p class="hr-empty-sub">أضف عقد العمولة الأول لهذا الشريك.</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const basisLbl = { net_products: 'صافي المنتجات', gross_order: 'إجمالي الطلب' };
+  const typeLbl = { percentage: 'نسبة', fixed_per_order: 'ثابت/طلب', percentage_plus_fixed: 'نسبة + ثابت' };
+  const stCls = { draft: 'st-empty', active: 'st-present', expired: 'st-late', cancelled: 'st-absent' };
+  box.innerHTML = `
+    <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>الأساس</th><th>النوع</th><th>النسبة</th><th>الثابت</th><th>من</th><th>إلى</th><th>الحالة</th><th style="width:120px;">إجراءات</th></tr></thead>
+      <tbody>${rows.map(c => `<tr>
+        <td>${esc(basisLbl[c.commission_basis])}</td>
+        <td>${esc(typeLbl[c.commission_type])}</td>
+        <td class="mono-num">${Number(c.commission_rate) ? Number(c.commission_rate) + '%' : '—'}</td>
+        <td class="mono-num">${Number(c.fixed_fee) ? Number(c.fixed_fee).toFixed(2) : '—'}</td>
+        <td class="mono-num">${esc(c.effective_from)}</td>
+        <td class="mono-num">${esc(c.effective_to || 'مفتوح')}</td>
+        <td><span class="hr-att-cell ${stCls[c.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(PAY_CONTRACT_STATUS_LABELS[c.status])}</span></td>
+        <td><div class="hr-emp-actions">
+          ${canManage && c.status === 'draft' ? `<button type="button" data-pay-activate="${c.id}">تفعيل</button>` : ''}
+          ${canManage && (c.status === 'draft' || c.status === 'active') ? `<button type="button" class="danger" data-pay-cancel="${c.id}">إلغاء</button>` : ''}
+        </div></td>
+      </tr>`).join('')}</tbody>
+    </table></div></div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  box.querySelectorAll('[data-pay-activate]').forEach(b => b.addEventListener('click', async () => {
+    if (!(await customConfirm('تفعيل هذا العقد؟ أي عقد ساري آخر لنفس الشريك سيُنهى تلقائيًا.'))) return;
+    const { error } = await PAY.contracts.activate(Number(b.dataset.payActivate), partnerId);
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم تفعيل العقد', 'success');
+    renderPayContractsTable(partnerId, canManage);
+  }));
+  box.querySelectorAll('[data-pay-cancel]').forEach(b => b.addEventListener('click', async () => {
+    if (!(await customConfirm('إلغاء هذا العقد؟'))) return;
+    const { error } = await PAY.contracts.cancel(Number(b.dataset.payCancel));
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    renderPayContractsTable(partnerId, canManage);
+  }));
+}
+
+async function openPayContractModal(partnerId) {
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:520px;max-width:96%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> عقد عمولة جديد</h3>
+        <button class="modal-close-x" id="payCClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="payCErr"></div>
+        <form id="payCForm" class="hr-form-grid">
+          <div class="form-field"><label>أساس العمولة *</label>
+            <select class="form-select" name="commission_basis">
+              <option value="net_products">صافي المنتجات (الموصى به)</option>
+              <option value="gross_order">إجمالي الطلب</option>
+            </select>
+          </div>
+          <div class="form-field"><label>نوع العمولة *</label>
+            <select class="form-select" name="commission_type" id="payCType">
+              <option value="percentage">نسبة مئوية</option>
+              <option value="fixed_per_order">مبلغ ثابت لكل طلب</option>
+              <option value="percentage_plus_fixed">نسبة + مبلغ ثابت</option>
+            </select>
+          </div>
+          <div class="form-field"><label>النسبة %</label><input class="form-input mono-num" type="number" step="0.001" min="0" max="100" name="commission_rate" value="0"></div>
+          <div class="form-field"><label>المبلغ الثابت (ر.س)</label><input class="form-input mono-num" type="number" step="0.01" min="0" name="fixed_fee" value="0"></div>
+          <div class="form-field"><label>حد أدنى للعمولة</label><input class="form-input mono-num" type="number" step="0.01" min="0" name="min_fee" value="0"></div>
+          <div class="form-field"><label>من يتحمل رسوم التوصيل</label>
+            <select class="form-select" name="delivery_fee_owner">
+              <option value="partner">الشريك</option>
+              <option value="restaurant">المطعم</option>
+              <option value="customer">العميل</option>
+            </select>
+          </div>
+          <div class="form-field"><label>دورة التسوية</label>
+            <select class="form-select" name="settlement_cycle">
+              <option value="weekly">أسبوعية</option>
+              <option value="biweekly">كل أسبوعين</option>
+              <option value="monthly">شهرية</option>
+            </select>
+          </div>
+          <div class="form-field"><label>رقم العقد</label><input class="form-input mono-num" name="contract_no"></div>
+          <div class="form-field"><label>ساري من *</label><input class="form-input" type="date" name="effective_from" required value="${new Date().toISOString().slice(0,10)}"></div>
+          <div class="form-field"><label>ساري إلى (اختياري)</label><input class="form-input" type="date" name="effective_to"></div>
+          <div class="form-field full"><label>ملاحظات</label><textarea class="form-input" name="notes" rows="2"></textarea></div>
+          <p class="full" style="font-size:11.5px;color:var(--text-muted);margin:0;">يُنشأ العقد كمسودة — راجعه ثم اضغط "تفعيل" ليصبح ساريًا (العقد الساري الآخر يُنهى تلقائيًا).</p>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="payCCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">إنشاء العقد</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#payCClose').addEventListener('click', close);
+  host.querySelector('#payCCancel').addEventListener('click', close);
+  host.querySelector('#payCForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('payCErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      partner_id: partnerId,
+      commission_basis: fd.get('commission_basis'),
+      commission_type: fd.get('commission_type'),
+      commission_rate: Number(fd.get('commission_rate') || 0),
+      fixed_fee: Number(fd.get('fixed_fee') || 0),
+      min_fee: Number(fd.get('min_fee') || 0),
+      delivery_fee_owner: fd.get('delivery_fee_owner'),
+      settlement_cycle: fd.get('settlement_cycle'),
+      contract_no: (fd.get('contract_no') || '').trim() || null,
+      effective_from: fd.get('effective_from'),
+      effective_to: fd.get('effective_to') || null,
+      notes: (fd.get('notes') || '').trim() || null
+    };
+    try {
+      const { error } = await PAY.contracts.create(payload);
+      if (error) throw error;
+      toast('تم إنشاء العقد كمسودة', 'success');
+      close();
+      renderPayContractsTable(partnerId, isFinanceManager());
     } catch (err) {
       errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
     }
