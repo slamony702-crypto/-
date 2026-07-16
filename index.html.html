@@ -4842,7 +4842,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v94-2026-07-16-info-card-gradient';
+const APP_VERSION = 'v95-2026-07-16-predemo-review';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -17462,7 +17462,7 @@ async function pageHrDashboard(body) {
           <span data-lucide="calendar-check" style="width:12px;height:12px;"></span> الحضور والانصراف
         </a>
         <a href="#hr_leaves" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;">
-          <span data-lucide="palm-tree" style="width:12px;height:12px;"></span> الإجازات
+          <span data-lucide="tree-palm" style="width:12px;height:12px;"></span> الإجازات
         </a>
         <a href="#hr_payroll" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;">
           <span data-lucide="banknote" style="width:12px;height:12px;"></span> الرواتب
@@ -17559,7 +17559,7 @@ async function pageHrDashboard(body) {
     } else {
       activityBox.innerHTML = `<div class="hr-activity-list">${rows.map(r => `
         <div class="hr-activity-row">
-          <div class="hr-activity-icon a-${r.kind}"><span data-lucide="${r.kind === 'hire' ? 'user-plus' : 'palm-tree'}" style="width:15px;height:15px;"></span></div>
+          <div class="hr-activity-icon a-${r.kind}"><span data-lucide="${r.kind === 'hire' ? 'user-plus' : 'tree-palm'}" style="width:15px;height:15px;"></span></div>
           <div class="hr-activity-body">
             <div>${r.html}</div>
             <div class="hr-activity-time">${fmtDateAr(r.when)}</div>
@@ -17790,7 +17790,7 @@ async function pageHrEmployeeDetail(body, idParam) {
   const tabs = [
     { key: 'info',       label: 'المعلومات الأساسية', icon: 'user' },
     { key: 'attendance', label: 'الحضور',              icon: 'calendar-check' },
-    { key: 'leaves',     label: 'الإجازات',            icon: 'palm-tree' },
+    { key: 'leaves',     label: 'الإجازات',            icon: 'tree-palm' },
   ];
   if (canSeePayroll) tabs.push({ key: 'payroll', label: 'الرواتب', icon: 'banknote' });
 
@@ -17940,14 +17940,14 @@ async function renderHrDetailTabBody(emp) {
   if (HrDetailTabs.active === 'leaves') {
     const { data: leaves } = await HR.leaves.list({ user_id: emp.id });
     if (!leaves.length) {
-      box.innerHTML = `<div class="hr-empty"><span data-lucide="palm-tree"></span><p class="hr-empty-title">لا توجد طلبات إجازة</p><p class="hr-empty-sub">لم يقدّم هذا الموظف أي طلب إجازة حتى الآن.</p></div>`;
+      box.innerHTML = `<div class="hr-empty"><span data-lucide="tree-palm"></span><p class="hr-empty-title">لا توجد طلبات إجازة</p><p class="hr-empty-sub">لم يقدّم هذا الموظف أي طلب إجازة حتى الآن.</p></div>`;
       if (window.lucide) lucide.createIcons();
       return;
     }
     const statusLbl = { pending: 'معلق', approved: 'موافقة', rejected: 'مرفوض', cancelled: 'ملغي' };
     const statusCls = { pending: 'hr-pill-inactive', approved: 'hr-pill-active', rejected: 'hr-pill-inactive', cancelled: 'hr-pill-inactive' };
     box.innerHTML = `
-      <div class="hr-section-heading"><span class="icon" data-lucide="palm-tree"></span> طلبات الإجازة</div>
+      <div class="hr-section-heading"><span class="icon" data-lucide="tree-palm"></span> طلبات الإجازة</div>
       <div style="overflow-x:auto;">
         <table class="hr-emp-table">
           <thead><tr><th>النوع</th><th>من</th><th>إلى</th><th>عدد الأيام</th><th>الحالة</th><th>السبب</th></tr></thead>
@@ -18664,7 +18664,7 @@ async function renderHrAttendanceGrid() {
       <div class="hr-att-sum-card"><div class="hr-att-sum-icon st-present"><span data-lucide="check-circle-2" style="width:17px;height:17px;"></span></div><div><div class="hr-att-sum-val">${counts.present}</div><div class="hr-att-sum-lbl">سجلات حضور</div></div></div>
       <div class="hr-att-sum-card"><div class="hr-att-sum-icon st-absent"><span data-lucide="x-circle" style="width:17px;height:17px;"></span></div><div><div class="hr-att-sum-val">${counts.absent}</div><div class="hr-att-sum-lbl">غياب</div></div></div>
       <div class="hr-att-sum-card"><div class="hr-att-sum-icon st-late"><span data-lucide="clock-alert" style="width:17px;height:17px;"></span></div><div><div class="hr-att-sum-val">${counts.late}</div><div class="hr-att-sum-lbl">تأخير</div></div></div>
-      <div class="hr-att-sum-card"><div class="hr-att-sum-icon st-leave"><span data-lucide="palm-tree" style="width:17px;height:17px;"></span></div><div><div class="hr-att-sum-val">${counts.leave}</div><div class="hr-att-sum-lbl">إجازة</div></div></div>
+      <div class="hr-att-sum-card"><div class="hr-att-sum-icon st-leave"><span data-lucide="tree-palm" style="width:17px;height:17px;"></span></div><div><div class="hr-att-sum-val">${counts.leave}</div><div class="hr-att-sum-lbl">إجازة</div></div></div>
     `;
     if (window.lucide) lucide.createIcons();
   }
@@ -18837,7 +18837,7 @@ async function pageHrLeaves(body, urlQuery) {
 
     <div class="mt-hero-header">
       <div>
-        <h2><span class="mt-accent"></span><span data-lucide="palm-tree" style="width:22px;height:22px;color:#123F32;"></span> الإجازات</h2>
+        <h2><span class="mt-accent"></span><span data-lucide="tree-palm" style="width:22px;height:22px;color:#123F32;"></span> الإجازات</h2>
         <p>إدارة طلبات الإجازة والموافقة عليها ومتابعة الأرصدة السنوية.</p>
       </div>
       <button type="button" class="btn" id="hrLvNewBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;">
@@ -18923,7 +18923,7 @@ async function renderHrLeavesTable() {
   if (HrLeavesState.typeFilter) rows = rows.filter(l => String(l.leave_type_id) === String(HrLeavesState.typeFilter));
 
   if (!rows.length) {
-    box.innerHTML = `<div class="hr-empty"><span data-lucide="palm-tree"></span><p class="hr-empty-title">لا توجد طلبات إجازة</p><p class="hr-empty-sub">اضغط "طلب إجازة جديد" لتقديم أول طلب.</p></div>`;
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="tree-palm"></span><p class="hr-empty-title">لا توجد طلبات إجازة</p><p class="hr-empty-sub">اضغط "طلب إجازة جديد" لتقديم أول طلب.</p></div>`;
     if (window.lucide) lucide.createIcons();
     return;
   }
@@ -18997,7 +18997,7 @@ async function openHrLeaveDetail(leaveId) {
   host.innerHTML = `
     <div class="panel modal-box" style="width:520px;max-width:96%;">
       <div class="panel-header">
-        <h3><span data-lucide="palm-tree" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> تفاصيل طلب الإجازة</h3>
+        <h3><span data-lucide="tree-palm" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> تفاصيل طلب الإجازة</h3>
         <button class="modal-close-x" id="hrLvVwClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
       </div>
       <div class="panel-body">
@@ -22581,7 +22581,7 @@ const COMING_SOON_MODULES = {
       { icon: 'user-square', title: 'ملف الموظف الموحد', desc: 'كل بيانات الموظف الوظيفية والشخصية والمهارية والمالية في مكان واحد.' },
       { icon: 'network', title: 'الهيكل التنظيمي والوظائف', desc: 'كيانات، فروع، أقسام، مناصب، درجات، ووصف وظيفي معتمد بإصدارات.' },
       { icon: 'calendar-clock', title: 'الحضور والورديات', desc: 'ورديات مرنة، بصمة وGPS، سجلات خام ومحرك احتساب يومي واعتمادات.' },
-      { icon: 'palm-tree', title: 'الإجازات والغياب', desc: 'أنواع مخصصة، أرصدة تراكمية، مسارات موافقات، بدائل وتغطيات.' },
+      { icon: 'tree-palm', title: 'الإجازات والغياب', desc: 'أنواع مخصصة، أرصدة تراكمية، مسارات موافقات، بدائل وتغطيات.' },
       { icon: 'banknote', title: 'الرواتب Payroll', desc: 'محرك مستقل بعناصر بتاريخ سريان، مسير شهري، قسائم، وقيود GL آلية.' },
       { icon: 'briefcase', title: 'الاستقطاب والتوظيف ATS', desc: 'شواغر، مرشحون، Pipeline، مقابلات، عروض، تحويل إلى Onboarding.' },
       { icon: 'file-signature', title: 'العقود والانضمام', desc: 'قوالب حسب الدرجة والنوع، توقيع إلكتروني، وخطة أول أسبوع للموظف.' },
@@ -22625,7 +22625,7 @@ const COMING_SOON_MODULES = {
       { icon: 'file-check-2', title: 'فواتير الموردين AP', desc: 'مطابقة ثلاثية (طلب/استلام/فاتورة) قبل الدفع وأعمار موردين.' },
       { icon: 'building-2', title: 'الأصول الثابتة', desc: 'تسجيل، تصنيف، إهلاك تلقائي، وحركات الأصول والمشروعات.' },
       { icon: 'file-badge', title: 'الفوترة الإلكترونية ZATCA', desc: 'QR Code، XML موقّع، Cryptographic Stamp، وتكامل ZATCA Phase 2.' },
-      { icon: 'percent', title: 'ضريبة القيمة المضافة', desc: 'حساب VAT تلقائي، إقرار ربع سنوي، وتقارير مطابقة زاتكا.' },
+      { icon: 'percent', title: 'ضريبة القيمة المضافة', desc: 'حساب VAT تلقائي، إقرار ربع سنوي، وتقارير مطابقة ZATCA.' },
       { icon: 'calendar-check', title: 'الإقفال الشهري والسنوي', desc: 'تسويات، قيود إقفال، ترحيل، وحماية الفترة بعد الاعتماد.' },
       { icon: 'file-bar-chart', title: 'القوائم المالية', desc: 'المركز المالي، الدخل، التدفقات النقدية، والتغيرات في حقوق الملكية.' },
       { icon: 'wallet-cards', title: 'الموازنات والتنبؤ', desc: 'موازنة سنوية، مقارنة الفعلي بالمعتمد، وتوقع التدفق النقدي.' },
