@@ -4851,7 +4851,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v99-2026-07-16-pwa-mic-fix';
+const APP_VERSION = 'v100-2026-07-16-voice-name-rescue';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -8308,7 +8308,12 @@ async function tryVoiceCommand(rawText) {
     return [...data].sort((a, b) => levenshteinDist(normalizeArabic(a.full_name), primary) - levenshteinDist(normalizeArabic(b.full_name), primary));
   }
   let users = await searchUsersByName(name);
-  const target = users[0];
+  let target = users[0];
+  if (!target) {
+    // إنقاذ أخير: مطابقة مرنة كلمة-بكلمة ضد أسماء الموظفين — التعرف الصوتي
+    // كثيرًا يشوّه الاسم أو يحشر كلمات زائدة ("هناك عتيبي" بدل "العتيبي")
+    try { target = await voiceFindPersonLoose(rest); } catch (e) {}
+  }
   if (!target) { toast(`لم يتم العثور على موظف باسم "${name}"`, 'warning'); return true; }
 
   if (matched === 'assign') {
@@ -8376,7 +8381,7 @@ function voiceActionCandidatesLoose(normText) {
 // بحث مرن عن اسم موظف داخل الكلام المنطوق (مقارنة محلية بعد جلبة واحدة)
 async function voiceFindPersonLoose(rawText) {
   try {
-    const stop = new Set(['رساله','مهمه','مهام','تقرير','اجتماع','اجتماعات','ارسل','ابعت','ابعث','اسند','كلم','قوله','قولها','افتح','وريني','اشوف','شوف','عايز','عاوز','ابغي','ابغى','بغيت','اريد','سوي','اعمل','ضيف','حط','المهمه','المطلوب','بخصوص','الصيانه','الجوده','الرئيسيه','الاشعارات','التقارير','طلب','جديد','جديده']);
+    const stop = new Set(['رساله','مهمه','مهام','تقرير','اجتماع','اجتماعات','ارسل','ابعت','ابعث','اسند','كلم','قوله','قولها','افتح','وريني','اشوف','شوف','عايز','عاوز','ابغي','ابغى','بغيت','اريد','سوي','اعمل','ضيف','حط','المهمه','المطلوب','بخصوص','الصيانه','الجوده','الرئيسيه','الاشعارات','التقارير','طلب','جديد','جديده','هناك','هنا','كده','كدا','دلوقتي','الحين','بسرعه']);
     const words = normalizeArabic(stripVoiceCommandPreposition(rawText))
       .split(/\s+/).filter(w => w.length >= 3 && !stop.has(w));
     if (!words.length) return null;
