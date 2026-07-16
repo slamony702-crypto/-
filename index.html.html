@@ -4875,7 +4875,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v101-2026-07-16-ai-assistant';
+const APP_VERSION = 'v102-2026-07-16-ai-tools-5-6';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -6995,7 +6995,9 @@ const AIA_TOOL_LABELS = {
   get_overdue_tasks: 'المهام المتأخرة',
   get_branches_status: 'حالة الفروع',
   get_expiring_documents: 'الوثائق القاربة على الانتهاء',
-  get_financial_summary: 'الملخص المالي'
+  get_financial_summary: 'الملخص المالي',
+  get_recent_decisions: 'آخر القرارات',
+  get_open_maintenance_requests: 'طلبات الصيانة المفتوحة'
 };
 
 const AIA = {
@@ -7062,6 +7064,44 @@ const AIA = {
         draft_journal_entries: drafts.count || 0,
         unpaid_vendor_bills: { count: (bills.data || []).length, total: sum(bills.data) },
         uncollected_customer_invoices: { count: (invoices.data || []).length, total: sum(invoices.data) }
+      };
+    },
+
+    async get_recent_decisions() {
+      const { data, error } = await sb.from('decisions')
+        .select('decision_text, status, due_date, created_at, users!responsible_user_id(full_name)')
+        .order('created_at', { ascending: false })
+        .limit(15);
+      if (error) return { error: error.message };
+      return {
+        count: (data || []).length,
+        decisions: (data || []).map(d => ({
+          decision: d.decision_text,
+          responsible: d.users?.full_name || 'غير محدد',
+          due_date: d.due_date || null,
+          status: d.status,
+          taken_at: d.created_at
+        }))
+      };
+    },
+
+    async get_open_maintenance_requests() {
+      const { data, error } = await sb.from('maintenance_requests')
+        .select('request_no, issue_title, status, severity, created_at, branches(name)')
+        .not('status', 'in', '("closed","rejected")')
+        .order('created_at', { ascending: false })
+        .limit(30);
+      if (error) return { error: error.message };
+      return {
+        count: (data || []).length,
+        requests: (data || []).map(r => ({
+          request_no: r.request_no,
+          title: r.issue_title,
+          branch: r.branches?.name || 'غير محدد',
+          severity: r.severity,
+          status: r.status,
+          created_at: r.created_at
+        }))
       };
     }
   },
@@ -25006,7 +25046,9 @@ async function pageAiAssistant(body) {
     { icon: 'clipboard-list', text: 'اعرض المهام المتأخرة مع المسؤولين عنها' },
     { icon: 'building-2', text: 'إيه حالة الفروع التشغيلية دلوقتي؟' },
     { icon: 'file-check', text: 'مين عنده وثائق هتنتهي خلال 30 يوم؟' },
-    { icon: 'landmark', text: 'اعطني ملخص مالي سريع' }
+    { icon: 'landmark', text: 'اعطني ملخص مالي سريع' },
+    { icon: 'gavel', text: 'إيه آخر القرارات اللي اتاخدت في الاجتماعات؟' },
+    { icon: 'wrench', text: 'اعرض طلبات الصيانة المفتوحة حسب الخطورة' }
   ];
 
   body.innerHTML = `
