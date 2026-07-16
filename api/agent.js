@@ -92,6 +92,7 @@ export default async function handler(req, res) {
 
   const models = ['gemini-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-flash'];
   let lastError = 'تعذر الاتصال بمزود الذكاء الاصطناعي';
+  let quotaHit = false;
   const modelErrors = []; // خطأ كل موديل على حدة — للتشخيص بدل إظهار خطأ الأخير فقط
 
   for (const model of models) {
@@ -111,8 +112,15 @@ export default async function handler(req, res) {
       );
       const gData = await gRes.json();
       if (!gRes.ok) {
-        lastError = gData?.error?.message || ('HTTP ' + gRes.status);
-        modelErrors.push(model + ': ' + lastError);
+        const raw = gData?.error?.message || ('HTTP ' + gRes.status);
+        // حصة المفتاح المجانية استُهلكت — رسالة عربية واضحة بدل نص Google الخام،
+        // ولها الأولوية على أخطاء الموديلات التالية في الرسالة النهائية
+        if (gRes.status === 429 || /quota|RESOURCE_EXHAUSTED/i.test(raw)) {
+          quotaHit = true;
+        } else {
+          lastError = raw;
+        }
+        modelErrors.push(model + ': ' + raw);
         continue;
       }
 
@@ -133,5 +141,8 @@ export default async function handler(req, res) {
     }
   }
 
-  return res.status(502).json({ error: lastError, model_errors: modelErrors });
+  const finalError = quotaHit
+    ? 'تم استهلاك حصة اليوم من مزود الذكاء الاصطناعي — حاول لاحقًا، أو فعِّل الفوترة على مفتاح Gemini لرفع الحد'
+    : lastError;
+  return res.status(quotaHit ? 429 : 502).json({ error: finalError, model_errors: modelErrors });
 }
