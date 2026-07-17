@@ -97,19 +97,29 @@ export default async function handler(req, res) {
 
   for (const model of models) {
     try {
-      const gRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: systemText }] },
-            contents,
-            tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
-            generationConfig: { temperature: 0.3, maxOutputTokens: 1500 }
-          })
-        }
-      );
+      // مهلة 25 ثانية لكل موديل — قبل ضياع مهلة Vercel (10s على الخطة المجانية،
+      // 60s على Pro). لو انتهت المهلة نجرب الموديل التالي بدل ما نعلّق الواجهة.
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
+      let gRes;
+      try {
+        gRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: systemText }] },
+              contents,
+              tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+              generationConfig: { temperature: 0.3, maxOutputTokens: 1500 }
+            }),
+            signal: controller.signal
+          }
+        );
+      } finally {
+        clearTimeout(timeoutId);
+      }
       const gData = await gRes.json();
       if (!gRes.ok) {
         const raw = gData?.error?.message || ('HTTP ' + gRes.status);
@@ -136,7 +146,10 @@ export default async function handler(req, res) {
       lastError = 'رد فارغ من النموذج';
       modelErrors.push(model + ': ' + lastError);
     } catch (e) {
-      lastError = e.message;
+      // AbortError = مهلة انتهت. نجرب الموديل التالي مع رسالة عربية واضحة
+      lastError = e.name === 'AbortError'
+        ? 'تأخر رد النموذج ' + model + ' — انتهت مهلة 25 ثانية'
+        : e.message;
       modelErrors.push(model + ': ' + lastError);
     }
   }

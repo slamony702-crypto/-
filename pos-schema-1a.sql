@@ -141,6 +141,9 @@ CREATE INDEX IF NOT EXISTS pos_txn_session_idx    ON pos_transactions(session_id
 CREATE INDEX IF NOT EXISTS pos_txn_branch_date_idx ON pos_transactions(branch_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS pos_txn_customer_idx   ON pos_transactions(customer_id) WHERE customer_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS pos_txn_status_idx     ON pos_transactions(status);
+-- Index لتقارير BI اللي بتفلتر بالتاريخ فقط على المعاملات المكتملة
+CREATE INDEX IF NOT EXISTS pos_txn_completed_date_idx
+  ON pos_transactions (completed_at) WHERE status = 'completed';
 
 DROP TRIGGER IF EXISTS pos_txn_updated_at ON pos_transactions;
 CREATE TRIGGER pos_txn_updated_at BEFORE UPDATE ON pos_transactions
@@ -228,6 +231,11 @@ BEGIN
   SELECT * INTO v_txn FROM pos_transactions WHERE id = p_txn_id;
   IF v_txn IS NULL THEN RAISE EXCEPTION 'المعاملة غير موجودة'; END IF;
   IF v_txn.status <> 'draft' THEN RAISE EXCEPTION 'المعاملة أُتمّت بالفعل'; END IF;
+  -- الدالة تعالج type='sale' فقط. المرتجعات والإلغاءات لها مسار محاسبي مختلف
+  -- (قيد عكسي بدل قيد بيع موجب) ولم تُبنى بعد — يُوصى بإضافتها كـ pos_refund_transaction لاحقًا
+  IF v_txn.type <> 'sale' THEN
+    RAISE EXCEPTION 'الدالة تعمل على معاملات type=sale فقط. المعاملة type=% تحتاج مسار محاسبي خاص (مرتجع/إلغاء).', v_txn.type;
+  END IF;
   IF v_txn.total_amount <= 0 THEN RAISE EXCEPTION 'الإجمالي صفر — أضف بندًا على الأقل'; END IF;
 
   -- التحقق من أن مجموع الدفعات >= الإجمالي (الفرق = فكة)

@@ -13,7 +13,9 @@ BEGIN;
 -- 0) دالة مساعدة: مدير CRM (admin أو company_manager أو operations)
 -- ───────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION is_crm_manager()
-RETURNS BOOLEAN LANGUAGE SQL STABLE SECURITY DEFINER AS $$
+RETURNS BOOLEAN LANGUAGE SQL STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
   SELECT current_app_role() IN ('admin', 'company_manager', 'operations_manager');
 $$;
 
@@ -85,10 +87,30 @@ CREATE TABLE IF NOT EXISTS crm_customer_addresses (
   latitude         NUMERIC(10,7),
   longitude        NUMERIC(10,7),
   is_default       BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at       TIMESTAMPTZ DEFAULT now()
+  created_at       TIMESTAMPTZ DEFAULT now(),
+  updated_at       TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS crm_addresses_customer_idx ON crm_customer_addresses(customer_id);
+
+-- إضافة updated_at لجداول قديمة تركّبت قبل هذا التحديث (idempotent)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'crm_customer_addresses' AND column_name = 'updated_at'
+  ) THEN
+    ALTER TABLE crm_customer_addresses ADD COLUMN updated_at TIMESTAMPTZ DEFAULT now();
+  END IF;
+END $$;
+
+DROP TRIGGER IF EXISTS crm_addresses_updated_at ON crm_customer_addresses;
+CREATE TRIGGER crm_addresses_updated_at BEFORE UPDATE ON crm_customer_addresses
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- partial unique: عنوان افتراضي واحد لكل عميل
+CREATE UNIQUE INDEX IF NOT EXISTS crm_addresses_default_uniq
+  ON crm_customer_addresses (customer_id)
+  WHERE is_default = TRUE;
 
 -- ───────────────────────────────────────────────────────────
 -- 3) loyalty_accounts — حساب نقاط لكل عميل (1:1)

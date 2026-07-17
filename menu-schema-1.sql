@@ -14,7 +14,9 @@ BEGIN;
 -- 0) دالة مساعدة: مدير المنيو (operations_manager أو أعلى)
 -- ───────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION is_menu_manager()
-RETURNS BOOLEAN LANGUAGE SQL STABLE SECURITY DEFINER AS $$
+RETURNS BOOLEAN LANGUAGE SQL STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
   SELECT current_app_role() IN ('admin', 'company_manager', 'operations_manager');
 $$;
 
@@ -145,7 +147,9 @@ CREATE INDEX IF NOT EXISTS menu_channel_prices_item_idx ON menu_channel_prices(i
 --    ترجع تكلفة الصنف الحالية بناءً على unit_cost لكل مكون
 -- ───────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION menu_compute_item_cost(p_item_id BIGINT)
-RETURNS NUMERIC LANGUAGE SQL STABLE SECURITY DEFINER AS $$
+RETURNS NUMERIC LANGUAGE SQL STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
   SELECT COALESCE(SUM(r.quantity * COALESCE(i.unit_cost, 0)), 0)
   FROM menu_item_recipes r
   JOIN acct_inventory_items i ON i.id = r.inventory_item_id
@@ -209,6 +213,38 @@ COMMIT;
 -- ═══════════════════════════════════════════════════════════
 BEGIN;
 
+-- ضمان idempotency للبذر: UNIQUE على name_ar حتى يعمل ON CONFLICT فعليًا
+-- (بدون هذا القيد كل rerun يضيف الفئات الست مرة أخرى)
+
+-- الخطوة 1: تنظيف أي تكرار من runs سابقة قبل الإصلاح.
+-- (هذه الخطوة لا تؤثر إذا لم يكن هناك تكرار — safe للتنفيذ في أي حالة)
+-- (أ) تحويل أي إشارة من menu_items لصف مكرر إلى الصف الأقدم (canonical = أصغر id)
+UPDATE menu_items mi
+SET category_id = canonical.keep_id
+FROM (
+  SELECT MIN(id) AS keep_id, name_ar
+  FROM menu_categories
+  GROUP BY name_ar
+) canonical
+JOIN menu_categories dup ON dup.name_ar = canonical.name_ar AND dup.id <> canonical.keep_id
+WHERE mi.category_id = dup.id;
+
+-- (ب) حذف الصفوف المكررة (نحتفظ بأصغر id لكل name_ar)
+DELETE FROM menu_categories
+WHERE id NOT IN (
+  SELECT MIN(id) FROM menu_categories GROUP BY name_ar
+);
+
+-- الخطوة 2: إضافة القيد UNIQUE (آمن الآن بعد التنظيف)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'menu_categories_name_ar_unique'
+  ) THEN
+    ALTER TABLE menu_categories
+      ADD CONSTRAINT menu_categories_name_ar_unique UNIQUE (name_ar);
+  END IF;
+END $$;
+
 INSERT INTO menu_categories (name_ar, name_en, icon, sort_order) VALUES
   ('الوجبات الرئيسية', 'Main Courses', 'utensils', 1),
   ('المشروبات الساخنة', 'Hot Beverages', 'coffee', 2),
@@ -216,7 +252,7 @@ INSERT INTO menu_categories (name_ar, name_en, icon, sort_order) VALUES
   ('السلطات والمقبلات', 'Salads & Appetizers', 'salad', 4),
   ('الحلويات', 'Desserts', 'cake-slice', 5),
   ('الوجبات السريعة', 'Fast Food', 'sandwich', 6)
-ON CONFLICT DO NOTHING;
+ON CONFLICT (name_ar) DO NOTHING;
 
 COMMIT;
 
