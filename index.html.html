@@ -4875,7 +4875,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v106-2026-07-17-wave1-menu';
+const APP_VERSION = 'v107-2026-07-17-wave1-crm';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -7413,6 +7413,173 @@ const MENU = {
   }
 };
 window.MENU = MENU;
+
+// ═══════════════════════════════════════════════════════════════════
+// إدارة العملاء والولاء (CRM & Loyalty) — Wave 1 Module 25
+// القاعدة الذهبية: كل RLS يحكم الوصول — المدير فقط يعدل، الجميع يقرأ
+// (احتياجات POS مستقبلًا لقراءة العميل عند البيع).
+// ═══════════════════════════════════════════════════════════════════
+const CRM_SEGMENT_LABELS = { vip: 'VIP', regular: 'عادي', inactive: 'خامل', new: 'جديد' };
+const CRM_TIER_LABELS = { bronze: 'برونزي', silver: 'فضي', gold: 'ذهبي', platinum: 'بلاتيني' };
+const CRM_CHANNEL_LABELS = { phone: 'هاتف', whatsapp: 'واتساب', website: 'موقع', app: 'تطبيق', social: 'شبكات اجتماعية', in_person: 'حضور شخصي', other: 'أخرى' };
+const CRM_CATEGORY_LABELS = { food_quality: 'جودة الطعام', service: 'خدمة', delivery: 'توصيل', pricing: 'تسعير', cleanliness: 'نظافة', staff: 'موظفون', other: 'أخرى' };
+const CRM_SEVERITY_LABELS = { low: 'منخفضة', medium: 'متوسطة', high: 'عالية', critical: 'حرجة' };
+const CRM_STATUS_LABELS = { open: 'مفتوحة', in_progress: 'قيد المعالجة', resolved: 'محلولة', closed: 'مغلقة', escalated: 'مُصعَّدة' };
+function isCrmManager() { return CURRENT_USER && ['admin', 'company_manager', 'operations_manager'].includes(CURRENT_USER.role); }
+
+const CRM = {
+  // ─── العملاء ────────────────────────────────────────────────
+  customers: {
+    async list(filters = {}) {
+      let q = sb.from('crm_customers').select('*').is('deleted_at', null).order('created_at', { ascending: false });
+      if (filters.segment) q = q.eq('segment', filters.segment);
+      if (filters.is_active != null) q = q.eq('is_active', filters.is_active);
+      if (filters.search) {
+        const s = filters.search.trim().replace(/[%,]/g, '');
+        q = q.or(`full_name.ilike.%${s}%,phone.ilike.%${s}%,email.ilike.%${s}%,code.ilike.%${s}%`);
+      }
+      const { data, error } = await q.limit(500);
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('crm_customers').select('*').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      if (!payload.full_name || !payload.full_name.trim()) return { data: null, error: { message: 'اسم العميل مطلوب' } };
+      const { data, error } = await sb.from('crm_customers').insert({ ...payload, created_by: CURRENT_USER?.id }).select().single();
+      if (!error && data) {
+        // إنشاء حساب نقاط تلقائيًا للعميل الجديد
+        try { await sb.from('loyalty_accounts').insert({ customer_id: data.id }); } catch (e) { fwReport('loyaltyAccountAutoCreate', e); }
+      }
+      return { data, error };
+    },
+    async update(id, payload) {
+      const { data, error } = await sb.from('crm_customers').update(payload).eq('id', id).select().single();
+      return { data, error };
+    },
+    async remove(id) {
+      const { error } = await sb.from('crm_customers').update({ deleted_at: new Date().toISOString(), is_active: false }).eq('id', id);
+      return { error };
+    },
+    async addresses(customerId) {
+      const { data, error } = await sb.from('crm_customer_addresses').select('*').eq('customer_id', customerId).order('is_default', { ascending: false }).order('id');
+      return { data: data || [], error };
+    },
+    async addAddress(customerId, payload) {
+      if (payload.is_default) {
+        // إلغاء التعيين الافتراضي من العناوين الأخرى
+        await sb.from('crm_customer_addresses').update({ is_default: false }).eq('customer_id', customerId).eq('is_default', true);
+      }
+      const { data, error } = await sb.from('crm_customer_addresses').insert({ ...payload, customer_id: customerId }).select().single();
+      return { data, error };
+    },
+    async removeAddress(id) {
+      const { error } = await sb.from('crm_customer_addresses').delete().eq('id', id);
+      return { error };
+    }
+  },
+
+  // ─── نقاط الولاء ───────────────────────────────────────────
+  loyalty: {
+    async getAccount(customerId) {
+      const { data, error } = await sb.from('loyalty_accounts').select('*').eq('customer_id', customerId).maybeSingle();
+      return { data, error };
+    },
+    async transactions(accountId, limit = 50) {
+      const { data, error } = await sb.from('loyalty_transactions').select('*, users:created_by(full_name)').eq('account_id', accountId).order('created_at', { ascending: false }).limit(limit);
+      return { data: data || [], error };
+    },
+    // DECISION: النقاط signed — earn موجب، redeem سالب
+    async earn(accountId, points, description, reference) {
+      const p = Math.abs(Number(points) || 0);
+      if (p <= 0) return { error: { message: 'أدخل عدد نقاط أكبر من صفر' } };
+      const { data, error } = await sb.from('loyalty_transactions').insert({
+        account_id: accountId, type: 'earn', points: p,
+        description: description || null, reference: reference || null,
+        created_by: CURRENT_USER?.id
+      }).select().single();
+      return { data, error };
+    },
+    async redeem(accountId, points, description, reference) {
+      const p = Math.abs(Number(points) || 0);
+      if (p <= 0) return { error: { message: 'أدخل عدد نقاط أكبر من صفر' } };
+      const acc = (await sb.from('loyalty_accounts').select('points_balance').eq('id', accountId).maybeSingle()).data;
+      if (!acc || Number(acc.points_balance) < p) return { error: { message: 'رصيد النقاط غير كافٍ' } };
+      const { data, error } = await sb.from('loyalty_transactions').insert({
+        account_id: accountId, type: 'redeem', points: -p,
+        description: description || null, reference: reference || null,
+        created_by: CURRENT_USER?.id
+      }).select().single();
+      return { data, error };
+    },
+    async adjust(accountId, signedPoints, description) {
+      const p = Number(signedPoints) || 0;
+      if (p === 0) return { error: { message: 'أدخل قيمة تعديل غير صفرية' } };
+      const { data, error } = await sb.from('loyalty_transactions').insert({
+        account_id: accountId, type: 'adjustment', points: p,
+        description: description || 'تعديل إداري', created_by: CURRENT_USER?.id
+      }).select().single();
+      return { data, error };
+    }
+  },
+
+  // ─── الشكاوى ──────────────────────────────────────────────
+  complaints: {
+    async list(filters = {}) {
+      let q = sb.from('crm_complaints').select('*, customer:customer_id(full_name, phone), assignee:assigned_to(full_name), branches(name)').order('created_at', { ascending: false });
+      if (filters.status) q = q.eq('status', filters.status);
+      if (filters.severity) q = q.eq('severity', filters.severity);
+      if (filters.customer_id) q = q.eq('customer_id', filters.customer_id);
+      const { data, error } = await q.limit(200);
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('crm_complaints').select('*, customer:customer_id(id, full_name, phone), assignee:assigned_to(full_name), branches(name)').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      const errors = [];
+      if (!payload.title || !payload.title.trim()) errors.push('عنوان الشكوى مطلوب');
+      if (!payload.channel) errors.push('قناة الشكوى مطلوبة');
+      if (!payload.category) errors.push('فئة الشكوى مطلوبة');
+      if (errors.length) return { data: null, error: { message: errors.join('؛ ') } };
+      const { data, error } = await sb.from('crm_complaints').insert({ ...payload, created_by: CURRENT_USER?.id }).select().single();
+      return { data, error };
+    },
+    async setStatus(id, status, extra = {}) {
+      const payload = { status, ...extra };
+      if (status === 'resolved' || status === 'closed') payload.resolved_at = new Date().toISOString();
+      const { data, error } = await sb.from('crm_complaints').update(payload).eq('id', id).select().single();
+      return { data, error };
+    },
+    async assign(id, userId) {
+      const { data, error } = await sb.from('crm_complaints').update({ assigned_to: userId, status: 'in_progress' }).eq('id', id).select().single();
+      return { data, error };
+    }
+  },
+
+  // ─── لوحة المؤشرات ────────────────────────────────────────
+  dashboard: {
+    async summary() {
+      const [custActive, custVip, custInactive, complaintsOpen, complaintsCritical] = await Promise.all([
+        sb.from('crm_customers').select('id', { count: 'exact', head: true }).is('deleted_at', null).eq('is_active', true),
+        sb.from('crm_customers').select('id', { count: 'exact', head: true }).is('deleted_at', null).eq('segment', 'vip'),
+        sb.from('crm_customers').select('id', { count: 'exact', head: true }).is('deleted_at', null).eq('segment', 'inactive'),
+        sb.from('crm_complaints').select('id', { count: 'exact', head: true }).in('status', ['open', 'in_progress', 'escalated']),
+        sb.from('crm_complaints').select('id', { count: 'exact', head: true }).eq('severity', 'critical').in('status', ['open', 'in_progress', 'escalated'])
+      ]);
+      return {
+        activeCustomers: custActive.count || 0,
+        vipCustomers: custVip.count || 0,
+        inactiveCustomers: custInactive.count || 0,
+        openComplaints: complaintsOpen.count || 0,
+        criticalComplaints: complaintsCritical.count || 0
+      };
+    }
+  }
+};
+window.CRM = CRM;
 
 // ═══════════════════════════════════════════════════════════════════
 // المدفوعات والمقاصات — المرحلة P1: الشركاء الماليون والعقود
@@ -10409,7 +10576,7 @@ async function logout() {
 // وصفحة تعريفية فقط (pageComingSoonModule) — كل شاشاتها الداخلية محمية.
 // حسابات المراجعة في MODULE_PREVIEW_USERS فقط هي اللي تشوف الشاشات الحقيقية.
 // لإطلاق مديول للجميع: امسح مفتاحه من PREVIEW_MODULES — تعديل سطر واحد فقط.
-const PREVIEW_MODULES = ['hr', 'accounting', 'operations', 'ai_agents', 'menu'];
+const PREVIEW_MODULES = ['hr', 'accounting', 'operations', 'ai_agents', 'menu', 'crm'];
 const MODULE_PREVIEW_USERS = ['test_admin'];
 function canAccessModule(moduleKey) {
   if (!PREVIEW_MODULES.includes(moduleKey)) return true;
@@ -10423,6 +10590,7 @@ function gatedModuleForPage(page) {
   if (p === 'operations' || p.startsWith('ops_')) return 'operations';
   if (p === 'ai_assistant' || p.startsWith('ai_')) return 'ai_agents';
   if (p === 'menu' || p.startsWith('menu_')) return 'menu';
+  if (p === 'crm' || p.startsWith('crm_')) return 'crm';
   return null;
 }
 
@@ -10454,6 +10622,9 @@ const MENU_GROUPS = [
   { key: '__menu', label: 'المطبخ والمنيو', icon: 'utensils', defaultOpen: false, items: [
     { key: 'menu', label: 'المنيو والوصفات', icon: 'utensils', badge: 'قريبًا' },
   ]},
+  { key: '__crm', label: 'علاقات العملاء', icon: 'user-round', defaultOpen: false, items: [
+    { key: 'crm', label: 'العملاء والولاء', icon: 'user-round', badge: 'قريبًا' },
+  ]},
   { key: '__cafe', label: 'ركن الكافيه', icon: 'coffee', defaultOpen: false, items: [
     { key: 'cafe', label: 'ركن الكافيه', icon: 'coffee' },
   ]},
@@ -10471,7 +10642,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', acct_pay_partners: 'شركاء المدفوعات', acct_pay_partner: 'تفاصيل الشريك', acct_pay_statements: 'كشوف الشركاء', acct_pay_statement: 'تفاصيل الكشف', acct_pay_clearing: 'المقاصة والتسويات', acct_pay_clearing_batch: 'تفاصيل دفعة المقاصة', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', ops_issues: 'المشكلات التشغيلية', ops_issue_detail: 'تفاصيل المشكلة', ops_settings: 'إعدادات التشغيل', ai_assistant: 'المساعد الذكي', ai_settings: 'إعدادات المساعد الذكي', menu: 'المنيو والوصفات', menu_categories: 'فئات المنيو', menu_items: 'أصناف المنيو', menu_item: 'تفاصيل الصنف', menu_settings: 'إعدادات المنيو', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', acct_pay_partners: 'شركاء المدفوعات', acct_pay_partner: 'تفاصيل الشريك', acct_pay_statements: 'كشوف الشركاء', acct_pay_statement: 'تفاصيل الكشف', acct_pay_clearing: 'المقاصة والتسويات', acct_pay_clearing_batch: 'تفاصيل دفعة المقاصة', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', ops_issues: 'المشكلات التشغيلية', ops_issue_detail: 'تفاصيل المشكلة', ops_settings: 'إعدادات التشغيل', ai_assistant: 'المساعد الذكي', ai_settings: 'إعدادات المساعد الذكي', menu: 'المنيو والوصفات', menu_categories: 'فئات المنيو', menu_items: 'أصناف المنيو', menu_item: 'تفاصيل الصنف', menu_settings: 'إعدادات المنيو', crm: 'العملاء والولاء', crm_customers: 'قاعدة العملاء', crm_customer: 'ملف العميل', crm_complaints: 'الشكاوى', crm_complaint: 'تفاصيل الشكوى', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -14708,7 +14879,7 @@ async function renderShellOnce() {
   } catch (e) { /* تجاهل بصمت لو فشل الحساب */ }
 
   // المديولات القادمة (Placeholder Overview) — تظهر للجميع لأنها صفحات عرض فقط
-  const ALWAYS_VISIBLE = ['hr', 'accounting', 'operations', 'ai_assistant', 'menu'];
+  const ALWAYS_VISIBLE = ['hr', 'accounting', 'operations', 'ai_assistant', 'menu', 'crm'];
   const openGroupsRaw = localStorage.getItem('sidebar_open_groups');
   const openGroups = openGroupsRaw ? JSON.parse(openGroupsRaw) : null;
   function isGroupOpen(g) { return openGroups ? openGroups.includes(g.key) : g.defaultOpen; }
@@ -15093,6 +15264,11 @@ async function route() {
     else if (page === 'menu_items') await pageMenuItems(body, query);
     else if (page === 'menu_item') await pageMenuItemDetail(body, param);
     else if (page === 'menu_settings') await pageMenuSettings(body);
+    else if (page === 'crm') await pageCrmDashboard(body);
+    else if (page === 'crm_customers') await pageCrmCustomers(body, query);
+    else if (page === 'crm_customer') await pageCrmCustomerDetail(body, param);
+    else if (page === 'crm_complaints') await pageCrmComplaints(body, query);
+    else if (page === 'crm_complaint') await pageCrmComplaintDetail(body, param);
     else if (page === 'meetings') await pageMeetings(body, query);
     else if (page === 'meetings_calendar') await pageMeetingsCalendar(body, query);
     else if (page === 'meeting_detail') await pageMeetingDetail(body, param, query);
@@ -23831,6 +24007,30 @@ const COMING_SOON_MODULES = {
       { title: 'المرحلة 2 — الخيارات', sub: 'إضافات وخيارات (سعر إضافي أو مجاني)', status: 'قيد التخطيط' },
       { title: 'المرحلة 3 — أساس POS', sub: 'ربط بنقاط البيع • خصم مكونات تلقائي', status: 'مقرَّرة' }
     ]
+  },
+  crm: {
+    title: 'العملاء والولاء',
+    subtitle: 'قاعدة عملاء موحدة مع تاريخ كل عميل ونقاط ولاء ومكافآت وإدارة شكاوى بمنهجية.',
+    icon: 'user-round',
+    stats: [
+      { val: 'CLV', lbl: 'قيمة العميل الحياتية' },
+      { val: '4 مستويات', lbl: 'Bronze / Silver / Gold / Platinum' },
+      { val: 'شرائح', lbl: 'VIP • عادي • خامل • جديد' },
+      { val: 'SLA', lbl: 'شكاوى بمواعيد رد وحل' }
+    ],
+    features: [
+      { icon: 'user-round', title: 'ملف العميل الموحد', desc: 'اسم وجوال وبريد وتفضيلات وحساسيات، مع تاريخ الطلبات.' },
+      { icon: 'map-pin', title: 'عناوين متعددة', desc: 'كل عميل بأكثر من عنوان (منزل/عمل/آخر) بإحداثيات.' },
+      { icon: 'award', title: 'برنامج نقاط ذكي', desc: 'اكتساب واستبدال بمصدر حقيقة واحد — لا رصيد يدوي.' },
+      { icon: 'trophy', title: 'مستويات ولاء', desc: 'ترقية تلقائية للعملاء الأعلى إنفاقًا.' },
+      { icon: 'message-square-warning', title: 'إدارة شكاوى', desc: 'ترقيم آلي، SLA، تصعيد، تعويض، ورضا.' },
+      { icon: 'shield-check', title: 'أمان صارم', desc: 'لا حذف لسجل نقاط — كل حركة موثقة.' }
+    ],
+    roadmap: [
+      { title: 'المرحلة 1 — الأساس', sub: 'ملفات العملاء • عناوين • نقاط • شكاوى', status: 'الأولى' },
+      { title: 'المرحلة 2 — POS', sub: 'ربط الطلبات بالعملاء • منح نقاط تلقائي', status: 'قيد التخطيط' },
+      { title: 'المرحلة 3 — الحملات', sub: 'حملات موجَّهة بالشريحة • قياس أثر', status: 'مقرَّرة' }
+    ]
   }
 };
 
@@ -27309,6 +27509,733 @@ async function pageMenuSettings(body) {
     const { error: uErr } = await MENU.settings.save(payload);
     if (uErr) { errBox.textContent = uErr.message; errBox.classList.add('show'); return; }
     toast('تم حفظ الإعدادات', 'success');
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CRM — الشاشات (Wave 1)
+// ═══════════════════════════════════════════════════════════════════
+async function pageCrmDashboard(body) {
+  const canManage = isCrmManager();
+  body.innerHTML = `
+    <div class="mod-hero">
+      <div class="mod-hero-top">
+        <div class="mod-hero-icon"><span data-lucide="user-round"></span></div>
+        <div>
+          <h2 class="mod-hero-title">علاقات العملاء والولاء</h2>
+          <p class="mod-hero-sub">قاعدة عملاء موحدة مع نقاط الولاء وإدارة الشكاوى.</p>
+        </div>
+      </div>
+      <div class="mod-hero-badges">
+        <a href="#crm_customers" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="user-round" style="width:12px;height:12px;"></span> العملاء</a>
+        <a href="#crm_complaints" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="message-square-warning" style="width:12px;height:12px;"></span> الشكاوى</a>
+        ${canManage ? `<span class="mod-hero-badge hb-scope"><span data-lucide="shield-check" style="width:12px;height:12px;"></span> صلاحية إدارة كاملة</span>` : ''}
+      </div>
+    </div>
+
+    <div class="mod-stats" id="crmKpis">
+      ${[1,2,3,4].map(() => `<div class="mod-stat"><div class="skeleton skeleton-row" style="width:60%;height:24px;"></div><div class="skeleton skeleton-row" style="width:80%;margin-top:8px;"></div></div>`).join('')}
+    </div>
+    <div class="mod-section-title"><span data-lucide="message-square-warning" style="width:16px;height:16px;"></span> الشكاوى المفتوحة</div>
+    <div id="crmOpenComplaints"><div class="skeleton skeleton-row"></div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  const summary = await CRM.dashboard.summary();
+  const kpiBox = document.getElementById('crmKpis');
+  if (kpiBox) {
+    kpiBox.innerHTML = `
+      <div class="mod-stat"><div class="mod-stat-val">${summary.activeCustomers}</div><div class="mod-stat-lbl">عملاء نشطون</div></div>
+      <div class="mod-stat"><div class="mod-stat-val" style="color:#B45309;">${summary.vipCustomers}</div><div class="mod-stat-lbl">عملاء VIP</div></div>
+      <div class="mod-stat"><div class="mod-stat-val" style="color:#6B7280;">${summary.inactiveCustomers}</div><div class="mod-stat-lbl">عملاء خاملون</div></div>
+      <div class="mod-stat"><div class="mod-stat-val" style="color:${summary.criticalComplaints > 0 ? '#B91C1C' : 'inherit'};">${summary.openComplaints}${summary.criticalComplaints > 0 ? ` <span style="font-size:12px;">(${summary.criticalComplaints} حرجة)</span>` : ''}</div><div class="mod-stat-lbl">شكاوى مفتوحة</div></div>
+    `;
+  }
+
+  const { data: complaints } = await CRM.complaints.list({ status: 'open' });
+  const box = document.getElementById('crmOpenComplaints');
+  if (box) {
+    const rows = (complaints || []).slice(0, 8);
+    if (!rows.length) {
+      box.innerHTML = `<div class="hr-empty"><span data-lucide="check-check"></span><p class="hr-empty-title">لا توجد شكاوى مفتوحة الآن</p></div>`;
+    } else {
+      const sevCls = { low: 'st-empty', medium: 'st-late', high: 'st-absent', critical: 'st-absent' };
+      box.innerHTML = `
+        <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+          <thead><tr><th>رقم</th><th>العنوان</th><th>العميل</th><th>الفئة</th><th>الخطورة</th><th>المسؤول</th></tr></thead>
+          <tbody>${rows.map(c => `
+            <tr class="hr-emp-row" onclick="location.hash='#crm_complaint/${c.id}'">
+              <td class="mono-num">${esc(c.complaint_no)}</td>
+              <td><strong>${esc(c.title)}</strong></td>
+              <td>${esc(c.customer?.full_name || '—')}</td>
+              <td>${esc(CRM_CATEGORY_LABELS[c.category] || c.category)}</td>
+              <td><span class="hr-att-cell ${sevCls[c.severity]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(CRM_SEVERITY_LABELS[c.severity])}</span></td>
+              <td>${esc(c.assignee?.full_name || 'غير مُسنَد')}</td>
+            </tr>`).join('')}</tbody>
+        </table></div></div></div>
+      `;
+    }
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+async function pageCrmCustomers(body, query) {
+  const canManage = isCrmManager();
+  const segFilter = query && query.segment ? query.segment : '';
+  body.innerHTML = `
+    <a href="#crm" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لعلاقات العملاء</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="user-round" style="width:22px;height:22px;color:#123F32;"></span> قاعدة العملاء</h2>
+        <p>كل عملائك بكل تفاصيلهم — حالتهم، نقاطهم، تاريخهم.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="crmAddBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> عميل جديد</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <input type="text" class="form-input" id="crmSearchInput" placeholder="بحث بالاسم أو الجوال أو الكود..." style="flex:1;min-width:220px;">
+      <select class="form-select" id="crmSegFilter" style="min-width:160px;">
+        <option value="">كل الشرائح</option>
+        <option value="vip" ${segFilter==='vip'?'selected':''}>VIP</option>
+        <option value="regular" ${segFilter==='regular'?'selected':''}>عادي</option>
+        <option value="inactive" ${segFilter==='inactive'?'selected':''}>خامل</option>
+        <option value="new" ${segFilter==='new'?'selected':''}>جديد</option>
+      </select>
+    </div></div>
+    <div class="panel"><div class="panel-body" id="crmCustBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="crmModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) document.getElementById('crmAddBtn').addEventListener('click', () => openCrmCustomerModal(null));
+  const doRender = () => {
+    const search = document.getElementById('crmSearchInput').value;
+    const segment = document.getElementById('crmSegFilter').value;
+    renderCrmCustomersTable({ search, segment: segment || null });
+  };
+  document.getElementById('crmSearchInput').addEventListener('input', debounce(doRender, 300));
+  document.getElementById('crmSegFilter').addEventListener('change', doRender);
+  await renderCrmCustomersTable({ segment: segFilter || null });
+}
+
+async function renderCrmCustomersTable(filters) {
+  const box = document.getElementById('crmCustBody');
+  if (!box) return;
+  const { data: rows, error } = await CRM.customers.list(filters);
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="user-round"></span><p class="hr-empty-title">لا يوجد عملاء</p><p class="hr-empty-sub">ابدأ بإضافة أول عميل.</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const segCls = { vip: 'hr-pill-active', regular: 'hr-pill-active', inactive: 'hr-pill-inactive', new: 'hr-pill-active' };
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>الكود</th><th>الاسم</th><th>الجوال</th><th>الشريحة</th><th>الطلبات</th><th>إجمالي الإنفاق</th></tr></thead>
+      <tbody>${rows.map(c => `
+        <tr class="hr-emp-row" onclick="location.hash='#crm_customer/${c.id}'">
+          <td class="mono-num">${esc(c.code)}</td>
+          <td><strong>${esc(c.full_name)}</strong></td>
+          <td class="mono-num">${esc(c.phone || '—')}</td>
+          <td><span class="hr-pill ${segCls[c.segment]}">${esc(CRM_SEGMENT_LABELS[c.segment] || c.segment)}</span></td>
+          <td class="mono-num">${c.total_orders || 0}</td>
+          <td class="mono-num">${money(c.total_spent)} ر.س</td>
+        </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+}
+
+async function openCrmCustomerModal(customerId) {
+  const isEdit = !!customerId;
+  const c = isEdit ? (await CRM.customers.get(customerId)).data || {} : {};
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:560px;max-width:97%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="${isEdit ? 'pencil' : 'plus'}" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ${isEdit ? 'تعديل عميل' : 'عميل جديد'}</h3>
+        <button class="modal-close-x" id="crmCustClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="crmCustErr"></div>
+        <form id="crmCustForm" class="hr-form-grid">
+          <div class="form-field full"><label>الاسم الكامل *</label><input class="form-input" name="full_name" required value="${esc(c.full_name || '')}"></div>
+          <div class="form-field"><label>الجوال</label><input class="form-input mono-num" name="phone" value="${esc(c.phone || '')}"></div>
+          <div class="form-field"><label>البريد الإلكتروني</label><input class="form-input" type="email" name="email" value="${esc(c.email || '')}"></div>
+          <div class="form-field"><label>تاريخ الميلاد</label><input class="form-input" type="date" name="birth_date" value="${esc(c.birth_date || '')}"></div>
+          <div class="form-field"><label>الجنس</label>
+            <select class="form-select" name="gender">
+              <option value="">—</option>
+              <option value="male" ${c.gender === 'male' ? 'selected' : ''}>ذكر</option>
+              <option value="female" ${c.gender === 'female' ? 'selected' : ''}>أنثى</option>
+            </select>
+          </div>
+          <div class="form-field"><label>الشريحة</label>
+            <select class="form-select" name="segment">
+              <option value="new" ${!c.segment || c.segment==='new' ? 'selected' : ''}>جديد</option>
+              <option value="regular" ${c.segment==='regular' ? 'selected' : ''}>عادي</option>
+              <option value="vip" ${c.segment==='vip' ? 'selected' : ''}>VIP</option>
+              <option value="inactive" ${c.segment==='inactive' ? 'selected' : ''}>خامل</option>
+            </select>
+          </div>
+          <div class="form-field"><label>المصدر</label><input class="form-input" name="source" placeholder="مثال: إعلان، صديق" value="${esc(c.source || '')}"></div>
+          <div class="form-field full"><label>التفضيلات</label><textarea class="form-input" name="preferences" rows="2" placeholder="مثال: يحب الطعام الحار">${esc(c.preferences || '')}</textarea></div>
+          <div class="form-field full"><label>الحساسيات (تنبيه المطبخ)</label><textarea class="form-input" name="allergies" rows="2" placeholder="مثال: مكسرات، غلوتين">${esc(c.allergies || '')}</textarea></div>
+          <div class="form-field full"><label>ملاحظات</label><textarea class="form-input" name="notes" rows="2">${esc(c.notes || '')}</textarea></div>
+          <div class="form-field full" style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="crmCustConsent" ${c.marketing_consent ? 'checked' : ''}>
+            <label for="crmCustConsent" style="margin:0;">موافقة على تلقي رسائل تسويقية</label>
+          </div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="crmCustCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">${isEdit ? 'حفظ' : 'إضافة'}</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#crmCustClose').addEventListener('click', close);
+  host.querySelector('#crmCustCancel').addEventListener('click', close);
+  host.querySelector('#crmCustForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('crmCustErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      full_name: (fd.get('full_name') || '').trim(),
+      phone: (fd.get('phone') || '').trim() || null,
+      email: (fd.get('email') || '').trim() || null,
+      birth_date: fd.get('birth_date') || null,
+      gender: fd.get('gender') || null,
+      segment: fd.get('segment') || 'new',
+      source: (fd.get('source') || '').trim() || null,
+      preferences: (fd.get('preferences') || '').trim() || null,
+      allergies: (fd.get('allergies') || '').trim() || null,
+      notes: (fd.get('notes') || '').trim() || null,
+      marketing_consent: document.getElementById('crmCustConsent').checked
+    };
+    try {
+      const { data, error } = isEdit ? await CRM.customers.update(customerId, payload) : await CRM.customers.create(payload);
+      if (error) throw error;
+      toast(isEdit ? 'تم الحفظ' : 'تم إضافة العميل', 'success');
+      close();
+      if (isEdit) route(); else location.hash = '#crm_customer/' + data.id;
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function pageCrmCustomerDetail(body, idParam) {
+  const custId = Number(idParam);
+  if (!custId) { body.innerHTML = '<p class="error-msg show">معرف العميل غير صحيح</p>'; return; }
+  const { data: c, error } = await CRM.customers.get(custId);
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!c) { body.innerHTML = '<p class="empty-state">العميل غير موجود</p>'; return; }
+  const canManage = isCrmManager();
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const [addrRes, loyRes, complRes] = await Promise.all([
+    CRM.customers.addresses(custId),
+    CRM.loyalty.getAccount(custId),
+    CRM.complaints.list({ customer_id: custId })
+  ]);
+
+  body.innerHTML = `
+    <a href="#crm_customers" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للعملاء</a>
+    <div class="hr-emp-hero">
+      <div class="hr-emp-hero-content">
+        <div class="hr-emp-hero-avatar"><span data-lucide="user-round" style="width:28px;height:28px;"></span></div>
+        <div class="hr-emp-hero-info">
+          <h2 class="hr-emp-hero-name">${esc(c.full_name)}</h2>
+          <div class="hr-emp-hero-meta">
+            <span class="mono-num">${esc(c.code)}</span>
+            <span>${esc(CRM_SEGMENT_LABELS[c.segment] || c.segment)}</span>
+            <span>${esc(c.phone || '—')}</span>
+          </div>
+        </div>
+        <div class="hr-emp-hero-actions">
+          ${canManage ? `<button type="button" class="hr-emp-hero-btn" id="crmCustEditBtn"><span data-lucide="pencil" style="width:13px;height:13px;"></span> تعديل</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="hr-info-grid" style="margin-bottom:18px;">
+      ${_hrInfo('البريد', c.email)}
+      ${_hrInfo('تاريخ الميلاد', c.birth_date)}
+      ${_hrInfo('الجنس', c.gender === 'male' ? 'ذكر' : c.gender === 'female' ? 'أنثى' : null)}
+      ${_hrInfo('المصدر', c.source)}
+      ${_hrInfo('إجمالي الطلبات', c.total_orders || 0)}
+      ${_hrInfo('إجمالي الإنفاق', money(c.total_spent) + ' ر.س')}
+    </div>
+
+    ${c.allergies ? `<div class="panel" style="border:1.5px solid #F2C94C;background:#FFFBEF;"><div class="panel-body" style="font-size:13px;color:#7A4E0E;"><strong>⚠️ تنبيه المطبخ — حساسيات:</strong> ${esc(c.allergies)}</div></div>` : ''}
+    ${c.preferences ? `<div class="panel"><div class="panel-body"><strong>التفضيلات:</strong> ${esc(c.preferences)}</div></div>` : ''}
+
+    <div class="mod-section-title"><span data-lucide="award" style="width:16px;height:16px;"></span> برنامج الولاء
+      ${canManage && loyRes.data ? `<div style="margin-right:auto;display:flex;gap:6px;">
+        <button type="button" class="btn btn-outline" id="crmLoyaltyEarnBtn" style="padding:5px 12px;font-size:12.5px;">إضافة نقاط</button>
+        <button type="button" class="btn btn-outline" id="crmLoyaltyRedeemBtn" style="padding:5px 12px;font-size:12.5px;">استبدال</button>
+      </div>` : ''}
+    </div>
+    <div id="crmLoyaltyBody"></div>
+
+    <div class="mod-section-title"><span data-lucide="map-pin" style="width:16px;height:16px;"></span> العناوين
+      ${canManage ? `<button type="button" class="btn btn-outline" id="crmAddAddrBtn" style="margin-right:auto;padding:5px 12px;font-size:12.5px;"><span data-lucide="plus" style="width:13px;height:13px;"></span> إضافة عنوان</button>` : ''}
+    </div>
+    <div id="crmAddrBody"></div>
+
+    <div class="mod-section-title"><span data-lucide="message-square-warning" style="width:16px;height:16px;"></span> شكاوى العميل</div>
+    <div id="crmComplBody"></div>
+    <div id="crmModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  // Loyalty
+  const loyBox = document.getElementById('crmLoyaltyBody');
+  if (!loyRes.data) {
+    loyBox.innerHTML = `<div class="hr-empty"><span data-lucide="award"></span><p class="hr-empty-title">لا يوجد حساب ولاء — يُنشأ تلقائيًا عند إضافة أول نقاط</p></div>`;
+  } else {
+    const acc = loyRes.data;
+    const { data: txns } = await CRM.loyalty.transactions(acc.id, 10);
+    loyBox.innerHTML = `
+      <div class="hr-info-grid" style="margin-bottom:12px;">
+        ${_hrInfo('رصيد النقاط', `<span style="font-weight:800;color:#B45309;">${Number(acc.points_balance).toFixed(2)}</span>`)}
+        ${_hrInfo('المستوى', CRM_TIER_LABELS[acc.tier] || acc.tier)}
+        ${_hrInfo('إجمالي المكتسب مدى الحياة', Number(acc.lifetime_points).toFixed(2))}
+        ${_hrInfo('عضو منذ', acc.tier_since)}
+      </div>
+      ${(txns || []).length ? `
+        <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+          <thead><tr><th>التاريخ</th><th>النوع</th><th>النقاط</th><th>الوصف</th></tr></thead>
+          <tbody>${txns.map(t => `<tr>
+            <td class="mono-num">${new Date(t.created_at).toLocaleDateString('ar-SA')}</td>
+            <td>${esc({ earn: 'اكتساب', redeem: 'استبدال', adjustment: 'تعديل', expiry: 'انتهاء' }[t.type])}</td>
+            <td class="mono-num" style="font-weight:800;color:${Number(t.points) >= 0 ? '#12372F' : '#B91C1C'};">${Number(t.points) >= 0 ? '+' : ''}${Number(t.points).toFixed(2)}</td>
+            <td>${esc(t.description || '—')}</td>
+          </tr>`).join('')}</tbody>
+        </table></div></div></div>
+      ` : '<p style="color:var(--text-muted);font-size:12.5px;">لا توجد حركات نقاط بعد.</p>'}
+    `;
+    if (canManage) {
+      document.getElementById('crmLoyaltyEarnBtn')?.addEventListener('click', () => openLoyaltyModal(acc.id, 'earn', custId));
+      document.getElementById('crmLoyaltyRedeemBtn')?.addEventListener('click', () => openLoyaltyModal(acc.id, 'redeem', custId));
+    }
+  }
+
+  // Addresses
+  const addrBox = document.getElementById('crmAddrBody');
+  const addrs = addrRes.data || [];
+  if (!addrs.length) {
+    addrBox.innerHTML = `<div class="hr-empty"><span data-lucide="map-pin"></span><p class="hr-empty-title">لا توجد عناوين</p></div>`;
+  } else {
+    addrBox.innerHTML = `
+      <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+        <thead><tr><th>العنوان</th><th>المدينة</th><th>الحي</th><th>الشارع</th><th>افتراضي</th>${canManage ? '<th style="width:50px;"></th>' : ''}</tr></thead>
+        <tbody>${addrs.map(a => `<tr>
+          <td><strong>${esc(a.label)}</strong></td>
+          <td>${esc(a.city || '—')}</td>
+          <td>${esc(a.district || '—')}</td>
+          <td>${esc(a.street || '—')}</td>
+          <td>${a.is_default ? '<span style="color:#12372F;font-weight:800;">✓</span>' : ''}</td>
+          ${canManage ? `<td><button type="button" class="danger" title="حذف" data-addr-delete="${a.id}"><span data-lucide="x" style="width:14px;height:14px;"></span></button></td>` : ''}
+        </tr>`).join('')}</tbody>
+      </table></div></div></div>
+    `;
+    if (canManage) {
+      addrBox.querySelectorAll('[data-addr-delete]').forEach(b => b.addEventListener('click', async () => {
+        if (!(await customConfirm('حذف هذا العنوان؟'))) return;
+        await CRM.customers.removeAddress(Number(b.dataset.addrDelete));
+        route();
+      }));
+    }
+  }
+
+  // Complaints
+  const complBox = document.getElementById('crmComplBody');
+  const complaints = complRes.data || [];
+  if (!complaints.length) {
+    complBox.innerHTML = `<div class="hr-empty"><span data-lucide="check-check"></span><p class="hr-empty-title">لا توجد شكاوى من هذا العميل</p></div>`;
+  } else {
+    complBox.innerHTML = `
+      <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+        <thead><tr><th>رقم</th><th>العنوان</th><th>الفئة</th><th>الحالة</th><th>التاريخ</th></tr></thead>
+        <tbody>${complaints.map(c => `
+          <tr class="hr-emp-row" onclick="location.hash='#crm_complaint/${c.id}'">
+            <td class="mono-num">${esc(c.complaint_no)}</td>
+            <td>${esc(c.title)}</td>
+            <td>${esc(CRM_CATEGORY_LABELS[c.category] || c.category)}</td>
+            <td>${esc(CRM_STATUS_LABELS[c.status])}</td>
+            <td class="mono-num">${new Date(c.created_at).toLocaleDateString('ar-SA')}</td>
+          </tr>`).join('')}</tbody>
+      </table></div></div></div>
+    `;
+  }
+
+  if (canManage) {
+    document.getElementById('crmCustEditBtn')?.addEventListener('click', () => openCrmCustomerModal(custId));
+    document.getElementById('crmAddAddrBtn')?.addEventListener('click', () => openCrmAddressModal(custId));
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+async function openLoyaltyModal(accountId, mode, customerId) {
+  const isEarn = mode === 'earn';
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:420px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="award" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ${isEarn ? 'إضافة نقاط' : 'استبدال نقاط'}</h3>
+        <button class="modal-close-x" id="loyClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="loyErr"></div>
+        <form id="loyForm" class="hr-form-grid">
+          <div class="form-field full"><label>عدد النقاط *</label><input class="form-input mono-num" type="number" step="0.01" min="0.01" name="points" required></div>
+          <div class="form-field full"><label>الوصف</label><input class="form-input" name="description" placeholder="${isEarn ? 'مثال: مكافأة يوم ميلاد' : 'مثال: استبدال بوجبة مجانية'}"></div>
+          <div class="form-field full"><label>المرجع (اختياري)</label><input class="form-input mono-num" name="reference"></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="loyCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">${isEarn ? 'إضافة' : 'استبدال'}</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#loyClose').addEventListener('click', close);
+  host.querySelector('#loyCancel').addEventListener('click', close);
+  host.querySelector('#loyForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('loyErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    try {
+      const fn = isEarn ? CRM.loyalty.earn : CRM.loyalty.redeem;
+      const { error } = await fn(accountId, Number(fd.get('points')), fd.get('description'), fd.get('reference'));
+      if (error) throw error;
+      toast(isEarn ? 'تم إضافة النقاط' : 'تم الاستبدال', 'success');
+      close();
+      route();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function openCrmAddressModal(customerId) {
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:480px;max-width:96%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="map-pin" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> إضافة عنوان</h3>
+        <button class="modal-close-x" id="addrClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="addrErr"></div>
+        <form id="addrForm" class="hr-form-grid">
+          <div class="form-field"><label>الوصف</label><input class="form-input" name="label" placeholder="المنزل / العمل" value="المنزل"></div>
+          <div class="form-field"><label>المدينة</label><input class="form-input" name="city"></div>
+          <div class="form-field"><label>الحي</label><input class="form-input" name="district"></div>
+          <div class="form-field"><label>الشارع</label><input class="form-input" name="street"></div>
+          <div class="form-field"><label>رقم المبنى/الشقة</label><input class="form-input mono-num" name="building"></div>
+          <div class="form-field full"><label>معلومات إضافية</label><textarea class="form-input" name="additional_info" rows="2"></textarea></div>
+          <div class="form-field full" style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="addrDefault">
+            <label for="addrDefault" style="margin:0;">عنوان افتراضي</label>
+          </div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="addrCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">إضافة</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#addrClose').addEventListener('click', close);
+  host.querySelector('#addrCancel').addEventListener('click', close);
+  host.querySelector('#addrForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('addrErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      label: (fd.get('label') || '').trim() || 'المنزل',
+      city: (fd.get('city') || '').trim() || null,
+      district: (fd.get('district') || '').trim() || null,
+      street: (fd.get('street') || '').trim() || null,
+      building: (fd.get('building') || '').trim() || null,
+      additional_info: (fd.get('additional_info') || '').trim() || null,
+      is_default: document.getElementById('addrDefault').checked
+    };
+    try {
+      const { error } = await CRM.customers.addAddress(customerId, payload);
+      if (error) throw error;
+      toast('تم إضافة العنوان', 'success');
+      close();
+      route();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function pageCrmComplaints(body, query) {
+  const canManage = isCrmManager();
+  const statusFilter = query && query.status ? query.status : '';
+  body.innerHTML = `
+    <a href="#crm" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع لعلاقات العملاء</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="message-square-warning" style="width:22px;height:22px;color:#123F32;"></span> الشكاوى</h2>
+        <p>كل شكاوى العملاء مع حالتها والمسؤول عنها.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="crmAddComplBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> شكوى جديدة</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body" style="display:flex;gap:10px;flex-wrap:wrap;">
+      <select class="form-select" id="crmComplStatFilter" style="min-width:160px;">
+        <option value="">كل الحالات</option>
+        ${Object.entries(CRM_STATUS_LABELS).map(([k, v]) => `<option value="${k}" ${statusFilter===k?'selected':''}>${esc(v)}</option>`).join('')}
+      </select>
+    </div></div>
+    <div class="panel"><div class="panel-body" id="crmComplBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="crmModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) document.getElementById('crmAddComplBtn').addEventListener('click', () => openCrmComplaintModal(null));
+  document.getElementById('crmComplStatFilter').addEventListener('change', (e) => renderCrmComplaintsTable({ status: e.target.value || null }));
+  await renderCrmComplaintsTable({ status: statusFilter || null });
+}
+
+async function renderCrmComplaintsTable(filters) {
+  const box = document.getElementById('crmComplBody');
+  if (!box) return;
+  const { data: rows, error } = await CRM.complaints.list(filters);
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="check-check"></span><p class="hr-empty-title">لا توجد شكاوى</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const sevCls = { low: 'st-empty', medium: 'st-late', high: 'st-absent', critical: 'st-absent' };
+  const statCls = { open: 'st-empty', in_progress: 'st-late', resolved: 'st-present', closed: 'st-present', escalated: 'st-absent' };
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>رقم</th><th>العنوان</th><th>العميل</th><th>القناة</th><th>الفئة</th><th>الخطورة</th><th>الحالة</th></tr></thead>
+      <tbody>${rows.map(c => `
+        <tr class="hr-emp-row" onclick="location.hash='#crm_complaint/${c.id}'">
+          <td class="mono-num">${esc(c.complaint_no)}</td>
+          <td><strong>${esc(c.title)}</strong></td>
+          <td>${esc(c.customer?.full_name || '—')}</td>
+          <td>${esc(CRM_CHANNEL_LABELS[c.channel] || c.channel)}</td>
+          <td>${esc(CRM_CATEGORY_LABELS[c.category] || c.category)}</td>
+          <td><span class="hr-att-cell ${sevCls[c.severity]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(CRM_SEVERITY_LABELS[c.severity])}</span></td>
+          <td><span class="hr-att-cell ${statCls[c.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(CRM_STATUS_LABELS[c.status])}</span></td>
+        </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+}
+
+async function openCrmComplaintModal(complaintId) {
+  const isEdit = !!complaintId;
+  const c = isEdit ? (await CRM.complaints.get(complaintId)).data || {} : {};
+  const [{ data: customers }, { data: branches }] = await Promise.all([
+    sb.from('crm_customers').select('id, full_name, phone').is('deleted_at', null).order('full_name').limit(500),
+    sb.from('branches').select('id, name').eq('is_active', true).order('name')
+  ]);
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:560px;max-width:97%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="${isEdit ? 'pencil' : 'plus'}" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ${isEdit ? 'تعديل شكوى' : 'شكوى جديدة'}</h3>
+        <button class="modal-close-x" id="complClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="complErr"></div>
+        <form id="complForm" class="hr-form-grid">
+          <div class="form-field full"><label>العميل (اختياري)</label>
+            <select class="form-select" name="customer_id">
+              <option value="">— بدون عميل مسجل —</option>
+              ${(customers || []).map(x => `<option value="${x.id}" ${c.customer_id === x.id ? 'selected' : ''}>${esc(x.full_name)}${x.phone ? ' — ' + esc(x.phone) : ''}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>القناة *</label>
+            <select class="form-select" name="channel" required>
+              ${Object.entries(CRM_CHANNEL_LABELS).map(([k, v]) => `<option value="${k}" ${c.channel === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>الفئة *</label>
+            <select class="form-select" name="category" required>
+              ${Object.entries(CRM_CATEGORY_LABELS).map(([k, v]) => `<option value="${k}" ${c.category === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>الخطورة *</label>
+            <select class="form-select" name="severity">
+              ${Object.entries(CRM_SEVERITY_LABELS).map(([k, v]) => `<option value="${k}" ${(c.severity || 'medium') === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>الفرع (اختياري)</label>
+            <select class="form-select" name="branch_id">
+              <option value="">—</option>
+              ${(branches || []).map(b => `<option value="${b.id}" ${c.branch_id === b.id ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field full"><label>العنوان *</label><input class="form-input" name="title" required value="${esc(c.title || '')}"></div>
+          <div class="form-field full"><label>الوصف التفصيلي</label><textarea class="form-input" name="description" rows="3">${esc(c.description || '')}</textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="complCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">${isEdit ? 'حفظ' : 'تسجيل الشكوى'}</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#complClose').addEventListener('click', close);
+  host.querySelector('#complCancel').addEventListener('click', close);
+  host.querySelector('#complForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('complErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      customer_id: fd.get('customer_id') ? Number(fd.get('customer_id')) : null,
+      channel: fd.get('channel'),
+      category: fd.get('category'),
+      severity: fd.get('severity'),
+      branch_id: fd.get('branch_id') ? Number(fd.get('branch_id')) : null,
+      title: (fd.get('title') || '').trim(),
+      description: (fd.get('description') || '').trim() || null
+    };
+    try {
+      const { data, error } = isEdit
+        ? await sb.from('crm_complaints').update(payload).eq('id', complaintId).select().single()
+        : await CRM.complaints.create(payload);
+      if (error) throw error;
+      toast(isEdit ? 'تم الحفظ' : 'تم تسجيل الشكوى', 'success');
+      close();
+      if (isEdit) route(); else location.hash = '#crm_complaint/' + data.id;
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function pageCrmComplaintDetail(body, idParam) {
+  const complId = Number(idParam);
+  if (!complId) { body.innerHTML = '<p class="error-msg show">معرف الشكوى غير صحيح</p>'; return; }
+  const { data: c, error } = await CRM.complaints.get(complId);
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!c) { body.innerHTML = '<p class="empty-state">الشكوى غير موجودة</p>'; return; }
+  const canManage = isCrmManager() || c.assigned_to === CURRENT_USER?.id;
+  const canAct = !['closed', 'resolved'].includes(c.status);
+
+  body.innerHTML = `
+    <a href="#crm_complaints" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للشكاوى</a>
+    <div class="hr-emp-hero">
+      <div class="hr-emp-hero-content">
+        <div class="hr-emp-hero-avatar"><span data-lucide="message-square-warning" style="width:28px;height:28px;"></span></div>
+        <div class="hr-emp-hero-info">
+          <h2 class="hr-emp-hero-name">${esc(c.title)}</h2>
+          <div class="hr-emp-hero-meta">
+            <span class="mono-num">${esc(c.complaint_no)}</span>
+            <span>${esc(CRM_STATUS_LABELS[c.status])}</span>
+            <span>${esc(CRM_SEVERITY_LABELS[c.severity])}</span>
+          </div>
+        </div>
+        <div class="hr-emp-hero-actions">
+          ${canManage && canAct && c.status === 'open' ? `<button type="button" class="hr-emp-hero-btn" data-compl-status="in_progress"><span data-lucide="play" style="width:13px;height:13px;"></span> بدء المعالجة</button>` : ''}
+          ${canManage && canAct ? `<button type="button" class="hr-emp-hero-btn" id="complResolveBtn"><span data-lucide="check-check" style="width:13px;height:13px;"></span> حل</button>` : ''}
+          ${canManage && canAct ? `<button type="button" class="hr-emp-hero-btn" data-compl-status="escalated"><span data-lucide="arrow-up-right" style="width:13px;height:13px;"></span> تصعيد</button>` : ''}
+          ${canManage && c.status === 'resolved' ? `<button type="button" class="hr-emp-hero-btn" data-compl-status="closed"><span data-lucide="lock" style="width:13px;height:13px;"></span> إغلاق</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="hr-info-grid" style="margin-bottom:18px;">
+      ${_hrInfo('العميل', c.customer ? esc(c.customer.full_name) + (c.customer.phone ? ' — ' + esc(c.customer.phone) : '') : null)}
+      ${_hrInfo('القناة', CRM_CHANNEL_LABELS[c.channel] || c.channel)}
+      ${_hrInfo('الفئة', CRM_CATEGORY_LABELS[c.category] || c.category)}
+      ${_hrInfo('الفرع', c.branches?.name)}
+      ${_hrInfo('المسؤول', c.assignee?.full_name || 'غير مُسنَد')}
+      ${_hrInfo('تاريخ الشكوى', new Date(c.created_at).toLocaleString('ar-SA'))}
+      ${c.resolved_at ? _hrInfo('تاريخ الحل', new Date(c.resolved_at).toLocaleString('ar-SA')) : ''}
+      ${c.satisfaction_rating ? _hrInfo('تقييم الرضا', '⭐'.repeat(c.satisfaction_rating)) : ''}
+    </div>
+
+    ${c.description ? `<div class="panel"><div class="panel-body"><strong>الوصف:</strong><br>${esc(c.description)}</div></div>` : ''}
+    ${c.resolution ? `<div class="panel"><div class="panel-body" style="background:rgba(16,185,129,0.05);"><strong>الحل:</strong><br>${esc(c.resolution)}</div></div>` : ''}
+    ${c.compensation ? `<div class="panel"><div class="panel-body"><strong>التعويض:</strong> ${esc(c.compensation)}</div></div>` : ''}
+    <div id="crmModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  body.querySelectorAll('[data-compl-status]').forEach(b => b.addEventListener('click', async () => {
+    const status = b.dataset.complStatus;
+    if (status === 'escalated' && !(await customConfirm('تصعيد الشكوى للإدارة العليا؟'))) return;
+    const { error: sErr } = await CRM.complaints.setStatus(complId, status);
+    if (sErr) { toast('تعذّر: ' + sErr.message, 'error'); return; }
+    route();
+  }));
+  const resolveBtn = document.getElementById('complResolveBtn');
+  if (resolveBtn) resolveBtn.addEventListener('click', () => openCrmResolveModal(complId));
+}
+
+async function openCrmResolveModal(complaintId) {
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:480px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="check-check" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> حل الشكوى</h3>
+        <button class="modal-close-x" id="resClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="resErr"></div>
+        <form id="resForm" class="hr-form-grid">
+          <div class="form-field full"><label>الحل / الإجراء المتخذ *</label><textarea class="form-input" name="resolution" rows="3" required></textarea></div>
+          <div class="form-field full"><label>التعويض (إن وُجد)</label><input class="form-input" name="compensation" placeholder="مثال: خصم 20% على الطلب القادم"></div>
+          <div class="form-field full"><label>تقييم رضا العميل (1-5)</label><input class="form-input mono-num" type="number" min="1" max="5" name="satisfaction_rating"></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="resCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">حل الشكوى</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#resClose').addEventListener('click', close);
+  host.querySelector('#resCancel').addEventListener('click', close);
+  host.querySelector('#resForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('resErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    try {
+      const { error } = await CRM.complaints.setStatus(complaintId, 'resolved', {
+        resolution: (fd.get('resolution') || '').trim(),
+        compensation: (fd.get('compensation') || '').trim() || null,
+        satisfaction_rating: fd.get('satisfaction_rating') ? Number(fd.get('satisfaction_rating')) : null
+      });
+      if (error) throw error;
+      toast('تم حل الشكوى', 'success');
+      close();
+      route();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
   });
 }
 
