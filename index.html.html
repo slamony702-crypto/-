@@ -4875,7 +4875,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v105-2026-07-16-ai-settlements-settings';
+const APP_VERSION = 'v106-2026-07-17-wave1-menu';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -7248,6 +7248,171 @@ const AIA = {
   }
 };
 window.AIA = AIA;
+
+// ═══════════════════════════════════════════════════════════════════
+// المنيو والوصفات (Menu & Recipes) — Wave 1 Module 24
+// يعتمد على: acct_inventory_items (لمكونات الوصفة) + acct_settings (VAT)
+// القاعدة الذهبية: كل RLS يحكم الوصول — هذا فقط طبقة DAL نظيفة
+// ═══════════════════════════════════════════════════════════════════
+const MENU_CHANNEL_LABELS = { dine_in: 'صالة', takeaway: 'سفري', delivery: 'توصيل' };
+function isMenuManager() { return CURRENT_USER && ['admin', 'company_manager', 'operations_manager'].includes(CURRENT_USER.role); }
+
+const MENU = {
+  // ─── الإعدادات ───────────────────────────────────────────────
+  settings: {
+    async get() {
+      const { data, error } = await sb.from('menu_settings').select('*').eq('id', 1).maybeSingle();
+      return { data, error };
+    },
+    async save(payload) {
+      const { data, error } = await sb.from('menu_settings').update(payload).eq('id', 1).select().single();
+      return { data, error };
+    }
+  },
+
+  // ─── الفئات ─────────────────────────────────────────────────
+  categories: {
+    async list(includeInactive = false) {
+      let q = sb.from('menu_categories').select('*').is('deleted_at', null).order('sort_order').order('id');
+      if (!includeInactive) q = q.eq('is_active', true);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('menu_categories').select('*').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      if (!payload.name_ar || !payload.name_ar.trim()) return { data: null, error: { message: 'اسم الفئة بالعربي مطلوب' } };
+      const { data, error } = await sb.from('menu_categories').insert({ ...payload, created_by: CURRENT_USER?.id }).select().single();
+      return { data, error };
+    },
+    async update(id, payload) {
+      const { data, error } = await sb.from('menu_categories').update(payload).eq('id', id).select().single();
+      return { data, error };
+    },
+    async remove(id) {
+      const { data: used } = await sb.from('menu_items').select('id').eq('category_id', id).is('deleted_at', null).limit(1);
+      if (used && used.length) return { error: { message: 'لا يمكن حذف فئة بها أصناف — انقل الأصناف لفئة أخرى أولًا' } };
+      const { error } = await sb.from('menu_categories').update({ deleted_at: new Date().toISOString(), is_active: false }).eq('id', id);
+      return { error };
+    }
+  },
+
+  // ─── الأصناف ────────────────────────────────────────────────
+  items: {
+    async list(filters = {}) {
+      let q = sb.from('menu_items').select('*, menu_categories(name_ar, icon)').is('deleted_at', null).order('sort_order').order('name_ar');
+      if (filters.category_id) q = q.eq('category_id', filters.category_id);
+      if (filters.is_active != null) q = q.eq('is_active', filters.is_active);
+      if (filters.search) {
+        const s = filters.search.trim().replace(/[%,]/g, '');
+        q = q.or(`name_ar.ilike.%${s}%,name_en.ilike.%${s}%,sku.ilike.%${s}%`);
+      }
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('menu_items').select('*, menu_categories(name_ar)').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      if (!payload.name_ar || !payload.name_ar.trim()) return { data: null, error: { message: 'اسم الصنف بالعربي مطلوب' } };
+      const { data, error } = await sb.from('menu_items').insert({ ...payload, created_by: CURRENT_USER?.id }).select().single();
+      return { data, error };
+    },
+    async update(id, payload) {
+      const { data, error } = await sb.from('menu_items').update(payload).eq('id', id).select().single();
+      return { data, error };
+    },
+    async remove(id) {
+      const { error } = await sb.from('menu_items').update({ deleted_at: new Date().toISOString(), is_active: false }).eq('id', id);
+      return { error };
+    }
+  },
+
+  // ─── الوصفات (BOM) ──────────────────────────────────────────
+  recipes: {
+    async listForItem(itemId) {
+      const { data, error } = await sb.from('menu_item_recipes')
+        .select('*, acct_inventory_items(id, name, sku, unit, unit_cost)').eq('item_id', itemId).order('id');
+      return { data: data || [], error };
+    },
+    async addLine(itemId, inventoryItemId, quantity, notes) {
+      if (!(Number(quantity) > 0)) return { error: { message: 'الكمية يجب أن تكون أكبر من صفر' } };
+      const { data, error } = await sb.from('menu_item_recipes')
+        .insert({ item_id: itemId, inventory_item_id: inventoryItemId, quantity: Number(quantity), notes: notes || null }).select().single();
+      return { data, error };
+    },
+    async updateLine(id, payload) {
+      const { data, error } = await sb.from('menu_item_recipes').update(payload).eq('id', id).select().single();
+      return { data, error };
+    },
+    async removeLine(id) {
+      const { error } = await sb.from('menu_item_recipes').delete().eq('id', id);
+      return { error };
+    },
+    // حساب التكلفة في العميل — لتفادي رحلة إضافية للـ RPC
+    computeCost(recipeLines) {
+      return (recipeLines || []).reduce((sum, r) => {
+        const cost = Number(r.acct_inventory_items?.unit_cost) || 0;
+        const qty = Number(r.quantity) || 0;
+        return sum + (cost * qty);
+      }, 0);
+    }
+  },
+
+  // ─── أسعار القنوات ─────────────────────────────────────────
+  channelPrices: {
+    async listForItem(itemId) {
+      const { data, error } = await sb.from('menu_channel_prices').select('*').eq('item_id', itemId);
+      return { data: data || [], error };
+    },
+    async upsert(itemId, channel, price) {
+      const { data, error } = await sb.from('menu_channel_prices')
+        .upsert({ item_id: itemId, channel, price: Number(price) }, { onConflict: 'item_id,channel' }).select().single();
+      return { data, error };
+    },
+    async remove(itemId, channel) {
+      const { error } = await sb.from('menu_channel_prices').delete().eq('item_id', itemId).eq('channel', channel);
+      return { error };
+    }
+  },
+
+  // ─── حسابات مساعدة ────────────────────────────────────────
+  // هامش الربح % = (السعر - التكلفة) / السعر * 100
+  computeMargin(price, cost) {
+    const p = Number(price) || 0, c = Number(cost) || 0;
+    if (p <= 0) return 0;
+    return Math.round(((p - c) / p) * 10000) / 100;
+  },
+  // السعر المقترح لتحقيق هامش معين: التكلفة / (1 - هامش/100)
+  suggestPrice(cost, targetMarginPercent) {
+    const c = Number(cost) || 0, m = Number(targetMarginPercent) || 0;
+    if (m >= 100) return c;
+    const price = c / (1 - m / 100);
+    return Math.round(price * 100) / 100;
+  },
+
+  // ─── لوحة المؤشرات ────────────────────────────────────────
+  dashboard: {
+    async summary() {
+      const [cats, items] = await Promise.all([
+        sb.from('menu_categories').select('id', { count: 'exact', head: true }).is('deleted_at', null).eq('is_active', true),
+        sb.from('menu_items').select('id, base_price', { count: 'exact' }).is('deleted_at', null).eq('is_active', true).limit(500)
+      ]);
+      return {
+        categoriesCount: cats.count || 0,
+        itemsCount: items.count || 0,
+        avgPrice: items.data && items.data.length
+          ? (items.data.reduce((s, i) => s + Number(i.base_price), 0) / items.data.length).toFixed(2)
+          : '0.00',
+        error: cats.error || items.error || null
+      };
+    }
+  }
+};
+window.MENU = MENU;
 
 // ═══════════════════════════════════════════════════════════════════
 // المدفوعات والمقاصات — المرحلة P1: الشركاء الماليون والعقود
@@ -10244,7 +10409,7 @@ async function logout() {
 // وصفحة تعريفية فقط (pageComingSoonModule) — كل شاشاتها الداخلية محمية.
 // حسابات المراجعة في MODULE_PREVIEW_USERS فقط هي اللي تشوف الشاشات الحقيقية.
 // لإطلاق مديول للجميع: امسح مفتاحه من PREVIEW_MODULES — تعديل سطر واحد فقط.
-const PREVIEW_MODULES = ['hr', 'accounting', 'operations', 'ai_agents'];
+const PREVIEW_MODULES = ['hr', 'accounting', 'operations', 'ai_agents', 'menu'];
 const MODULE_PREVIEW_USERS = ['test_admin'];
 function canAccessModule(moduleKey) {
   if (!PREVIEW_MODULES.includes(moduleKey)) return true;
@@ -10257,6 +10422,7 @@ function gatedModuleForPage(page) {
   if (p === 'accounting' || p.startsWith('acct_')) return 'accounting';
   if (p === 'operations' || p.startsWith('ops_')) return 'operations';
   if (p === 'ai_assistant' || p.startsWith('ai_')) return 'ai_agents';
+  if (p === 'menu' || p.startsWith('menu_')) return 'menu';
   return null;
 }
 
@@ -10285,6 +10451,9 @@ const MENU_GROUPS = [
   { key: '__ai', label: 'مركز الذكاء الاصطناعي', icon: 'sparkles', defaultOpen: false, items: [
     { key: 'ai_assistant', label: 'المساعد الذكي', icon: 'sparkles', badge: 'قريبًا' },
   ]},
+  { key: '__menu', label: 'المطبخ والمنيو', icon: 'utensils', defaultOpen: false, items: [
+    { key: 'menu', label: 'المنيو والوصفات', icon: 'utensils', badge: 'قريبًا' },
+  ]},
   { key: '__cafe', label: 'ركن الكافيه', icon: 'coffee', defaultOpen: false, items: [
     { key: 'cafe', label: 'ركن الكافيه', icon: 'coffee' },
   ]},
@@ -10302,7 +10471,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', acct_pay_partners: 'شركاء المدفوعات', acct_pay_partner: 'تفاصيل الشريك', acct_pay_statements: 'كشوف الشركاء', acct_pay_statement: 'تفاصيل الكشف', acct_pay_clearing: 'المقاصة والتسويات', acct_pay_clearing_batch: 'تفاصيل دفعة المقاصة', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', ops_issues: 'المشكلات التشغيلية', ops_issue_detail: 'تفاصيل المشكلة', ops_settings: 'إعدادات التشغيل', ai_assistant: 'المساعد الذكي', ai_settings: 'إعدادات المساعد الذكي', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', acct_pay_partners: 'شركاء المدفوعات', acct_pay_partner: 'تفاصيل الشريك', acct_pay_statements: 'كشوف الشركاء', acct_pay_statement: 'تفاصيل الكشف', acct_pay_clearing: 'المقاصة والتسويات', acct_pay_clearing_batch: 'تفاصيل دفعة المقاصة', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', ops_issues: 'المشكلات التشغيلية', ops_issue_detail: 'تفاصيل المشكلة', ops_settings: 'إعدادات التشغيل', ai_assistant: 'المساعد الذكي', ai_settings: 'إعدادات المساعد الذكي', menu: 'المنيو والوصفات', menu_categories: 'فئات المنيو', menu_items: 'أصناف المنيو', menu_item: 'تفاصيل الصنف', menu_settings: 'إعدادات المنيو', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -14539,7 +14708,7 @@ async function renderShellOnce() {
   } catch (e) { /* تجاهل بصمت لو فشل الحساب */ }
 
   // المديولات القادمة (Placeholder Overview) — تظهر للجميع لأنها صفحات عرض فقط
-  const ALWAYS_VISIBLE = ['hr', 'accounting', 'operations', 'ai_assistant'];
+  const ALWAYS_VISIBLE = ['hr', 'accounting', 'operations', 'ai_assistant', 'menu'];
   const openGroupsRaw = localStorage.getItem('sidebar_open_groups');
   const openGroups = openGroupsRaw ? JSON.parse(openGroupsRaw) : null;
   function isGroupOpen(g) { return openGroups ? openGroups.includes(g.key) : g.defaultOpen; }
@@ -14919,6 +15088,11 @@ async function route() {
     else if (page === 'ops_settings') await pageOpsSettings(body);
     else if (page === 'ai_assistant') await pageAiAssistant(body);
     else if (page === 'ai_settings') await pageAiSettings(body);
+    else if (page === 'menu') await pageMenuDashboard(body);
+    else if (page === 'menu_categories') await pageMenuCategories(body);
+    else if (page === 'menu_items') await pageMenuItems(body, query);
+    else if (page === 'menu_item') await pageMenuItemDetail(body, param);
+    else if (page === 'menu_settings') await pageMenuSettings(body);
     else if (page === 'meetings') await pageMeetings(body, query);
     else if (page === 'meetings_calendar') await pageMeetingsCalendar(body, query);
     else if (page === 'meeting_detail') await pageMeetingDetail(body, param, query);
@@ -23633,6 +23807,30 @@ const COMING_SOON_MODULES = {
       { title: 'المرحلة 2 — مسودات بموافقة', sub: 'مسودات مهام وتقارير تنتظر اعتمادك', status: 'قيد التخطيط' },
       { title: 'المرحلة 3 — مهام دورية', sub: 'ملخص يومي تلقائي • مراقبة الوثائق والفروقات', status: 'مقرَّرة' }
     ]
+  },
+  menu: {
+    title: 'المنيو والوصفات',
+    subtitle: 'إدارة أصناف المنيو مع وصفة كل صنف من المخزون — تكلفة تلقائية وهامش ربح لحظي ومنع بيع صنف نفدت مكوناته.',
+    icon: 'utensils',
+    stats: [
+      { val: 'BOM', lbl: 'وصفة لكل صنف' },
+      { val: 'Auto', lbl: 'تكلفة تلقائية من المخزون' },
+      { val: '3 قنوات', lbl: 'أسعار مختلفة (صالة/سفري/توصيل)' },
+      { val: 'ZATCA', lbl: 'مطابق للفوترة الإلكترونية' }
+    ],
+    features: [
+      { icon: 'layers', title: 'فئات مرتبة', desc: 'وجبات ومشروبات وحلويات بأيقونات وترتيب.' },
+      { icon: 'utensils', title: 'أصناف بأسعار متعددة', desc: 'سعر أساسي وأسعار مخصصة لكل قناة بيع.' },
+      { icon: 'list-plus', title: 'محرر وصفة سهل', desc: 'أضف مكونات من المخزون بكمياتها الدقيقة.' },
+      { icon: 'calculator', title: 'محاكي تسعير', desc: 'يقترح السعر تلقائيًا لتحقيق هامش الربح المستهدف.' },
+      { icon: 'trending-up', title: 'مراقبة الهامش', desc: 'شارة ملونة لكل صنف (أخضر/أصفر/أحمر) لكشف الأصناف غير المربحة.' },
+      { icon: 'shield-check', title: 'حوكمة صارمة', desc: 'تعديل المنيو محصور بمدير التشغيل والإدارة العليا.' }
+    ],
+    roadmap: [
+      { title: 'المرحلة 1 — الأساس', sub: 'فئات • أصناف • وصفات • أسعار قنوات', status: 'الأولى' },
+      { title: 'المرحلة 2 — الخيارات', sub: 'إضافات وخيارات (سعر إضافي أو مجاني)', status: 'قيد التخطيط' },
+      { title: 'المرحلة 3 — أساس POS', sub: 'ربط بنقاط البيع • خصم مكونات تلقائي', status: 'مقرَّرة' }
+    ]
   }
 };
 
@@ -26524,6 +26722,593 @@ async function pageAiSettings(body) {
     const { error: uErr } = await sb.from('ai_settings').update(payload).eq('id', 1);
     if (uErr) { errBox.textContent = uErr.message; errBox.classList.add('show'); return; }
     toast('تم حفظ إعدادات المساعد', 'success');
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// المنيو والوصفات — الشاشات (Wave 1)
+// ═══════════════════════════════════════════════════════════════════
+async function pageMenuDashboard(body) {
+  const canManage = isMenuManager();
+  body.innerHTML = `
+    <div class="mod-hero">
+      <div class="mod-hero-top">
+        <div class="mod-hero-icon"><span data-lucide="utensils"></span></div>
+        <div>
+          <h2 class="mod-hero-title">المنيو والوصفات</h2>
+          <p class="mod-hero-sub">إدارة المنيو مع تكلفة فعلية لكل صنف من وصفته، وهامش ربح لحظي.</p>
+        </div>
+      </div>
+      <div class="mod-hero-badges">
+        <a href="#menu_categories" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="layers" style="width:12px;height:12px;"></span> الفئات</a>
+        <a href="#menu_items" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="utensils" style="width:12px;height:12px;"></span> الأصناف</a>
+        ${canManage ? `<a href="#menu_settings" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="settings" style="width:12px;height:12px;"></span> الإعدادات</a>` : ''}
+        ${canManage ? `<span class="mod-hero-badge hb-scope"><span data-lucide="shield-check" style="width:12px;height:12px;"></span> صلاحية إدارة كاملة</span>` : ''}
+      </div>
+    </div>
+
+    <div class="mod-stats" id="menuKpis">
+      ${[1,2,3].map(() => `<div class="mod-stat"><div class="skeleton skeleton-row" style="width:60%;height:24px;"></div><div class="skeleton skeleton-row" style="width:80%;margin-top:8px;"></div></div>`).join('')}
+    </div>
+    <div class="mod-section-title"><span data-lucide="clock" style="width:16px;height:16px;"></span> أحدث الأصناف</div>
+    <div id="menuRecentItems"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  const summary = await MENU.dashboard.summary();
+  const kpiBox = document.getElementById('menuKpis');
+  if (kpiBox) {
+    kpiBox.innerHTML = `
+      <div class="mod-stat"><div class="mod-stat-val">${summary.categoriesCount}</div><div class="mod-stat-lbl">فئات نشطة</div></div>
+      <div class="mod-stat"><div class="mod-stat-val">${summary.itemsCount}</div><div class="mod-stat-lbl">أصناف نشطة</div></div>
+      <div class="mod-stat"><div class="mod-stat-val" style="font-size:20px;">${summary.avgPrice} <span style="font-size:12px;font-weight:600;color:var(--text-muted);">ر.س</span></div><div class="mod-stat-lbl">متوسط سعر الصنف</div></div>
+    `;
+  }
+
+  const { data: items } = await MENU.items.list({ is_active: true });
+  const recentBox = document.getElementById('menuRecentItems');
+  if (recentBox) {
+    const rows = (items || []).slice(0, 8);
+    if (!rows.length) {
+      recentBox.innerHTML = `<div class="hr-empty"><span data-lucide="utensils"></span><p class="hr-empty-title">لا توجد أصناف بعد</p><p class="hr-empty-sub">ابدأ بإضافة أول فئة ثم أصنافها.</p></div>`;
+    } else {
+      recentBox.innerHTML = `
+        <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+          <thead><tr><th>SKU</th><th>الصنف</th><th>الفئة</th><th>السعر</th></tr></thead>
+          <tbody>${rows.map(it => `
+            <tr class="hr-emp-row" onclick="location.hash='#menu_item/${it.id}'">
+              <td class="mono-num">${esc(it.sku)}</td>
+              <td><strong>${esc(it.name_ar)}</strong></td>
+              <td>${esc(it.menu_categories?.name_ar || '—')}</td>
+              <td class="mono-num">${Number(it.base_price).toFixed(2)}</td>
+            </tr>`).join('')}</tbody>
+        </table></div></div></div>
+      `;
+    }
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+async function pageMenuCategories(body) {
+  const canManage = isMenuManager();
+  body.innerHTML = `
+    <a href="#menu" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للمنيو</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="layers" style="width:22px;height:22px;color:#123F32;"></span> فئات المنيو</h2>
+        <p>تنظيم الأصناف في فئات مرتبة (وجبات مشروبات حلويات...).</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="menuAddCatBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> إضافة فئة</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body" id="menuCatBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="menuModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) document.getElementById('menuAddCatBtn').addEventListener('click', () => openMenuCategoryModal(null));
+  await renderMenuCategoriesTable();
+}
+
+async function renderMenuCategoriesTable() {
+  const box = document.getElementById('menuCatBody');
+  if (!box) return;
+  const canManage = isMenuManager();
+  const { data: rows, error } = await MENU.categories.list(true);
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="layers"></span><p class="hr-empty-title">لا توجد فئات</p><p class="hr-empty-sub">أضف أول فئة لبدء المنيو.</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>الترتيب</th><th>الفئة (عربي)</th><th>الفئة (إنجليزي)</th><th>الحالة</th><th style="width:80px;">إجراءات</th></tr></thead>
+      <tbody>${rows.map(c => `<tr>
+        <td class="mono-num">${c.sort_order}</td>
+        <td><strong>${esc(c.name_ar)}</strong></td>
+        <td>${esc(c.name_en || '—')}</td>
+        <td><span class="hr-pill hr-pill-${c.is_active ? 'active' : 'inactive'}">${c.is_active ? 'نشطة' : 'موقوفة'}</span></td>
+        <td>
+          <div class="hr-emp-actions">
+            ${canManage ? `<button type="button" title="تعديل" data-cat-edit="${c.id}"><span data-lucide="pencil" style="width:14px;height:14px;"></span></button>` : ''}
+            ${canManage ? `<button type="button" class="danger" title="حذف" data-cat-delete="${c.id}"><span data-lucide="trash-2" style="width:14px;height:14px;"></span></button>` : ''}
+          </div>
+        </td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) {
+    box.querySelectorAll('[data-cat-edit]').forEach(b => b.addEventListener('click', () => openMenuCategoryModal(Number(b.dataset.catEdit))));
+    box.querySelectorAll('[data-cat-delete]').forEach(b => b.addEventListener('click', async () => {
+      if (!(await customConfirm('حذف هذه الفئة؟'))) return;
+      const { error } = await MENU.categories.remove(Number(b.dataset.catDelete));
+      if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+      toast('تم الحذف', 'success');
+      renderMenuCategoriesTable();
+    }));
+  }
+}
+
+async function openMenuCategoryModal(catId) {
+  const isEdit = !!catId;
+  const c = isEdit ? (await MENU.categories.get(catId)).data || {} : {};
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:480px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="${isEdit ? 'pencil' : 'plus'}" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ${isEdit ? 'تعديل فئة' : 'إضافة فئة'}</h3>
+        <button class="modal-close-x" id="menuCatClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="menuCatErr"></div>
+        <form id="menuCatForm" class="hr-form-grid">
+          <div class="form-field full"><label>الاسم بالعربي *</label><input class="form-input" name="name_ar" required value="${esc(c.name_ar || '')}"></div>
+          <div class="form-field full"><label>الاسم بالإنجليزي</label><input class="form-input" name="name_en" value="${esc(c.name_en || '')}"></div>
+          <div class="form-field"><label>الترتيب</label><input class="form-input mono-num" type="number" name="sort_order" value="${c.sort_order || 0}"></div>
+          <div class="form-field"><label>الأيقونة (Lucide)</label><input class="form-input mono-num" name="icon" value="${esc(c.icon || '')}"></div>
+          <div class="form-field full"><label>الوصف</label><textarea class="form-input" name="description" rows="2">${esc(c.description || '')}</textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="menuCatCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">${isEdit ? 'حفظ' : 'إضافة'}</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#menuCatClose').addEventListener('click', close);
+  host.querySelector('#menuCatCancel').addEventListener('click', close);
+  host.querySelector('#menuCatForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('menuCatErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      name_ar: (fd.get('name_ar') || '').trim(),
+      name_en: (fd.get('name_en') || '').trim() || null,
+      sort_order: Number(fd.get('sort_order') || 0),
+      icon: (fd.get('icon') || '').trim() || null,
+      description: (fd.get('description') || '').trim() || null
+    };
+    try {
+      const { error } = isEdit ? await MENU.categories.update(catId, payload) : await MENU.categories.create(payload);
+      if (error) throw error;
+      toast(isEdit ? 'تم الحفظ' : 'تم إضافة الفئة', 'success');
+      close();
+      renderMenuCategoriesTable();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function pageMenuItems(body, query) {
+  const canManage = isMenuManager();
+  const { data: cats } = await MENU.categories.list();
+  const selectedCat = query && query.category ? Number(query.category) : null;
+  body.innerHTML = `
+    <a href="#menu" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للمنيو</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="utensils" style="width:22px;height:22px;color:#123F32;"></span> أصناف المنيو</h2>
+        <p>كل الأصناف مع أسعارها وهامش ربحها.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="menuAddItemBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> إضافة صنف</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <input type="text" class="form-input" id="menuSearchInput" placeholder="بحث في الأصناف..." style="flex:1;min-width:200px;">
+      <select class="form-select" id="menuCatFilter" style="min-width:180px;">
+        <option value="">كل الفئات</option>
+        ${(cats || []).map(c => `<option value="${c.id}" ${selectedCat === c.id ? 'selected' : ''}>${esc(c.name_ar)}</option>`).join('')}
+      </select>
+    </div></div>
+    <div class="panel"><div class="panel-body" id="menuItemsBody"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div></div>
+    <div id="menuModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) document.getElementById('menuAddItemBtn').addEventListener('click', () => openMenuItemModal(null, cats));
+  const doRender = () => {
+    const search = document.getElementById('menuSearchInput').value;
+    const cat = document.getElementById('menuCatFilter').value;
+    renderMenuItemsTable({ search, category_id: cat ? Number(cat) : null });
+  };
+  document.getElementById('menuSearchInput').addEventListener('input', debounce(doRender, 300));
+  document.getElementById('menuCatFilter').addEventListener('change', doRender);
+  await renderMenuItemsTable({ category_id: selectedCat });
+}
+
+async function renderMenuItemsTable(filters) {
+  const box = document.getElementById('menuItemsBody');
+  if (!box) return;
+  const { data: items, error } = await MENU.items.list(filters);
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!items.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="utensils"></span><p class="hr-empty-title">لا توجد أصناف</p></div>`;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  // نجيب الوصفات مرة واحدة لحساب الهامش لكل صنف
+  const settings = (await MENU.settings.get()).data;
+  const lowThreshold = settings ? Number(settings.low_margin_threshold) : 30;
+  const rowsWithMargin = await Promise.all(items.map(async it => {
+    const { data: rec } = await MENU.recipes.listForItem(it.id);
+    const cost = MENU.recipes.computeCost(rec);
+    const margin = MENU.computeMargin(it.base_price, cost);
+    return { ...it, cost, margin };
+  }));
+  box.innerHTML = `
+    <div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>SKU</th><th>الاسم</th><th>الفئة</th><th>السعر</th><th>التكلفة</th><th>الهامش</th><th>الحالة</th></tr></thead>
+      <tbody>${rowsWithMargin.map(it => {
+        const marginColor = it.margin >= 50 ? '#12372F' : it.margin >= lowThreshold ? '#C4650E' : '#B91C1C';
+        return `<tr class="hr-emp-row" onclick="location.hash='#menu_item/${it.id}'">
+          <td class="mono-num">${esc(it.sku)}</td>
+          <td><strong>${esc(it.name_ar)}</strong></td>
+          <td>${esc(it.menu_categories?.name_ar || '—')}</td>
+          <td class="mono-num">${Number(it.base_price).toFixed(2)}</td>
+          <td class="mono-num">${it.cost.toFixed(2)}</td>
+          <td class="mono-num" style="font-weight:800;color:${marginColor};">${it.margin.toFixed(1)}%</td>
+          <td><span class="hr-pill hr-pill-${it.is_active ? 'active' : 'inactive'}">${it.is_active ? 'نشط' : 'موقوف'}</span></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+}
+
+async function openMenuItemModal(itemId, cats) {
+  const isEdit = !!itemId;
+  const it = isEdit ? (await MENU.items.get(itemId)).data || {} : {};
+  const categories = cats || (await MENU.categories.list()).data;
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:560px;max-width:97%;max-height:92vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="${isEdit ? 'pencil' : 'plus'}" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ${isEdit ? 'تعديل صنف' : 'إضافة صنف'}</h3>
+        <button class="modal-close-x" id="menuItemClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="menuItemErr"></div>
+        <form id="menuItemForm" class="hr-form-grid">
+          <div class="form-field full"><label>الاسم بالعربي *</label><input class="form-input" name="name_ar" required value="${esc(it.name_ar || '')}"></div>
+          <div class="form-field full"><label>الاسم بالإنجليزي</label><input class="form-input" name="name_en" value="${esc(it.name_en || '')}"></div>
+          <div class="form-field"><label>الفئة</label>
+            <select class="form-select" name="category_id">
+              <option value="">—</option>
+              ${(categories || []).map(c => `<option value="${c.id}" ${it.category_id === c.id ? 'selected' : ''}>${esc(c.name_ar)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field"><label>السعر الأساسي (ر.س) *</label><input class="form-input mono-num" type="number" step="0.01" min="0" name="base_price" required value="${it.base_price || 0}"></div>
+          <div class="form-field"><label>هامش الربح المستهدف %</label><input class="form-input mono-num" type="number" step="0.1" min="0" max="99" name="target_margin_percent" value="${it.target_margin_percent || 60}"></div>
+          <div class="form-field"><label>وقت التحضير (دقائق)</label><input class="form-input mono-num" type="number" min="0" name="preparation_minutes" value="${it.preparation_minutes || 0}"></div>
+          <div class="form-field full"><label>الوصف</label><textarea class="form-input" name="description" rows="2">${esc(it.description || '')}</textarea></div>
+          <div class="form-field full"><label>تنبيهات الحساسية</label><textarea class="form-input" name="allergen_notes" rows="2" placeholder="مثال: يحتوي على مكسرات">${esc(it.allergen_notes || '')}</textarea></div>
+          <div class="form-field" style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="menuItemVat" ${it.vat_applicable !== false ? 'checked' : ''}>
+            <label for="menuItemVat" style="margin:0;">خاضع للضريبة</label>
+          </div>
+          <div class="form-field" style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="menuItemFeat" ${it.is_featured ? 'checked' : ''}>
+            <label for="menuItemFeat" style="margin:0;">صنف مميز</label>
+          </div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="menuItemCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">${isEdit ? 'حفظ' : 'إضافة'}</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#menuItemClose').addEventListener('click', close);
+  host.querySelector('#menuItemCancel').addEventListener('click', close);
+  host.querySelector('#menuItemForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('menuItemErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      name_ar: (fd.get('name_ar') || '').trim(),
+      name_en: (fd.get('name_en') || '').trim() || null,
+      category_id: fd.get('category_id') ? Number(fd.get('category_id')) : null,
+      base_price: Number(fd.get('base_price')) || 0,
+      target_margin_percent: Number(fd.get('target_margin_percent')) || 60,
+      preparation_minutes: Number(fd.get('preparation_minutes')) || 0,
+      description: (fd.get('description') || '').trim() || null,
+      allergen_notes: (fd.get('allergen_notes') || '').trim() || null,
+      vat_applicable: document.getElementById('menuItemVat').checked,
+      is_featured: document.getElementById('menuItemFeat').checked
+    };
+    try {
+      const { data, error } = isEdit ? await MENU.items.update(itemId, payload) : await MENU.items.create(payload);
+      if (error) throw error;
+      toast(isEdit ? 'تم الحفظ' : 'تم إضافة الصنف', 'success');
+      close();
+      if (isEdit) route(); else location.hash = '#menu_item/' + data.id;
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function pageMenuItemDetail(body, idParam) {
+  const itemId = Number(idParam);
+  if (!itemId) { body.innerHTML = '<p class="error-msg show">معرف الصنف غير صحيح</p>'; return; }
+  const { data: it, error } = await MENU.items.get(itemId);
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!it) { body.innerHTML = '<p class="empty-state">الصنف غير موجود</p>'; return; }
+  const canManage = isMenuManager();
+
+  const { data: recipes } = await MENU.recipes.listForItem(itemId);
+  const cost = MENU.recipes.computeCost(recipes);
+  const margin = MENU.computeMargin(it.base_price, cost);
+  const suggestedPrice = MENU.suggestPrice(cost, it.target_margin_percent);
+  const { data: chPrices } = await MENU.channelPrices.listForItem(itemId);
+
+  body.innerHTML = `
+    <a href="#menu_items" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للأصناف</a>
+    <div class="hr-emp-hero">
+      <div class="hr-emp-hero-content">
+        <div class="hr-emp-hero-avatar"><span data-lucide="utensils" style="width:28px;height:28px;"></span></div>
+        <div class="hr-emp-hero-info">
+          <h2 class="hr-emp-hero-name">${esc(it.name_ar)}</h2>
+          <div class="hr-emp-hero-meta">
+            <span class="mono-num">${esc(it.sku)}</span>
+            <span>${esc(it.menu_categories?.name_ar || 'بدون فئة')}</span>
+            <span>${it.is_active ? 'نشط' : 'موقوف'}</span>
+          </div>
+        </div>
+        <div class="hr-emp-hero-actions">
+          ${canManage ? `<button type="button" class="hr-emp-hero-btn" id="menuItemEditBtn"><span data-lucide="pencil" style="width:13px;height:13px;"></span> تعديل</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="hr-info-grid" style="margin-bottom:18px;">
+      ${_hrInfo('السعر الأساسي', Number(it.base_price).toFixed(2) + ' ر.س')}
+      ${_hrInfo('التكلفة الفعلية', cost.toFixed(2) + ' ر.س')}
+      ${_hrInfo('هامش الربح', `<span style="color:${margin >= 50 ? '#12372F' : margin >= 30 ? '#C4650E' : '#B91C1C'};font-weight:800;">${margin.toFixed(1)}%</span>`)}
+      ${_hrInfo('السعر المقترح لهامش ' + it.target_margin_percent + '%', suggestedPrice.toFixed(2) + ' ر.س')}
+      ${_hrInfo('وقت التحضير', it.preparation_minutes + ' دقيقة')}
+      ${_hrInfo('خاضع للضريبة', it.vat_applicable ? 'نعم' : 'لا')}
+    </div>
+
+    ${it.description ? `<div class="panel"><div class="panel-body"><strong>الوصف:</strong> ${esc(it.description)}</div></div>` : ''}
+    ${it.allergen_notes ? `<div class="panel" style="border:1.5px solid #F2C94C;background:#FFFBEF;"><div class="panel-body" style="font-size:13px;color:#7A4E0E;"><strong>تنبيه حساسية:</strong> ${esc(it.allergen_notes)}</div></div>` : ''}
+
+    <div class="mod-section-title"><span data-lucide="list-plus" style="width:16px;height:16px;"></span> الوصفة (مكونات من المخزون)
+      ${canManage ? `<button type="button" class="btn btn-outline" id="menuAddRecipeBtn" style="margin-right:auto;padding:5px 12px;font-size:12.5px;"><span data-lucide="plus" style="width:13px;height:13px;"></span> إضافة مكون</button>` : ''}
+    </div>
+    <div id="menuRecipeBody"></div>
+
+    <div class="mod-section-title"><span data-lucide="tags" style="width:16px;height:16px;"></span> أسعار القنوات
+      ${canManage ? `<button type="button" class="btn btn-outline" id="menuAddPriceBtn" style="margin-right:auto;padding:5px 12px;font-size:12.5px;"><span data-lucide="plus" style="width:13px;height:13px;"></span> إضافة/تعديل</button>` : ''}
+    </div>
+    <div id="menuPricesBody"></div>
+    <div id="menuModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  const recBox = document.getElementById('menuRecipeBody');
+  if (!recipes.length) {
+    recBox.innerHTML = `<div class="hr-empty"><span data-lucide="list-plus"></span><p class="hr-empty-title">لا توجد مكونات — أضف أول مكون لحساب التكلفة</p></div>`;
+  } else {
+    recBox.innerHTML = `<div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>المكون</th><th>الكمية</th><th>تكلفة الوحدة</th><th>تكلفة المكون</th>${canManage ? '<th style="width:60px;"></th>' : ''}</tr></thead>
+      <tbody>${recipes.map(r => {
+        const unitCost = Number(r.acct_inventory_items?.unit_cost) || 0;
+        const total = Number(r.quantity) * unitCost;
+        return `<tr>
+          <td><strong>${esc(r.acct_inventory_items?.name || '—')}</strong> <span style="color:var(--text-muted);font-size:11px;">${esc(r.acct_inventory_items?.unit || '')}</span></td>
+          <td class="mono-num">${Number(r.quantity)}</td>
+          <td class="mono-num">${unitCost.toFixed(2)}</td>
+          <td class="mono-num" style="font-weight:800;">${total.toFixed(2)}</td>
+          ${canManage ? `<td><button type="button" class="danger" title="حذف" data-rec-delete="${r.id}"><span data-lucide="x" style="width:14px;height:14px;"></span></button></td>` : ''}
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div></div></div>`;
+    if (canManage) {
+      recBox.querySelectorAll('[data-rec-delete]').forEach(b => b.addEventListener('click', async () => {
+        if (!(await customConfirm('حذف هذا المكون؟'))) return;
+        const { error } = await MENU.recipes.removeLine(Number(b.dataset.recDelete));
+        if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+        route();
+      }));
+    }
+  }
+
+  const priceBox = document.getElementById('menuPricesBody');
+  const channels = ['dine_in', 'takeaway', 'delivery'];
+  priceBox.innerHTML = `<div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+    <thead><tr><th>القناة</th><th>السعر</th><th>ملاحظات</th></tr></thead>
+    <tbody>${channels.map(ch => {
+      const p = (chPrices || []).find(x => x.channel === ch);
+      return `<tr>
+        <td><strong>${esc(MENU_CHANNEL_LABELS[ch])}</strong></td>
+        <td class="mono-num">${p ? Number(p.price).toFixed(2) : Number(it.base_price).toFixed(2)}</td>
+        <td>${p ? '' : '<span style="color:var(--text-muted);font-size:11px;">يُستخدم السعر الأساسي</span>'}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div></div></div>`;
+
+  if (canManage) {
+    document.getElementById('menuItemEditBtn')?.addEventListener('click', () => openMenuItemModal(itemId));
+    document.getElementById('menuAddRecipeBtn')?.addEventListener('click', () => openMenuRecipeModal(itemId));
+    document.getElementById('menuAddPriceBtn')?.addEventListener('click', () => openMenuChannelPriceModal(itemId, it.base_price));
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+async function openMenuRecipeModal(itemId) {
+  const { data: inventory } = await sb.from('acct_inventory_items').select('id, name, sku, unit, unit_cost').eq('is_active', true).is('deleted_at', null).order('name');
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:480px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> إضافة مكون للوصفة</h3>
+        <button class="modal-close-x" id="menuRecClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="menuRecErr"></div>
+        <form id="menuRecForm" class="hr-form-grid">
+          <div class="form-field full"><label>المكون *</label>
+            <select class="form-select" name="inventory_item_id" required>
+              <option value="">اختر مكونًا من المخزون</option>
+              ${(inventory || []).map(i => `<option value="${i.id}">${esc(i.name)} (${esc(i.unit)}) — ${Number(i.unit_cost).toFixed(2)} ر.س/وحدة</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field full"><label>الكمية *</label><input class="form-input mono-num" type="number" step="0.001" min="0.001" name="quantity" required></div>
+          <div class="form-field full"><label>ملاحظات</label><input class="form-input" name="notes" placeholder="مثال: بعد النخل"></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="menuRecCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">إضافة</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#menuRecClose').addEventListener('click', close);
+  host.querySelector('#menuRecCancel').addEventListener('click', close);
+  host.querySelector('#menuRecForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('menuRecErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    try {
+      const { error } = await MENU.recipes.addLine(itemId, Number(fd.get('inventory_item_id')), Number(fd.get('quantity')), fd.get('notes'));
+      if (error) throw error;
+      toast('تم إضافة المكون', 'success');
+      close();
+      route();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function openMenuChannelPriceModal(itemId, basePrice) {
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:440px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="tags" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> تعديل سعر قناة</h3>
+        <button class="modal-close-x" id="menuChpClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="menuChpErr"></div>
+        <form id="menuChpForm" class="hr-form-grid">
+          <div class="form-field full"><label>القناة *</label>
+            <select class="form-select" name="channel" required>
+              <option value="dine_in">صالة</option>
+              <option value="takeaway">سفري</option>
+              <option value="delivery">توصيل</option>
+            </select>
+          </div>
+          <div class="form-field full"><label>السعر *</label><input class="form-input mono-num" type="number" step="0.01" min="0" name="price" required value="${Number(basePrice).toFixed(2)}"></div>
+          <p class="full" style="font-size:11.5px;color:var(--text-muted);margin:0;">اترك السعر بلا تعديل لتستخدم السعر الأساسي.</p>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="menuChpCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">حفظ</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#menuChpClose').addEventListener('click', close);
+  host.querySelector('#menuChpCancel').addEventListener('click', close);
+  host.querySelector('#menuChpForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('menuChpErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    try {
+      const { error } = await MENU.channelPrices.upsert(itemId, fd.get('channel'), Number(fd.get('price')));
+      if (error) throw error;
+      toast('تم حفظ السعر', 'success');
+      close();
+      route();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function pageMenuSettings(body) {
+  if (!isMenuManager()) { body.innerHTML = '<p class="empty-state">لا تملك صلاحية الوصول لهذه الصفحة</p>'; return; }
+  const { data: s, error } = await MENU.settings.get();
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  body.innerHTML = `
+    <a href="#menu" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للمنيو</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="settings" style="width:22px;height:22px;color:#123F32;"></span> إعدادات المنيو</h2>
+        <p>هوامش افتراضية وسلوك عرض الأصناف.</p>
+      </div>
+    </div>
+    <div class="panel"><div class="panel-body">
+      <div class="error-msg" id="menuSetErr"></div>
+      <form id="menuSetForm" class="hr-form-grid">
+        <div class="form-field"><label>هامش الربح الافتراضي %</label><input class="form-input mono-num" type="number" step="0.1" min="0" max="99" name="default_target_margin" value="${s?.default_target_margin || 60}"></div>
+        <div class="form-field"><label>حد الهامش المنخفض (تنبيه أحمر تحته)</label><input class="form-input mono-num" type="number" step="0.1" min="0" max="99" name="low_margin_threshold" value="${s?.low_margin_threshold || 30}"></div>
+        <div class="form-field full" style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="menuSetVat" ${s?.prices_include_vat ? 'checked' : ''}>
+          <label for="menuSetVat" style="margin:0;">الأسعار الظاهرة شاملة الضريبة</label>
+        </div>
+        <div class="form-field full" style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="menuSetHide" ${s?.auto_hide_out_of_stock !== false ? 'checked' : ''}>
+          <label for="menuSetHide" style="margin:0;">إخفاء الأصناف تلقائيًا لو أحد مكوناتها نفد</label>
+        </div>
+        <div class="full" style="display:flex;justify-content:flex-end;">
+          <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">حفظ الإعدادات</button>
+        </div>
+      </form>
+    </div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  document.getElementById('menuSetForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('menuSetErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    const payload = {
+      default_target_margin: Number(fd.get('default_target_margin')) || 60,
+      low_margin_threshold: Number(fd.get('low_margin_threshold')) || 30,
+      prices_include_vat: document.getElementById('menuSetVat').checked,
+      auto_hide_out_of_stock: document.getElementById('menuSetHide').checked
+    };
+    const { error: uErr } = await MENU.settings.save(payload);
+    if (uErr) { errBox.textContent = uErr.message; errBox.classList.add('show'); return; }
+    toast('تم حفظ الإعدادات', 'success');
   });
 }
 
