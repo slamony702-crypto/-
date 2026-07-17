@@ -467,23 +467,42 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   color: #fff; padding: 20px 0; flex-shrink: 0;
 }
 .sidebar .brand { padding: 0 20px 20px; font-size: 16px; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,0.12); margin-bottom: 14px; }
-.sidebar nav a { display: flex; align-items: center; gap: 10px; padding: 10px 20px 10px 34px; color: rgba(255,255,255,0.85); font-size: 13.5px; border-right: 3px solid transparent; cursor: pointer; }
-.sidebar nav a:hover { background: rgba(255,255,255,0.06); }
-.sidebar nav a.active { background: rgba(255,255,255,0.1); border-right-color: var(--accent); color: #fff; font-weight: 600; }
+/* روابط الموديولات: نصوص داكنة على الخلفية الفاتحة */
+.sidebar nav a { display: flex; align-items: center; gap: 10px; padding: 10px 20px 10px 34px; color: rgba(18,55,47,0.85); font-size: 13.5px; border-right: 3px solid transparent; cursor: pointer; }
+.sidebar nav a:hover { background: rgba(16,185,129,0.10); color: #123F32; }
+.sidebar nav a.active { background: rgba(16,185,129,0.14); border-right-color: #10B981; color: #0F3D31; font-weight: 700; }
 /* ============ مجموعات القائمة الجانبية القابلة للطي ============ */
-.nav-group { display: flex; flex-direction: column; }
+/* فاصل واضح بين كل موديول والتاني */
+.nav-group {
+  display: flex; flex-direction: column;
+  border-bottom: 1px solid rgba(16,185,129,0.18);
+  padding-bottom: 6px; margin-bottom: 6px;
+}
+.nav-group:last-child { border-bottom: none; margin-bottom: 0; }
 .nav-group-header {
   display: flex; align-items: center; gap: 8px;
   padding: 10px 20px; margin: 4px 8px 2px;
   background: transparent; border: none; cursor: pointer;
-  color: rgba(255,255,255,0.55); font-size: 11.5px; font-weight: 700;
+  color: rgba(18,55,47,0.65); font-size: 11.5px; font-weight: 800;
   letter-spacing: .3px; text-transform: none;
   border-radius: 8px; font-family: inherit; text-align: right;
 }
-.nav-group-header:hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.85); }
+.nav-group-header:hover { background: rgba(16,185,129,0.10); color: rgba(18,55,47,0.9); }
 .nav-group-header .label { flex: 1; text-align: right; }
-.nav-group-header .nav-group-chev { transition: transform .2s ease; opacity: .5; }
-.nav-group.open .nav-group-header .nav-group-chev { transform: rotate(180deg); opacity: .8; }
+/* سهم أوضح — حجم أكبر + شفافية أعلى + دائرة خضراء خفيفة تحته */
+.nav-group-header .nav-group-chev {
+  width: 18px !important; height: 18px !important;
+  transition: transform .25s cubic-bezier(.2,.9,.3,1);
+  opacity: 0.75; color: #10B981;
+  background: rgba(16,185,129,0.10);
+  border-radius: 999px; padding: 2px;
+}
+.nav-group-header:hover .nav-group-chev { opacity: 1; background: rgba(16,185,129,0.20); }
+.nav-group.open .nav-group-header .nav-group-chev {
+  transform: rotate(180deg); opacity: 1;
+  background: linear-gradient(135deg, rgba(16,185,129,0.25), rgba(139,92,246,0.20));
+  color: #059669;
+}
 .nav-group-items { display: none; }
 .nav-group.open .nav-group-items { display: flex; flex-direction: column; }
 .sidebar.collapsed .nav-group-header .label,
@@ -839,14 +858,15 @@ tr:hover td { background: var(--primary-light); }
 .sidebar.collapsed { width: var(--sidebar-w-collapsed); }
 .sidebar.collapsed .label, .sidebar.collapsed .brand-text { display: none; }
 .sidebar.collapsed .nav-badge { position: absolute; top: 6px; left: 14px; margin: 0; min-width: 8px; height: 8px; padding: 0; font-size: 0; }
-.sidebar-toggle { position: absolute; left: -12px; top: 22px; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; z-index: 10; }
+/* زر طي القائمة — بتدرج أخضر→بنفسجي زي هوية النظام */
+.sidebar-toggle { position: absolute; left: -12px; top: 22px; width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #10B981 0%, #8B5CF6 100%); border: 2px solid #fff; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 13px; font-weight: 800; z-index: 10; box-shadow: 0 4px 12px rgba(16,185,129,0.30), 0 2px 6px rgba(139,92,246,0.20); }
+.sidebar-toggle:hover { transform: scale(1.08); box-shadow: 0 6px 16px rgba(16,185,129,0.40), 0 3px 8px rgba(139,92,246,0.30); }
 .sidebar nav a { position: relative; border-radius: var(--radius-sm); margin: 0 8px 3px; }
-.sidebar nav a.active { background: rgba(249,168,37,0.14); }
 .sidebar.collapsed nav a { justify-content: center; }
 .sidebar.collapsed nav a[data-tooltip]:hover::after {
   content: attr(data-tooltip); position: absolute; right: 60px; top: 50%; transform: translateY(-50%);
-  background: var(--primary-dark); color: #fff; padding: 6px 12px; border-radius: 6px; font-size: 12.5px;
-  white-space: nowrap; box-shadow: var(--shadow-md); z-index: 20;
+  background: linear-gradient(135deg, #0F3D31 0%, #4C1D95 100%); color: #fff; padding: 7px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 700;
+  white-space: nowrap; box-shadow: 0 8px 20px rgba(15,61,49,0.30); z-index: 20;
 }
 
 /* ============ KPI Cards ============ */
@@ -2086,21 +2106,22 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
 
 .goal-progress-bar { width: 90px; height: 7px; background: var(--bg); border-radius: 4px; overflow: hidden; }
 .goal-progress-bar .fill { height: 100%; border-radius: 4px; transition: width 1s ease-out; }
-/* ============ سايدبار — بنفس هوية ألوان الموبايل (أخضر→بنفسجي) ============ */
+/* ============ سايدبار — خلفية فاتحة أخضر/بنفسجي زي هوية النظام ============ */
 .sidebar {
   display: flex; flex-direction: column;
-  /* Gradient يطابق تدرج الأزرار والشرائط في تطبيق الموبايل (#059669 → #123F32 → #6D28D9) */
-  background: linear-gradient(180deg, #0F3D31 0%, #123F32 45%, #2A2264 100%);
+  /* Gradient فاتح: مِنت أخضر → أبيض ناعم → لافندر بنفسجي فاتح */
+  background: linear-gradient(180deg, #ECFDF5 0%, #F0FDF4 30%, #FAFAF9 60%, #F5F3FF 100%);
+  border-inline-start: 1px solid rgba(16,185,129,0.15);
   position: relative; overflow: hidden;
 }
 .sidebar::before {
-  content: ''; position: absolute; top: -80px; right: -60px; width: 220px; height: 220px;
-  background: radial-gradient(circle, rgba(139,92,246,0.18) 0%, transparent 65%);
+  content: ''; position: absolute; top: -80px; right: -60px; width: 240px; height: 240px;
+  background: radial-gradient(circle, rgba(139,92,246,0.14) 0%, transparent 65%);
   pointer-events: none; z-index: 0;
 }
 .sidebar::after {
-  content: ''; position: absolute; bottom: 70px; left: -30px; width: 160px; height: 160px;
-  background: radial-gradient(circle, rgba(16,185,129,0.14) 0%, transparent 70%);
+  content: ''; position: absolute; bottom: 80px; left: -40px; width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(16,185,129,0.12) 0%, transparent 70%);
   pointer-events: none; z-index: 0;
 }
 /* ═══ Logo Container — خلفية فاتحة زي الموبايل واللوجو بألوانه الطبيعية ═══ */
@@ -2163,14 +2184,14 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
 }
 .sidebar nav a.active span[data-lucide] { color: #FFFFFF !important; }
 .sidebar-footer {
-  padding: 12px; border-top: 1px solid rgba(255,255,255,0.1); position: relative; z-index: 1;
+  padding: 12px; border-top: 1px solid rgba(16,185,129,0.20); position: relative; z-index: 1;
 }
 .sidebar-logout-btn {
   width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 10px; border-radius: 10px; border: none; cursor: pointer;
-  background: rgba(198,40,40,0.18); color: #ffb4b0; font-weight: 700; font-size: 13px;
+  padding: 10px; border-radius: 10px; border: 1px solid rgba(220,38,38,0.25); cursor: pointer;
+  background: rgba(254,226,226,0.6); color: #B91C1C; font-weight: 700; font-size: 13px;
 }
-.sidebar-logout-btn:hover { background: var(--danger); color: #fff; }
+.sidebar-logout-btn:hover { background: #DC2626; color: #fff; border-color: #DC2626; }
 
 @media (max-width: 768px) {
   .sidebar {
@@ -5001,7 +5022,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v124-2026-07-18-sidebar-mobile-parity';
+const APP_VERSION = 'v125-2026-07-18-sidebar-light-theme';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
