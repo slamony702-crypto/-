@@ -925,26 +925,30 @@ tr:hover td { background: var(--primary-light); }
 .sidebar.collapsed { width: var(--sidebar-w-collapsed); }
 .sidebar.collapsed .label, .sidebar.collapsed .brand-text { display: none; }
 .sidebar.collapsed .nav-badge { position: absolute; top: 6px; left: 14px; margin: 0; min-width: 8px; height: 8px; padding: 0; font-size: 0; }
-/* زر طي القائمة — داخل Footer، بلا دائرة عائمة (v127) */
+/* زرا الطي — على الحافة اليسرى للسايدبار (فوق + تحت) — v129 */
 .sidebar-toggle {
-  position: absolute; left: 12px; bottom: 12px;
-  width: 32px; height: 32px;
-  border-radius: var(--sidebar-radius);
+  position: absolute; left: -14px;
+  width: 28px; height: 28px;
+  border-radius: 50%;
   background: var(--sidebar-bg);
-  border: 1px solid var(--sidebar-border-color);
-  color: var(--sidebar-text-secondary);
+  border: 1.5px solid var(--sidebar-border-color);
+  color: var(--sidebar-primary-dark);
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; font-size: 14px; font-weight: 700; z-index: 10;
-  box-shadow: none;
-  transition: background var(--sidebar-transition), border-color var(--sidebar-transition), color var(--sidebar-transition);
+  cursor: pointer; font-size: 15px; font-weight: 800; z-index: 20;
+  box-shadow: 0 2px 6px rgba(15,23,42,0.10);
+  transition: background var(--sidebar-transition), border-color var(--sidebar-transition), color var(--sidebar-transition), transform var(--sidebar-transition);
 }
 .sidebar-toggle:hover {
   background: var(--sidebar-primary-light);
   border-color: var(--sidebar-primary);
   color: var(--sidebar-primary-dark);
-  transform: none;
-  box-shadow: none;
+  box-shadow: 0 4px 12px rgba(15,175,131,0.20);
+  transform: scale(1.08);
 }
+/* الزر العلوي — قرب اللوجو */
+.sidebar-toggle.sidebar-toggle-top { top: 20px; }
+/* الزر السفلي — قرب الفوتر */
+.sidebar-toggle.sidebar-toggle-bottom { bottom: 20px; }
 .sidebar nav a { position: relative; }
 .sidebar.collapsed nav a { justify-content: center; }
 .sidebar.collapsed nav a[data-tooltip]:hover::after {
@@ -2285,30 +2289,42 @@ table tbody tr, .adv-table tbody tr { transition: background .12s ease; }
 }
 .sidebar nav a:hover span[data-lucide] { color: var(--sidebar-primary-dark); }
 
-/* ═══ Footer ثابت — زر الطي على اليسار + زر الخروج على اليمين ═══ */
+/* ═══ Footer — بلا padding-left لزر الطي (طلعت الأزرار برة على الحافة) ═══ */
 .sidebar-footer {
-  padding: 12px 12px 12px 56px; /* padding-left يفسح مكان لزر الطي */
+  padding: 12px;
   border-top: 1px solid var(--sidebar-border-color);
   background: var(--sidebar-bg);
   position: relative; z-index: 1;
   display: flex; flex-direction: column; gap: 8px;
 }
+/* زر تسجيل الخروج — واضح بأيقونة أكبر ولون أقوى */
 .sidebar-logout-btn {
-  width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 9px 12px; border-radius: var(--sidebar-radius);
-  border: 1px solid var(--sidebar-border-color);
-  background: var(--sidebar-bg);
-  color: var(--sidebar-danger); font-weight: 600; font-size: 13.5px;
-  cursor: pointer; min-height: 36px;
-  transition: background var(--sidebar-transition), border-color var(--sidebar-transition);
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 11px 14px; border-radius: var(--sidebar-radius);
+  border: 1px solid #FEE2E2 !important;
+  background: #FFF5F5 !important;
+  color: #B91C1C !important;
+  font-weight: 700 !important; font-size: 14px !important;
+  cursor: pointer; min-height: 42px;
+  transition: background var(--sidebar-transition), border-color var(--sidebar-transition), color var(--sidebar-transition);
 }
 .sidebar-logout-btn:hover {
-  background: #FEF2F2;
-  border-color: var(--sidebar-danger);
+  background: #FEE2E2 !important;
+  border-color: #DC2626 !important;
+  color: #991B1B !important;
 }
+.sidebar-logout-btn span[data-lucide] {
+  color: #DC2626 !important;
+  width: 18px !important; height: 18px !important;
+  stroke-width: 2.4 !important;
+  flex-shrink: 0;
+}
+.sidebar-logout-btn:hover span[data-lucide] { color: #991B1B !important; }
+.sidebar-logout-btn .label { color: inherit !important; }
 /* في الحالة المصغرة: الفوتر compact */
-.sidebar.collapsed .sidebar-footer { padding: 12px 8px 52px; }
-.sidebar.collapsed .sidebar-toggle { left: 50%; transform: translateX(-50%); }
+.sidebar.collapsed .sidebar-footer { padding: 12px 8px; }
+.sidebar.collapsed .sidebar-logout-btn { padding: 10px 8px; }
+.sidebar.collapsed .sidebar-logout-btn .label { display: none; }
 
 @media (max-width: 768px) {
   .sidebar {
@@ -5142,7 +5158,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v128-2026-07-18-fixed-layout';
+const APP_VERSION = 'v129-2026-07-18-dual-toggles-visible-logout';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -16820,17 +16836,20 @@ async function renderShellOnce() {
     <div class="app-layout">
       <div class="sidebar-overlay" id="sidebarOverlay"></div>
       <aside class="sidebar ${collapsed ? 'collapsed' : ''}" id="appSidebar">
-        <button class="sidebar-toggle" id="sidebarToggleBtn" title="طي/فتح القائمة">${collapsed ? '›' : '‹'}</button>
+        <!-- زر طي القائمة (أعلى) — على الحافة اليسرى -->
+        <button class="sidebar-toggle sidebar-toggle-top" id="sidebarToggleBtnTop" title="طي/فتح القائمة" aria-label="طي أو فتح القائمة">${collapsed ? '›' : '‹'}</button>
         <div class="brand" style="border-radius:10px; display:flex; align-items:center; justify-content:center;">
           <img src="logo-icon-v4.png" width="56" height="56" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI" class="brand-text">
         </div>
         <nav>${menuHtml}</nav>
         <div class="sidebar-footer">
           <button class="sidebar-logout-btn" onclick="logout()">
-            <span data-lucide="log-out" style="width:15px;height:15px;"></span>
+            <span data-lucide="log-out" style="width:18px;height:18px;stroke-width:2.4;"></span>
             <span class="label">تسجيل الخروج</span>
           </button>
         </div>
+        <!-- زر طي القائمة (أسفل) — على الحافة اليسرى، خارج الفوتر -->
+        <button class="sidebar-toggle sidebar-toggle-bottom" id="sidebarToggleBtn" title="طي/فتح القائمة" aria-label="طي أو فتح القائمة">${collapsed ? '›' : '‹'}</button>
       </aside>
       <div class="main-content">
         <header class="topbar">
@@ -16906,12 +16925,20 @@ async function renderShellOnce() {
   initPremiumDateFields();
   enhanceAllSelectsForMobile();
 
-  document.getElementById('sidebarToggleBtn').addEventListener('click', () => {
+  // زرا الطي (فوق + تحت) يشتغلان بنفس المنطق
+  const toggleSidebarCollapse = () => {
     const sidebarEl = document.getElementById('appSidebar');
     const nowCollapsed = sidebarEl.classList.toggle('collapsed');
     localStorage.setItem('sidebar_collapsed', nowCollapsed ? '1' : '0');
-    document.getElementById('sidebarToggleBtn').textContent = nowCollapsed ? '›' : '‹';
-  });
+    const arrow = nowCollapsed ? '›' : '‹';
+    const t1 = document.getElementById('sidebarToggleBtn');
+    const t2 = document.getElementById('sidebarToggleBtnTop');
+    if (t1) t1.textContent = arrow;
+    if (t2) t2.textContent = arrow;
+  };
+  document.getElementById('sidebarToggleBtn').addEventListener('click', toggleSidebarCollapse);
+  const topToggle = document.getElementById('sidebarToggleBtnTop');
+  if (topToggle) topToggle.addEventListener('click', toggleSidebarCollapse);
 
   // فتح/قفل القائمة الجانبية على الموبايل
   const mobileSidebar = document.getElementById('appSidebar');
