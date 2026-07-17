@@ -4875,7 +4875,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v107-2026-07-17-wave1-crm';
+const APP_VERSION = 'v108-2026-07-17-wave1-pos';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -7580,6 +7580,267 @@ const CRM = {
   }
 };
 window.CRM = CRM;
+
+// ═══════════════════════════════════════════════════════════════════
+// نقاط البيع POS — Phase 1a (Wave 1 Module 23)
+// يعتمد على: menu_items (المنيو) + acct_settings (VAT) + crm_customers
+// (اختياري) + acct_journal_entries (قيد محاسبي مسودة تلقائي)
+// DECISION: خصم مكونات المخزون من الوصفة يتم في طبقة JS بعد إتمام
+// المعاملة (والفشل هنا لا يبطل البيع - يُسجَّل عبر fwReport فقط)
+// ═══════════════════════════════════════════════════════════════════
+const POS_METHOD_LABELS = { cash: 'نقد', card: 'شبكة', wallet: 'محفظة', bank_transfer: 'تحويل بنكي', loyalty_points: 'نقاط ولاء', other: 'أخرى' };
+const POS_CHANNEL_LABELS = { dine_in: 'صالة', takeaway: 'سفري', delivery: 'توصيل' };
+
+const POS = {
+  // ─── الأجهزة ────────────────────────────────────────────────
+  terminals: {
+    async list(branchId) {
+      let q = sb.from('pos_terminals').select('*, branches(name)').eq('is_active', true).order('branch_id').order('name');
+      if (branchId) q = q.eq('branch_id', branchId);
+      const { data, error } = await q;
+      return { data: data || [], error };
+    },
+    async create(payload) {
+      if (!payload.branch_id) return { data: null, error: { message: 'الفرع مطلوب' } };
+      if (!payload.name || !payload.name.trim()) return { data: null, error: { message: 'اسم الجهاز مطلوب' } };
+      const { data, error } = await sb.from('pos_terminals').insert({ ...payload, created_by: CURRENT_USER?.id }).select().single();
+      return { data, error };
+    },
+    async remove(id) {
+      const { error } = await sb.from('pos_terminals').update({ is_active: false }).eq('id', id);
+      return { error };
+    }
+  },
+
+  // ─── الجلسات ───────────────────────────────────────────────
+  sessions: {
+    async list(filters = {}) {
+      let q = sb.from('pos_sessions').select('*, branches(name), cashier:cashier_id(full_name), pos_terminals(name)').order('opened_at', { ascending: false });
+      if (filters.branch_id) q = q.eq('branch_id', filters.branch_id);
+      if (filters.status) q = q.eq('status', filters.status);
+      const { data, error } = await q.limit(200);
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('pos_sessions').select('*, branches(name), cashier:cashier_id(full_name), pos_terminals(name), approver:approved_by(full_name)').eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async myOpen() {
+      const { data, error } = await sb.from('pos_sessions').select('*, branches(name)').eq('cashier_id', CURRENT_USER.id).eq('status', 'open').maybeSingle();
+      return { data, error };
+    },
+    async open(payload) {
+      if (!payload.branch_id) return { data: null, error: { message: 'الفرع مطلوب' } };
+      // منع فتح جلسة أخرى للكاشير نفسه
+      const { data: existing } = await POS.sessions.myOpen();
+      if (existing) return { data: null, error: { message: 'لديك جلسة مفتوحة بالفعل — أغلقها أولًا' } };
+      const { data, error } = await sb.from('pos_sessions').insert({
+        branch_id: payload.branch_id,
+        terminal_id: payload.terminal_id || null,
+        cashier_id: CURRENT_USER.id,
+        opening_float: Number(payload.opening_float) || 0,
+        notes: payload.notes || null
+      }).select().single();
+      return { data, error };
+    },
+    async close(id, actualCash, varianceReason) {
+      // احسب الإجمالي المتوقع (النقد الافتتاحي + كل الدفعات النقدية في الجلسة)
+      const { data: session } = await POS.sessions.get(id);
+      if (!session) return { error: { message: 'الجلسة غير موجودة' } };
+      const { data: cashTotal } = await sb.rpc('pos_session_cash_total', { p_session_id: id }).single().catch(() => ({ data: null }));
+      // fallback client-side: نجمع من pos_payment_splits عبر pos_transactions
+      let expected = Number(session.opening_float);
+      if (cashTotal && typeof cashTotal.total === 'number') {
+        expected += Number(cashTotal.total);
+      } else {
+        const { data: txns } = await sb.from('pos_transactions').select('id').eq('session_id', id).eq('status', 'completed');
+        const ids = (txns || []).map(t => t.id);
+        if (ids.length) {
+          const { data: pays } = await sb.from('pos_payment_splits').select('amount').in('transaction_id', ids).eq('method', 'cash');
+          expected += (pays || []).reduce((s, p) => s + Number(p.amount), 0);
+        }
+      }
+      const { data, error } = await sb.from('pos_sessions').update({
+        status: 'closed',
+        closed_at: new Date().toISOString(),
+        expected_cash: Math.round(expected * 100) / 100,
+        actual_cash: Math.round(Number(actualCash) * 100) / 100,
+        variance_reason: varianceReason || null
+      }).eq('id', id).select().single();
+      return { data, error };
+    },
+    async approve(id) {
+      const { data, error } = await sb.from('pos_sessions').update({
+        status: 'approved',
+        approved_by: CURRENT_USER?.id,
+        approved_at: new Date().toISOString()
+      }).eq('id', id).select().single();
+      return { data, error };
+    }
+  },
+
+  // ─── المعاملات ─────────────────────────────────────────────
+  transactions: {
+    async list(sessionId) {
+      const { data, error } = await sb.from('pos_transactions')
+        .select('*, customer:customer_id(full_name)')
+        .eq('session_id', sessionId).order('created_at', { ascending: false });
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('pos_transactions')
+        .select('*, customer:customer_id(id, full_name, phone), cashier:cashier_id(full_name), branches(name)')
+        .eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async items(txnId) {
+      const { data, error } = await sb.from('pos_transaction_items').select('*').eq('transaction_id', txnId).order('id');
+      return { data: data || [], error };
+    },
+    async payments(txnId) {
+      const { data, error } = await sb.from('pos_payment_splits').select('*').eq('transaction_id', txnId).order('id');
+      return { data: data || [], error };
+    },
+    async createDraft(sessionId, branchId, channel) {
+      const { data, error } = await sb.from('pos_transactions').insert({
+        session_id: sessionId, branch_id: branchId,
+        cashier_id: CURRENT_USER.id, channel: channel || 'dine_in', type: 'sale'
+      }).select().single();
+      return { data, error };
+    },
+    async addItem(txnId, menuItem, quantity) {
+      const qty = Number(quantity) || 1;
+      const unitPrice = Number(menuItem.base_price) || 0;
+      const lineTotal = Math.round(unitPrice * qty * 100) / 100;
+      const { data, error } = await sb.from('pos_transaction_items').insert({
+        transaction_id: txnId,
+        menu_item_id: menuItem.id,
+        item_name: menuItem.name_ar,
+        item_sku: menuItem.sku,
+        quantity: qty,
+        unit_price: unitPrice,
+        line_total: lineTotal
+      }).select().single();
+      if (!error) await POS.transactions._recalcTotals(txnId);
+      return { data, error };
+    },
+    async removeItem(itemId, txnId) {
+      const { error } = await sb.from('pos_transaction_items').delete().eq('id', itemId);
+      if (!error) await POS.transactions._recalcTotals(txnId);
+      return { error };
+    },
+    async _recalcTotals(txnId) {
+      const [{ data: items }, { data: settings }] = await Promise.all([
+        sb.from('pos_transaction_items').select('line_total, discount_amount').eq('transaction_id', txnId),
+        sb.from('acct_settings').select('vat_rate').eq('id', 1).maybeSingle()
+      ]);
+      const [{ data: txn }] = await Promise.all([sb.from('pos_transactions').select('discount_amount').eq('id', txnId).maybeSingle()]);
+      const subtotal = (items || []).reduce((s, i) => s + Number(i.line_total) - Number(i.discount_amount || 0), 0);
+      const globalDiscount = Number(txn?.discount_amount || 0);
+      const afterDiscount = Math.max(0, subtotal - globalDiscount);
+      const vatRate = settings ? Number(settings.vat_rate) / 100 : 0.15;
+      const vatAmount = Math.round(afterDiscount * vatRate * 100) / 100;
+      const total = afterDiscount + vatAmount;
+      await sb.from('pos_transactions').update({
+        subtotal: Math.round(subtotal * 100) / 100,
+        vat_amount: vatAmount,
+        total_amount: Math.round(total * 100) / 100
+      }).eq('id', txnId);
+      return { subtotal, vatAmount, total };
+    },
+    async setDiscount(txnId, amount, reason) {
+      await sb.from('pos_transactions').update({
+        discount_amount: Math.abs(Number(amount) || 0),
+        discount_reason: reason || null
+      }).eq('id', txnId);
+      await POS.transactions._recalcTotals(txnId);
+    },
+    async setCustomer(txnId, customerId) {
+      const { error } = await sb.from('pos_transactions').update({ customer_id: customerId }).eq('id', txnId);
+      return { error };
+    },
+    async addPayment(txnId, method, amount, reference) {
+      if (!(Number(amount) > 0)) return { error: { message: 'المبلغ يجب أن يكون أكبر من صفر' } };
+      const { data, error } = await sb.from('pos_payment_splits').insert({
+        transaction_id: txnId, method, amount: Number(amount), reference: reference || null
+      }).select().single();
+      return { data, error };
+    },
+    async removePayment(payId) {
+      const { error } = await sb.from('pos_payment_splits').delete().eq('id', payId);
+      return { error };
+    },
+    // إتمام المعاملة عبر RPC atomic + توليد ZATCA QR + خصم مخزون
+    async complete(txnId) {
+      const { error: rpcErr } = await sb.rpc('pos_complete_transaction', { p_txn_id: txnId });
+      if (rpcErr) return { error: rpcErr };
+
+      // توليد QR ZATCA وربطه بالمعاملة
+      try {
+        const { data: txn } = await POS.transactions.get(txnId);
+        const { data: settings } = await sb.from('acct_settings').select('zatca_seller_name, zatca_vat_number').eq('id', 1).maybeSingle();
+        const qr = buildZatcaQrBase64(
+          settings?.zatca_seller_name || 'شؤون الغذاء',
+          settings?.zatca_vat_number || '',
+          txn.completed_at || new Date().toISOString(),
+          Number(txn.total_amount),
+          Number(txn.vat_amount)
+        );
+        await sb.from('pos_transactions').update({ zatca_qr: qr }).eq('id', txnId);
+      } catch (e) { fwReport('posZatcaQrGeneration', e); }
+
+      // خصم مكونات المخزون عبر الوصفات (بدون إيقاف البيع لو فشل)
+      try {
+        const { data: items } = await POS.transactions.items(txnId);
+        for (const it of (items || [])) {
+          if (!it.menu_item_id) continue;
+          const { data: recipes } = await sb.from('menu_item_recipes').select('inventory_item_id, quantity').eq('item_id', it.menu_item_id);
+          for (const rec of (recipes || [])) {
+            const consumeQty = Number(rec.quantity) * Number(it.quantity);
+            await ACCT.inventory.recordMovement({
+              item_id: rec.inventory_item_id,
+              type: 'out',
+              quantity: consumeQty,
+              unit_cost: 0,
+              reference: 'POS ' + it.item_name
+            }).catch(e => fwReport('posInventoryDeduction', e));
+          }
+        }
+      } catch (e) { fwReport('posInventoryDeductionLoop', e); }
+
+      return { error: null };
+    },
+    async void(txnId, reason) {
+      const { error } = await sb.from('pos_transactions').update({
+        status: 'voided',
+        voided_at: new Date().toISOString(),
+        voided_by: CURRENT_USER?.id,
+        void_reason: reason || null
+      }).eq('id', txnId).eq('status', 'draft');
+      return { error };
+    }
+  },
+
+  // ─── لوحة المؤشرات ────────────────────────────────────────
+  dashboard: {
+    async summary() {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const [openSessions, todayTxns, todayItems] = await Promise.all([
+        sb.from('pos_sessions').select('id', { count: 'exact', head: true }).eq('status', 'open'),
+        sb.from('pos_transactions').select('id, total_amount', { count: 'exact' }).gte('created_at', today.toISOString()).eq('status', 'completed'),
+        sb.from('pos_transaction_items').select('id', { count: 'exact', head: true }).gte('created_at', today.toISOString())
+      ]);
+      const totalSales = (todayTxns.data || []).reduce((s, t) => s + Number(t.total_amount), 0);
+      return {
+        openSessions: openSessions.count || 0,
+        todayTransactions: todayTxns.count || 0,
+        todayItems: todayItems.count || 0,
+        todaySales: Math.round(totalSales * 100) / 100
+      };
+    }
+  }
+};
+window.POS = POS;
 
 // ═══════════════════════════════════════════════════════════════════
 // المدفوعات والمقاصات — المرحلة P1: الشركاء الماليون والعقود
@@ -10576,7 +10837,7 @@ async function logout() {
 // وصفحة تعريفية فقط (pageComingSoonModule) — كل شاشاتها الداخلية محمية.
 // حسابات المراجعة في MODULE_PREVIEW_USERS فقط هي اللي تشوف الشاشات الحقيقية.
 // لإطلاق مديول للجميع: امسح مفتاحه من PREVIEW_MODULES — تعديل سطر واحد فقط.
-const PREVIEW_MODULES = ['hr', 'accounting', 'operations', 'ai_agents', 'menu', 'crm'];
+const PREVIEW_MODULES = ['hr', 'accounting', 'operations', 'ai_agents', 'menu', 'crm', 'pos'];
 const MODULE_PREVIEW_USERS = ['test_admin'];
 function canAccessModule(moduleKey) {
   if (!PREVIEW_MODULES.includes(moduleKey)) return true;
@@ -10591,6 +10852,7 @@ function gatedModuleForPage(page) {
   if (p === 'ai_assistant' || p.startsWith('ai_')) return 'ai_agents';
   if (p === 'menu' || p.startsWith('menu_')) return 'menu';
   if (p === 'crm' || p.startsWith('crm_')) return 'crm';
+  if (p === 'pos' || p.startsWith('pos_')) return 'pos';
   return null;
 }
 
@@ -10625,6 +10887,9 @@ const MENU_GROUPS = [
   { key: '__crm', label: 'علاقات العملاء', icon: 'user-round', defaultOpen: false, items: [
     { key: 'crm', label: 'العملاء والولاء', icon: 'user-round', badge: 'قريبًا' },
   ]},
+  { key: '__pos', label: 'نقاط البيع', icon: 'shopping-cart', defaultOpen: false, items: [
+    { key: 'pos', label: 'نقاط البيع', icon: 'shopping-cart', badge: 'قريبًا' },
+  ]},
   { key: '__cafe', label: 'ركن الكافيه', icon: 'coffee', defaultOpen: false, items: [
     { key: 'cafe', label: 'ركن الكافيه', icon: 'coffee' },
   ]},
@@ -10642,7 +10907,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', acct_pay_partners: 'شركاء المدفوعات', acct_pay_partner: 'تفاصيل الشريك', acct_pay_statements: 'كشوف الشركاء', acct_pay_statement: 'تفاصيل الكشف', acct_pay_clearing: 'المقاصة والتسويات', acct_pay_clearing_batch: 'تفاصيل دفعة المقاصة', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', ops_issues: 'المشكلات التشغيلية', ops_issue_detail: 'تفاصيل المشكلة', ops_settings: 'إعدادات التشغيل', ai_assistant: 'المساعد الذكي', ai_settings: 'إعدادات المساعد الذكي', menu: 'المنيو والوصفات', menu_categories: 'فئات المنيو', menu_items: 'أصناف المنيو', menu_item: 'تفاصيل الصنف', menu_settings: 'إعدادات المنيو', crm: 'العملاء والولاء', crm_customers: 'قاعدة العملاء', crm_customer: 'ملف العميل', crm_complaints: 'الشكاوى', crm_complaint: 'تفاصيل الشكوى', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', acct_pay_partners: 'شركاء المدفوعات', acct_pay_partner: 'تفاصيل الشريك', acct_pay_statements: 'كشوف الشركاء', acct_pay_statement: 'تفاصيل الكشف', acct_pay_clearing: 'المقاصة والتسويات', acct_pay_clearing_batch: 'تفاصيل دفعة المقاصة', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', ops_issues: 'المشكلات التشغيلية', ops_issue_detail: 'تفاصيل المشكلة', ops_settings: 'إعدادات التشغيل', ai_assistant: 'المساعد الذكي', ai_settings: 'إعدادات المساعد الذكي', menu: 'المنيو والوصفات', menu_categories: 'فئات المنيو', menu_items: 'أصناف المنيو', menu_item: 'تفاصيل الصنف', menu_settings: 'إعدادات المنيو', crm: 'العملاء والولاء', crm_customers: 'قاعدة العملاء', crm_customer: 'ملف العميل', crm_complaints: 'الشكاوى', crm_complaint: 'تفاصيل الشكوى', pos: 'نقاط البيع', pos_terminals: 'الأجهزة', pos_sessions: 'جلسات الكاشير', pos_session: 'تفاصيل الجلسة', pos_cashier: 'شاشة الكاشير', pos_transaction: 'تفاصيل المعاملة', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -14879,7 +15144,7 @@ async function renderShellOnce() {
   } catch (e) { /* تجاهل بصمت لو فشل الحساب */ }
 
   // المديولات القادمة (Placeholder Overview) — تظهر للجميع لأنها صفحات عرض فقط
-  const ALWAYS_VISIBLE = ['hr', 'accounting', 'operations', 'ai_assistant', 'menu', 'crm'];
+  const ALWAYS_VISIBLE = ['hr', 'accounting', 'operations', 'ai_assistant', 'menu', 'crm', 'pos'];
   const openGroupsRaw = localStorage.getItem('sidebar_open_groups');
   const openGroups = openGroupsRaw ? JSON.parse(openGroupsRaw) : null;
   function isGroupOpen(g) { return openGroups ? openGroups.includes(g.key) : g.defaultOpen; }
@@ -15269,6 +15534,12 @@ async function route() {
     else if (page === 'crm_customer') await pageCrmCustomerDetail(body, param);
     else if (page === 'crm_complaints') await pageCrmComplaints(body, query);
     else if (page === 'crm_complaint') await pageCrmComplaintDetail(body, param);
+    else if (page === 'pos') await pagePosDashboard(body);
+    else if (page === 'pos_terminals') await pagePosTerminals(body);
+    else if (page === 'pos_sessions') await pagePosSessions(body);
+    else if (page === 'pos_session') await pagePosSessionDetail(body, param);
+    else if (page === 'pos_cashier') await pagePosCashier(body, param);
+    else if (page === 'pos_transaction') await pagePosTransactionDetail(body, param);
     else if (page === 'meetings') await pageMeetings(body, query);
     else if (page === 'meetings_calendar') await pageMeetingsCalendar(body, query);
     else if (page === 'meeting_detail') await pageMeetingDetail(body, param, query);
@@ -24031,6 +24302,30 @@ const COMING_SOON_MODULES = {
       { title: 'المرحلة 2 — POS', sub: 'ربط الطلبات بالعملاء • منح نقاط تلقائي', status: 'قيد التخطيط' },
       { title: 'المرحلة 3 — الحملات', sub: 'حملات موجَّهة بالشريحة • قياس أثر', status: 'مقرَّرة' }
     ]
+  },
+  pos: {
+    title: 'نقاط البيع',
+    subtitle: 'شاشة كاشير سريعة بلمس، ربط مباشر بالمنيو والمخزون، قيد محاسبي فوري، وامتثال ZATCA.',
+    icon: 'shopping-cart',
+    stats: [
+      { val: 'Touch', lbl: 'شاشة كاشير سريعة' },
+      { val: 'Auto', lbl: 'قيد محاسبي عند كل بيع' },
+      { val: 'ZATCA', lbl: 'QR + إيصال مطابق' },
+      { val: 'CRM+', lbl: 'ربط اختياري بالعميل' }
+    ],
+    features: [
+      { icon: 'shopping-cart', title: 'كاشير سريع', desc: 'شبكة أصناف بلمس + سلة + دفع في شاشة واحدة.' },
+      { icon: 'clock', title: 'إدارة الوردية', desc: 'فتح/إغلاق جلسة برصيد افتتاحي وجرد نقدي.' },
+      { icon: 'receipt', title: 'قيود آلية', desc: 'كل بيعة تُنشئ قيدًا محاسبيًا مسودة تلقائيًا.' },
+      { icon: 'user-round', title: 'ربط العميل', desc: 'اختياريًا: تسجيل البيع للعميل ومنح نقاط ولاء.' },
+      { icon: 'wallet', title: 'دفع مختلط', desc: 'دفع بأكثر من وسيلة (نقد + شبكة + محفظة).' },
+      { icon: 'shield-check', title: 'حوكمة', desc: 'كل معاملة مؤرشفة، الإلغاء بصلاحية موثقة.' }
+    ],
+    roadmap: [
+      { title: 'المرحلة 1a — الأساسيات', sub: 'كاشير • جلسات • قيد محاسبي • ZATCA QR', status: 'الأولى' },
+      { title: 'المرحلة 1b — التعزيز', sub: 'دفع مختلط • خصم مخزون • ربط CRM كامل', status: 'قيد التخطيط' },
+      { title: 'المرحلة 2 — الميدان', sub: 'وضع Offline • طابعة إيصالات • KDS مطبخ', status: 'مقرَّرة' }
+    ]
   }
 };
 
@@ -28237,6 +28532,809 @@ async function openCrmResolveModal(complaintId) {
       errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
     }
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// نقاط البيع POS — الشاشات (Wave 1 Phase 1a)
+// ═══════════════════════════════════════════════════════════════════
+async function pagePosDashboard(body) {
+  const canManage = ['admin', 'company_manager', 'operations_manager'].includes(CURRENT_USER.role);
+  body.innerHTML = `
+    <div class="mod-hero">
+      <div class="mod-hero-top">
+        <div class="mod-hero-icon"><span data-lucide="shopping-cart"></span></div>
+        <div>
+          <h2 class="mod-hero-title">نقاط البيع</h2>
+          <p class="mod-hero-sub">شاشة كاشير سريعة مع قيد محاسبي فوري وامتثال ZATCA.</p>
+        </div>
+      </div>
+      <div class="mod-hero-badges">
+        <a href="#pos_sessions" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="clock" style="width:12px;height:12px;"></span> الجلسات</a>
+        ${canManage ? `<a href="#pos_terminals" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="monitor" style="width:12px;height:12px;"></span> الأجهزة</a>` : ''}
+        <button type="button" id="posStartBtn" class="mod-hero-badge" style="border:none;cursor:pointer;background:linear-gradient(135deg,#12372F,#2E9E4C);color:#fff;">
+          <span data-lucide="play" style="width:12px;height:12px;"></span> فتح شاشة الكاشير
+        </button>
+      </div>
+    </div>
+
+    <div class="mod-stats" id="posKpis">
+      ${[1,2,3,4].map(() => `<div class="mod-stat"><div class="skeleton skeleton-row" style="width:60%;height:24px;"></div><div class="skeleton skeleton-row" style="width:80%;margin-top:8px;"></div></div>`).join('')}
+    </div>
+    <div class="mod-section-title"><span data-lucide="clock" style="width:16px;height:16px;"></span> جلساتي المفتوحة</div>
+    <div id="posMyOpen"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  document.getElementById('posStartBtn').addEventListener('click', async () => {
+    const { data: existing } = await POS.sessions.myOpen();
+    if (existing) { location.hash = '#pos_cashier/' + existing.id; return; }
+    openPosNewSessionModal();
+  });
+
+  const summary = await POS.dashboard.summary();
+  const kpiBox = document.getElementById('posKpis');
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (kpiBox) {
+    kpiBox.innerHTML = `
+      <div class="mod-stat"><div class="mod-stat-val">${summary.openSessions}</div><div class="mod-stat-lbl">جلسات مفتوحة الآن</div></div>
+      <div class="mod-stat"><div class="mod-stat-val">${summary.todayTransactions}</div><div class="mod-stat-lbl">معاملات اليوم</div></div>
+      <div class="mod-stat"><div class="mod-stat-val">${summary.todayItems}</div><div class="mod-stat-lbl">أصناف مُبَاعة اليوم</div></div>
+      <div class="mod-stat"><div class="mod-stat-val" style="font-size:18px;">${money(summary.todaySales)} <span style="font-size:11px;font-weight:600;color:var(--text-muted);">ر.س</span></div><div class="mod-stat-lbl">مبيعات اليوم</div></div>
+    `;
+  }
+
+  const { data: my } = await POS.sessions.myOpen();
+  const box = document.getElementById('posMyOpen');
+  if (!my) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="clock"></span><p class="hr-empty-title">لا توجد جلسة مفتوحة — اضغط "فتح شاشة الكاشير" للبدء</p></div>`;
+  } else {
+    box.innerHTML = `
+      <div class="panel"><div class="panel-body" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div style="font-weight:800;font-size:14px;">${esc(my.session_no)}</div>
+          <div style="font-size:12px;color:var(--text-muted);">${esc(my.branches?.name || '')} • مفتوحة منذ ${new Date(my.opened_at).toLocaleTimeString('ar-SA')}</div>
+        </div>
+        <a href="#pos_cashier/${my.id}" class="btn" style="background:linear-gradient(90deg,#12372F,#2E9E4C);color:#fff;padding:9px 16px;border-radius:12px;text-decoration:none;">
+          <span data-lucide="shopping-cart" style="width:14px;height:14px;"></span> العودة لشاشة الكاشير
+        </a>
+      </div></div>
+    `;
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+async function openPosNewSessionModal() {
+  const { data: branches } = await sb.from('branches').select('id, name').eq('is_active', true).order('name');
+  const { data: terminals } = await POS.terminals.list();
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:440px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="play" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> فتح جلسة كاشير</h3>
+        <button class="modal-close-x" id="posSessClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="posSessErr"></div>
+        <form id="posSessForm" class="hr-form-grid">
+          <div class="form-field full"><label>الفرع *</label>
+            <select class="form-select" id="posSessBranch" name="branch_id" required>
+              <option value="">اختر فرعًا</option>
+              ${(branches || []).map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field full"><label>الجهاز (اختياري)</label>
+            <select class="form-select" name="terminal_id">
+              <option value="">— بدون جهاز محدد —</option>
+              ${(terminals || []).map(t => `<option value="${t.id}" data-branch="${t.branch_id}">${esc(t.name)} (${esc(t.branches?.name || '')})</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field full"><label>الرصيد الافتتاحي للنقد (فكة)</label><input class="form-input mono-num" type="number" step="0.01" min="0" name="opening_float" value="0"></div>
+          <div class="form-field full"><label>ملاحظات</label><textarea class="form-input" name="notes" rows="2"></textarea></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="posSessCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#2E9E4C);color:#fff;">فتح الجلسة</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#posSessClose').addEventListener('click', close);
+  host.querySelector('#posSessCancel').addEventListener('click', close);
+  host.querySelector('#posSessForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('posSessErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    try {
+      const { data, error } = await POS.sessions.open({
+        branch_id: Number(fd.get('branch_id')),
+        terminal_id: fd.get('terminal_id') ? Number(fd.get('terminal_id')) : null,
+        opening_float: Number(fd.get('opening_float')) || 0,
+        notes: (fd.get('notes') || '').trim() || null
+      });
+      if (error) throw error;
+      toast('تم فتح الجلسة', 'success');
+      close();
+      location.hash = '#pos_cashier/' + data.id;
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function pagePosTerminals(body) {
+  const canManage = ['admin', 'company_manager', 'operations_manager'].includes(CURRENT_USER.role);
+  body.innerHTML = `
+    <a href="#pos" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للـPOS</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="monitor" style="width:22px;height:22px;color:#123F32;"></span> أجهزة نقاط البيع</h2>
+        <p>تعريف أجهزة الكاشير في كل فرع.</p>
+      </div>
+      ${canManage ? `<button type="button" class="btn" id="posAddTermBtn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;padding:9px 16px;border-radius:12px;"><span data-lucide="plus" style="width:14px;height:14px;"></span> إضافة جهاز</button>` : ''}
+    </div>
+    <div class="panel"><div class="panel-body" id="posTermBody"><div class="skeleton skeleton-row"></div></div></div>
+    <div id="posModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  if (canManage) document.getElementById('posAddTermBtn').addEventListener('click', () => openPosTerminalModal());
+  const { data: rows } = await POS.terminals.list();
+  const box = document.getElementById('posTermBody');
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="monitor"></span><p class="hr-empty-title">لا توجد أجهزة</p><p class="hr-empty-sub">يمكنك فتح جلسة بدون جهاز مسجّل، لكن التسجيل يفيد للتقارير.</p></div>`;
+  } else {
+    box.innerHTML = `
+      <div style="overflow-x:auto;"><table class="hr-emp-table">
+        <thead><tr><th>الكود</th><th>الاسم</th><th>الفرع</th><th>الحالة</th>${canManage ? '<th style="width:60px;"></th>' : ''}</tr></thead>
+        <tbody>${rows.map(t => `<tr>
+          <td class="mono-num">${esc(t.code)}</td>
+          <td><strong>${esc(t.name)}</strong></td>
+          <td>${esc(t.branches?.name || '—')}</td>
+          <td><span class="hr-pill hr-pill-${t.is_active ? 'active' : 'inactive'}">${t.is_active ? 'نشط' : 'موقوف'}</span></td>
+          ${canManage ? `<td><button type="button" class="danger" title="إيقاف" data-term-delete="${t.id}"><span data-lucide="trash-2" style="width:14px;height:14px;"></span></button></td>` : ''}
+        </tr>`).join('')}</tbody>
+      </table></div>
+    `;
+  }
+  if (window.lucide) lucide.createIcons();
+  if (canManage) {
+    box.querySelectorAll('[data-term-delete]').forEach(b => b.addEventListener('click', async () => {
+      if (!(await customConfirm('إيقاف هذا الجهاز؟'))) return;
+      await POS.terminals.remove(Number(b.dataset.termDelete));
+      route();
+    }));
+  }
+}
+
+async function openPosTerminalModal() {
+  const { data: branches } = await sb.from('branches').select('id, name').eq('is_active', true).order('name');
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:440px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="plus" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> إضافة جهاز</h3>
+        <button class="modal-close-x" id="posTermClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="posTermErr"></div>
+        <form id="posTermForm" class="hr-form-grid">
+          <div class="form-field full"><label>الفرع *</label>
+            <select class="form-select" name="branch_id" required>
+              <option value="">اختر فرعًا</option>
+              ${(branches || []).map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-field full"><label>اسم الجهاز *</label><input class="form-input" name="name" required placeholder="مثال: كاشير 1 - العليا"></div>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="posTermCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">إضافة</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#posTermClose').addEventListener('click', close);
+  host.querySelector('#posTermCancel').addEventListener('click', close);
+  host.querySelector('#posTermForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('posTermErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    try {
+      const { error } = await POS.terminals.create({
+        branch_id: Number(fd.get('branch_id')),
+        name: (fd.get('name') || '').trim()
+      });
+      if (error) throw error;
+      toast('تم إضافة الجهاز', 'success');
+      close();
+      route();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+async function pagePosSessions(body) {
+  body.innerHTML = `
+    <a href="#pos" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للـPOS</a>
+    <div class="mt-hero-header">
+      <div>
+        <h2><span class="mt-accent"></span><span data-lucide="clock" style="width:22px;height:22px;color:#123F32;"></span> جلسات الكاشير</h2>
+        <p>كل جلسات الفتح والإغلاق مع فروقات النقد.</p>
+      </div>
+    </div>
+    <div class="panel"><div class="panel-body" id="posSessBody"><div class="skeleton skeleton-row"></div></div></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+  const { data: rows, error } = await POS.sessions.list();
+  const box = document.getElementById('posSessBody');
+  if (error) { box.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!rows.length) {
+    box.innerHTML = `<div class="hr-empty"><span data-lucide="clock"></span><p class="hr-empty-title">لا توجد جلسات</p></div>`;
+  } else {
+    const stCls = { open: 'st-late', closed: 'st-empty', approved: 'st-present' };
+    const stLbl = { open: 'مفتوحة', closed: 'مغلقة (بانتظار اعتماد)', approved: 'معتمدة' };
+    const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    box.innerHTML = `
+      <div style="overflow-x:auto;"><table class="hr-emp-table">
+        <thead><tr><th>رقم الجلسة</th><th>الفرع</th><th>الكاشير</th><th>فتحت</th><th>الافتتاحي</th><th>الفرق</th><th>الحالة</th></tr></thead>
+        <tbody>${rows.map(s => `
+          <tr class="hr-emp-row" onclick="location.hash='#pos_session/${s.id}'">
+            <td class="mono-num">${esc(s.session_no)}</td>
+            <td>${esc(s.branches?.name || '—')}</td>
+            <td>${esc(s.cashier?.full_name || '—')}</td>
+            <td class="mono-num">${new Date(s.opened_at).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' })}</td>
+            <td class="mono-num">${money(s.opening_float)}</td>
+            <td class="mono-num" style="color:${Number(s.cash_variance || 0) < 0 ? '#B91C1C' : Number(s.cash_variance || 0) > 0 ? '#C4650E' : 'inherit'};">${s.actual_cash != null ? money(s.cash_variance) : '—'}</td>
+            <td><span class="hr-att-cell ${stCls[s.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(stLbl[s.status])}</span></td>
+          </tr>`).join('')}</tbody>
+      </table></div>
+    `;
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+async function pagePosSessionDetail(body, idParam) {
+  const sessId = Number(idParam);
+  if (!sessId) { body.innerHTML = '<p class="error-msg show">معرف الجلسة غير صحيح</p>'; return; }
+  const { data: s, error } = await POS.sessions.get(sessId);
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!s) { body.innerHTML = '<p class="empty-state">الجلسة غير موجودة</p>'; return; }
+  const canApprove = ['admin', 'company_manager', 'operations_manager'].includes(CURRENT_USER.role)
+    || (CURRENT_USER.branch_id === s.branch_id && ['branch_manager', 'deputy_manager'].includes(CURRENT_USER.role));
+  const isOwnCashier = s.cashier_id === CURRENT_USER.id;
+  const money = n => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const { data: txns } = await POS.transactions.list(sessId);
+
+  body.innerHTML = `
+    <a href="#pos_sessions" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للجلسات</a>
+    <div class="hr-emp-hero">
+      <div class="hr-emp-hero-content">
+        <div class="hr-emp-hero-avatar"><span data-lucide="clock" style="width:28px;height:28px;"></span></div>
+        <div class="hr-emp-hero-info">
+          <h2 class="hr-emp-hero-name">${esc(s.session_no)}</h2>
+          <div class="hr-emp-hero-meta">
+            <span>${esc(s.branches?.name || '')}</span>
+            <span>${esc(s.cashier?.full_name || '')}</span>
+            <span>${s.status === 'open' ? 'مفتوحة' : s.status === 'closed' ? 'مغلقة' : 'معتمدة'}</span>
+          </div>
+        </div>
+        <div class="hr-emp-hero-actions">
+          ${s.status === 'open' && isOwnCashier ? `<a href="#pos_cashier/${s.id}" class="hr-emp-hero-btn" style="text-decoration:none;"><span data-lucide="shopping-cart" style="width:13px;height:13px;"></span> استئناف الكاشير</a>` : ''}
+          ${s.status === 'open' && isOwnCashier ? `<button type="button" class="hr-emp-hero-btn" id="posCloseSessBtn"><span data-lucide="square" style="width:13px;height:13px;"></span> إغلاق الجلسة</button>` : ''}
+          ${s.status === 'closed' && canApprove ? `<button type="button" class="hr-emp-hero-btn" id="posApproveSessBtn"><span data-lucide="check-check" style="width:13px;height:13px;"></span> اعتماد الإغلاق</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="hr-info-grid" style="margin-bottom:18px;">
+      ${_hrInfo('فتحت', new Date(s.opened_at).toLocaleString('ar-SA'))}
+      ${_hrInfo('أُغلقت', s.closed_at ? new Date(s.closed_at).toLocaleString('ar-SA') : '—')}
+      ${_hrInfo('الرصيد الافتتاحي', money(s.opening_float) + ' ر.س')}
+      ${_hrInfo('النقد المتوقع', s.expected_cash != null ? money(s.expected_cash) + ' ر.س' : '—')}
+      ${_hrInfo('النقد الفعلي', s.actual_cash != null ? money(s.actual_cash) + ' ر.س' : '—')}
+      ${_hrInfo('الفرق', s.actual_cash != null ? `<span style="color:${Number(s.cash_variance) < 0 ? '#B91C1C' : Number(s.cash_variance) > 0 ? '#C4650E' : '#12372F'};font-weight:800;">${money(s.cash_variance)} ر.س</span>` : '—')}
+      ${_hrInfo('عدد المعاملات', (txns || []).filter(t => t.status === 'completed').length)}
+      ${_hrInfo('اعتمدها', s.approver?.full_name || '—')}
+    </div>
+
+    ${s.variance_reason ? `<div class="panel" style="border:1.5px solid #F2C94C;background:#FFFBEF;"><div class="panel-body" style="font-size:13px;color:#7A4E0E;"><strong>سبب الفرق:</strong> ${esc(s.variance_reason)}</div></div>` : ''}
+
+    <div class="mod-section-title"><span data-lucide="list" style="width:16px;height:16px;"></span> معاملات الجلسة</div>
+    <div id="posTxnListBody"></div>
+    <div id="posModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  const txnBox = document.getElementById('posTxnListBody');
+  if (!(txns || []).length) {
+    txnBox.innerHTML = `<div class="hr-empty"><span data-lucide="list"></span><p class="hr-empty-title">لا توجد معاملات</p></div>`;
+  } else {
+    const stCls = { draft: 'st-empty', completed: 'st-present', voided: 'st-absent' };
+    const stLbl = { draft: 'مسودة', completed: 'مكتملة', voided: 'ملغاة' };
+    txnBox.innerHTML = `
+      <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+        <thead><tr><th>رقم المعاملة</th><th>الوقت</th><th>القناة</th><th>العميل</th><th>الإجمالي</th><th>الحالة</th></tr></thead>
+        <tbody>${txns.map(t => `
+          <tr class="hr-emp-row" onclick="location.hash='#pos_transaction/${t.id}'">
+            <td class="mono-num">${esc(t.transaction_no)}</td>
+            <td class="mono-num">${new Date(t.created_at).toLocaleTimeString('ar-SA')}</td>
+            <td>${esc(POS_CHANNEL_LABELS[t.channel] || t.channel)}</td>
+            <td>${esc(t.customer?.full_name || '—')}</td>
+            <td class="mono-num" style="font-weight:800;">${money(t.total_amount)}</td>
+            <td><span class="hr-att-cell ${stCls[t.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(stLbl[t.status])}</span></td>
+          </tr>`).join('')}</tbody>
+      </table></div></div></div>
+    `;
+  }
+  if (window.lucide) lucide.createIcons();
+
+  document.getElementById('posCloseSessBtn')?.addEventListener('click', () => openPosCloseSessionModal(sessId, s));
+  document.getElementById('posApproveSessBtn')?.addEventListener('click', async () => {
+    if (!(await customConfirm('اعتماد إغلاق الجلسة نهائيًا؟'))) return;
+    const { error: aErr } = await POS.sessions.approve(sessId);
+    if (aErr) { toast('تعذّر: ' + aErr.message, 'error'); return; }
+    toast('تم الاعتماد', 'success');
+    route();
+  });
+}
+
+async function openPosCloseSessionModal(sessId, session) {
+  // احسب النقد المتوقع
+  let expected = Number(session.opening_float);
+  const { data: txns } = await sb.from('pos_transactions').select('id').eq('session_id', sessId).eq('status', 'completed');
+  const ids = (txns || []).map(t => t.id);
+  if (ids.length) {
+    const { data: pays } = await sb.from('pos_payment_splits').select('amount').in('transaction_id', ids).eq('method', 'cash');
+    expected += (pays || []).reduce((s, p) => s + Number(p.amount), 0);
+  }
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:440px;max-width:96%;">
+      <div class="panel-header">
+        <h3><span data-lucide="square" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> إغلاق الجلسة</h3>
+        <button class="modal-close-x" id="posCloseXBtn"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <div class="error-msg" id="posCloseErr"></div>
+        <div class="hr-info-grid" style="margin-bottom:14px;">
+          ${_hrInfo('الرصيد الافتتاحي', Number(session.opening_float).toFixed(2))}
+          ${_hrInfo('النقد المتوقع', expected.toFixed(2))}
+        </div>
+        <form id="posCloseForm" class="hr-form-grid">
+          <div class="form-field full"><label>النقد الفعلي في الصندوق *</label><input class="form-input mono-num" type="number" step="0.01" min="0" name="actual_cash" required></div>
+          <div class="form-field full"><label>سبب الفرق (إن وجد)</label><textarea class="form-input" name="variance_reason" rows="2"></textarea></div>
+          <p class="full" style="font-size:11.5px;color:var(--text-muted);margin:0;">بعد الإغلاق يحتاج اعتماد المدير/الأدمن.</p>
+          <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-outline" id="posCloseCancel">إلغاء</button>
+            <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">إغلاق</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#posCloseXBtn').addEventListener('click', close);
+  host.querySelector('#posCloseCancel').addEventListener('click', close);
+  host.querySelector('#posCloseForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById('posCloseErr');
+    errBox.classList.remove('show');
+    const fd = new FormData(e.target);
+    try {
+      const { error } = await POS.sessions.close(sessId, Number(fd.get('actual_cash')), fd.get('variance_reason'));
+      if (error) throw error;
+      toast('تم إغلاق الجلسة', 'success');
+      close();
+      route();
+    } catch (err) {
+      errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+    }
+  });
+}
+
+// ─── شاشة الكاشير — الأهم! ────────────────────────────────────
+async function pagePosCashier(body, sessIdParam) {
+  const sessId = Number(sessIdParam);
+  if (!sessId) { body.innerHTML = '<p class="error-msg show">معرف الجلسة غير صحيح</p>'; return; }
+  const { data: session, error } = await POS.sessions.get(sessId);
+  if (error || !session) { body.innerHTML = '<p class="empty-state">الجلسة غير موجودة</p>'; return; }
+  if (session.status !== 'open') { body.innerHTML = '<p class="empty-state">الجلسة مغلقة — لا يمكن البيع منها</p>'; return; }
+  if (session.cashier_id !== CURRENT_USER.id) { body.innerHTML = '<p class="empty-state">هذه ليست جلستك</p>'; return; }
+
+  // احضر أو أنشئ معاملة مسودة
+  let { data: draftTxns } = await sb.from('pos_transactions').select('id').eq('session_id', sessId).eq('status', 'draft').limit(1);
+  let currentTxnId;
+  if (draftTxns && draftTxns.length) {
+    currentTxnId = draftTxns[0].id;
+  } else {
+    const { data: newTxn } = await POS.transactions.createDraft(sessId, session.branch_id, 'dine_in');
+    currentTxnId = newTxn.id;
+  }
+
+  // احضر المنيو
+  const [{ data: cats }, { data: items }] = await Promise.all([
+    MENU.categories.list(),
+    MENU.items.list({ is_active: true })
+  ]);
+
+  const money = n => (Number(n) || 0).toFixed(2);
+
+  body.innerHTML = `
+    <a href="#pos_session/${sessId}" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> ${esc(session.session_no)} — ${esc(session.branches?.name || '')}</a>
+    <div style="display:grid;grid-template-columns:1fr 380px;gap:16px;min-height:70vh;" id="posCashierGrid">
+      <!-- Menu Grid -->
+      <div>
+        <div class="panel"><div class="panel-body" style="padding:10px;">
+          <div id="posCatTabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+            <button type="button" class="btn btn-outline" data-cat="" style="padding:6px 14px;font-size:12.5px;">الكل</button>
+            ${(cats || []).map(c => `<button type="button" class="btn btn-outline" data-cat="${c.id}" style="padding:6px 14px;font-size:12.5px;">${esc(c.name_ar)}</button>`).join('')}
+          </div>
+          <input type="text" class="form-input" id="posMenuSearch" placeholder="بحث في الأصناف..." style="margin-bottom:10px;">
+          <div id="posMenuGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;max-height:60vh;overflow-y:auto;padding:4px;"></div>
+        </div></div>
+      </div>
+      <!-- Cart -->
+      <div>
+        <div class="panel" style="position:sticky;top:20px;">
+          <div class="panel-header">
+            <h3 style="display:flex;align-items:center;gap:6px;"><span data-lucide="shopping-cart" style="width:16px;height:16px;"></span> السلة</h3>
+            <select class="form-select" id="posChannelSelect" style="max-width:130px;padding:4px 8px;font-size:12px;">
+              ${Object.entries(POS_CHANNEL_LABELS).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
+            <div id="posCustomerRow" style="display:flex;gap:6px;align-items:center;">
+              <span data-lucide="user-round" style="width:14px;height:14px;color:var(--text-muted);"></span>
+              <span id="posCustomerLabel" style="flex:1;font-size:12.5px;color:var(--text-muted);">— بدون عميل —</span>
+              <button type="button" id="posCustomerBtn" class="btn btn-outline" style="padding:3px 10px;font-size:11.5px;">ربط عميل</button>
+            </div>
+            <div id="posCartItems" style="max-height:35vh;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px;background:var(--surface);"></div>
+            <div id="posCartTotals" style="border-top:1px dashed var(--border);padding-top:8px;font-size:13px;"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+              <button type="button" id="posDiscountBtn" class="btn btn-outline" style="padding:8px;font-size:12.5px;"><span data-lucide="percent" style="width:13px;height:13px;"></span> خصم</button>
+              <button type="button" id="posVoidBtn" class="btn btn-outline" style="padding:8px;font-size:12.5px;color:#B91C1C;"><span data-lucide="ban" style="width:13px;height:13px;"></span> إلغاء</button>
+            </div>
+            <button type="button" id="posPayBtn" class="btn" style="background:linear-gradient(90deg,#12372F,#2E9E4C);color:#fff;padding:14px;border-radius:12px;font-size:15px;font-weight:800;">
+              <span data-lucide="credit-card" style="width:16px;height:16px;"></span> إتمام الدفع
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="posModalHost"></div>
+    <style>
+      .pos-menu-item { border:1.5px solid var(--border); border-radius:12px; padding:12px 8px; text-align:center; cursor:pointer; background:var(--surface); transition:all .12s ease; }
+      .pos-menu-item:hover { border-color:#2E9E4C; transform:translateY(-2px); box-shadow:0 4px 12px rgba(18,55,47,0.1); }
+      .pos-menu-item .name { font-weight:700; font-size:12.5px; margin-bottom:4px; }
+      .pos-menu-item .price { font-weight:800; color:#12372F; font-size:13px; }
+      .pos-cart-line { display:flex; justify-content:space-between; align-items:center; gap:6px; padding:6px 4px; border-bottom:1px dashed var(--border); font-size:12.5px; }
+      .pos-cart-line:last-child { border-bottom:none; }
+      .pos-cart-line .name { flex:1; font-weight:700; }
+      .pos-cart-qty { display:flex; align-items:center; gap:4px; }
+      .pos-cart-qty button { width:22px; height:22px; border-radius:50%; border:1px solid var(--border); background:var(--surface); cursor:pointer; font-weight:800; }
+      #posCatTabs button.active { background:linear-gradient(135deg,#12372F,#2E9E4C); color:#fff; border-color:transparent; }
+      @media (max-width: 900px) { #posCashierGrid { grid-template-columns: 1fr !important; } }
+    </style>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  let currentCat = '';
+  let currentSearch = '';
+  const menuGrid = document.getElementById('posMenuGrid');
+  function renderMenuGrid() {
+    const filtered = (items || []).filter(it => {
+      if (currentCat && String(it.category_id) !== currentCat) return false;
+      if (currentSearch && !it.name_ar.toLowerCase().includes(currentSearch.toLowerCase())) return false;
+      return true;
+    });
+    if (!filtered.length) { menuGrid.innerHTML = `<p style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:20px;">لا توجد أصناف</p>`; return; }
+    menuGrid.innerHTML = filtered.map(it => `
+      <div class="pos-menu-item" data-add-item="${it.id}">
+        <div class="name">${esc(it.name_ar)}</div>
+        <div class="price">${money(it.base_price)} ر.س</div>
+      </div>
+    `).join('');
+    menuGrid.querySelectorAll('[data-add-item]').forEach(el => el.addEventListener('click', async () => {
+      const item = items.find(x => x.id === Number(el.dataset.addItem));
+      const { error: addErr } = await POS.transactions.addItem(currentTxnId, item, 1);
+      if (addErr) { toast('تعذّر: ' + addErr.message, 'error'); return; }
+      renderCart();
+    }));
+  }
+  renderMenuGrid();
+
+  document.querySelectorAll('#posCatTabs button').forEach(b => b.addEventListener('click', () => {
+    currentCat = b.dataset.cat;
+    document.querySelectorAll('#posCatTabs button').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    renderMenuGrid();
+  }));
+  document.getElementById('posMenuSearch').addEventListener('input', debounce((e) => {
+    currentSearch = e.target.value;
+    renderMenuGrid();
+  }, 200));
+
+  const cartItemsBox = document.getElementById('posCartItems');
+  const cartTotalsBox = document.getElementById('posCartTotals');
+
+  async function renderCart() {
+    const { data: cartItems } = await POS.transactions.items(currentTxnId);
+    const { data: txn } = await POS.transactions.get(currentTxnId);
+    if (!cartItems.length) {
+      cartItemsBox.innerHTML = `<p style="text-align:center;color:var(--text-muted);padding:20px;font-size:12px;">السلة فارغة — اضغط أي صنف من المنيو</p>`;
+    } else {
+      cartItemsBox.innerHTML = cartItems.map(it => `
+        <div class="pos-cart-line">
+          <div class="name">${esc(it.item_name)}<div style="font-size:10.5px;color:var(--text-muted);font-weight:400;">${money(it.unit_price)} × ${Number(it.quantity)}</div></div>
+          <div class="pos-cart-qty">
+            <span class="mono-num" style="font-weight:800;color:#12372F;">${money(it.line_total)}</span>
+            <button type="button" data-remove-line="${it.id}" style="color:#B91C1C;">×</button>
+          </div>
+        </div>
+      `).join('');
+      cartItemsBox.querySelectorAll('[data-remove-line]').forEach(b => b.addEventListener('click', async () => {
+        await POS.transactions.removeItem(Number(b.dataset.removeLine), currentTxnId);
+        renderCart();
+      }));
+    }
+    cartTotalsBox.innerHTML = `
+      <div style="display:flex;justify-content:space-between;"><span>المجموع الفرعي:</span><span class="mono-num">${money(txn.subtotal)}</span></div>
+      ${Number(txn.discount_amount) > 0 ? `<div style="display:flex;justify-content:space-between;color:#B91C1C;"><span>خصم:</span><span class="mono-num">−${money(txn.discount_amount)}</span></div>` : ''}
+      <div style="display:flex;justify-content:space-between;"><span>الضريبة:</span><span class="mono-num">${money(txn.vat_amount)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:900;color:#12372F;margin-top:6px;padding-top:6px;border-top:2px solid #12372F;"><span>الإجمالي:</span><span class="mono-num">${money(txn.total_amount)} ر.س</span></div>
+    `;
+  }
+  renderCart();
+
+  document.getElementById('posChannelSelect').addEventListener('change', async (e) => {
+    await sb.from('pos_transactions').update({ channel: e.target.value }).eq('id', currentTxnId);
+  });
+
+  document.getElementById('posCustomerBtn').addEventListener('click', () => openPosCustomerPicker(currentTxnId, async (cust) => {
+    await POS.transactions.setCustomer(currentTxnId, cust ? cust.id : null);
+    document.getElementById('posCustomerLabel').textContent = cust ? cust.full_name + (cust.phone ? ' — ' + cust.phone : '') : '— بدون عميل —';
+  }));
+
+  document.getElementById('posDiscountBtn').addEventListener('click', async () => {
+    const amt = await customPrompt('قيمة الخصم (ر.س):', '0');
+    if (amt === null) return;
+    const reason = await customPrompt('سبب الخصم:', '');
+    await POS.transactions.setDiscount(currentTxnId, Number(amt) || 0, reason);
+    renderCart();
+  });
+
+  document.getElementById('posVoidBtn').addEventListener('click', async () => {
+    if (!(await customConfirm('إلغاء المعاملة الحالية بالكامل؟'))) return;
+    const reason = await customPrompt('سبب الإلغاء:', '');
+    await POS.transactions.void(currentTxnId, reason);
+    // أنشئ معاملة جديدة
+    const { data: newTxn } = await POS.transactions.createDraft(sessId, session.branch_id, 'dine_in');
+    currentTxnId = newTxn.id;
+    document.getElementById('posCustomerLabel').textContent = '— بدون عميل —';
+    renderCart();
+    toast('تم الإلغاء', 'success');
+  });
+
+  document.getElementById('posPayBtn').addEventListener('click', () => openPosPaymentModal(currentTxnId, session, () => {
+    // بعد النجاح: أنشئ معاملة جديدة
+    (async () => {
+      const { data: newTxn } = await POS.transactions.createDraft(sessId, session.branch_id, 'dine_in');
+      currentTxnId = newTxn.id;
+      document.getElementById('posCustomerLabel').textContent = '— بدون عميل —';
+      renderCart();
+    })();
+  }));
+
+  document.querySelector('#posCatTabs button[data-cat=""]').classList.add('active');
+}
+
+function openPosCustomerPicker(txnId, onPicked) {
+  const host = document.createElement('div');
+  host.className = 'modal-overlay';
+  host.innerHTML = `
+    <div class="panel modal-box" style="width:480px;max-width:96%;max-height:80vh;overflow-y:auto;">
+      <div class="panel-header">
+        <h3><span data-lucide="user-round" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ربط عميل</h3>
+        <button class="modal-close-x" id="posCustPickClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+      </div>
+      <div class="panel-body">
+        <input type="text" class="form-input" id="posCustSearch" placeholder="بحث بالاسم أو الجوال...">
+        <div id="posCustPickList" style="max-height:40vh;overflow-y:auto;margin-top:10px;"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button type="button" class="btn btn-outline" id="posCustClearBtn" style="flex:1;">إزالة الربط</button>
+          <button type="button" class="btn btn-outline" id="posCustPickCancel">إلغاء</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  if (window.lucide) lucide.createIcons();
+  const close = () => host.remove();
+  host.querySelector('#posCustPickClose').addEventListener('click', close);
+  host.querySelector('#posCustPickCancel').addEventListener('click', close);
+  host.querySelector('#posCustClearBtn').addEventListener('click', () => { onPicked(null); close(); });
+
+  async function search(q) {
+    const { data } = await CRM.customers.list({ search: q });
+    const listBox = document.getElementById('posCustPickList');
+    if (!data.length) { listBox.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:10px;font-size:12px;">لا نتائج</p>'; return; }
+    listBox.innerHTML = data.slice(0, 20).map(c => `
+      <div class="pos-menu-item" data-cust-id="${c.id}" style="padding:10px;text-align:right;margin-bottom:6px;">
+        <div style="font-weight:800;">${esc(c.full_name)}</div>
+        <div style="font-size:11px;color:var(--text-muted);">${esc(c.phone || 'بدون جوال')}</div>
+      </div>
+    `).join('');
+    listBox.querySelectorAll('[data-cust-id]').forEach(el => el.addEventListener('click', () => {
+      const cust = data.find(x => x.id === Number(el.dataset.custId));
+      onPicked(cust);
+      close();
+    }));
+  }
+  search('');
+  host.querySelector('#posCustSearch').addEventListener('input', debounce((e) => search(e.target.value), 300));
+}
+
+function openPosPaymentModal(txnId, session, onSuccess) {
+  (async () => {
+    const { data: txn } = await POS.transactions.get(txnId);
+    if (!txn.total_amount || Number(txn.total_amount) <= 0) { toast('السلة فارغة', 'warning'); return; }
+    const total = Number(txn.total_amount);
+    const host = document.createElement('div');
+    host.className = 'modal-overlay';
+    host.innerHTML = `
+      <div class="panel modal-box" style="width:440px;max-width:96%;">
+        <div class="panel-header">
+          <h3><span data-lucide="credit-card" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> إتمام الدفع</h3>
+          <button class="modal-close-x" id="posPayClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+        </div>
+        <div class="panel-body">
+          <div style="text-align:center;padding:12px;background:rgba(18,55,47,0.05);border-radius:12px;margin-bottom:16px;">
+            <div style="font-size:11px;color:var(--text-muted);">الإجمالي المطلوب</div>
+            <div style="font-size:28px;font-weight:900;color:#12372F;">${total.toFixed(2)} ر.س</div>
+          </div>
+          <div class="error-msg" id="posPayErr"></div>
+          <form id="posPayForm" class="hr-form-grid">
+            <div class="form-field full"><label>وسيلة الدفع</label>
+              <select class="form-select" name="method">
+                ${Object.entries(POS_METHOD_LABELS).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-field full"><label>المبلغ المستلم *</label><input class="form-input mono-num" type="number" step="0.01" min="0.01" name="amount" required value="${total.toFixed(2)}" id="posPayAmount"></div>
+            <div class="form-field full"><label>المرجع (اختياري)</label><input class="form-input mono-num" name="reference" placeholder="آخر 4 أرقام البطاقة مثلًا"></div>
+            <div id="posChangeBox" class="full" style="padding:10px;background:rgba(46,158,76,0.1);border-radius:8px;text-align:center;font-size:14px;font-weight:800;color:#12372F;display:none;"></div>
+            <div class="full" style="display:flex;gap:8px;justify-content:flex-end;">
+              <button type="button" class="btn btn-outline" id="posPayCancel">إلغاء</button>
+              <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#2E9E4C);color:#fff;">تأكيد وإتمام</button>
+            </div>
+          </form>
+        </div>
+      </div>`;
+    document.body.appendChild(host);
+    if (window.lucide) lucide.createIcons();
+    const close = () => host.remove();
+    host.querySelector('#posPayClose').addEventListener('click', close);
+    host.querySelector('#posPayCancel').addEventListener('click', close);
+    const amountInput = document.getElementById('posPayAmount');
+    const changeBox = document.getElementById('posChangeBox');
+    amountInput.addEventListener('input', () => {
+      const given = Number(amountInput.value) || 0;
+      const change = given - total;
+      if (change > 0) {
+        changeBox.style.display = 'block';
+        changeBox.textContent = 'الفكة: ' + change.toFixed(2) + ' ر.س';
+      } else {
+        changeBox.style.display = 'none';
+      }
+    });
+    host.querySelector('#posPayForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById('posPayErr');
+      errBox.classList.remove('show');
+      const fd = new FormData(e.target);
+      try {
+        // أضف الدفعة
+        const { error: pErr } = await POS.transactions.addPayment(txnId, fd.get('method'), Number(fd.get('amount')), fd.get('reference'));
+        if (pErr) throw pErr;
+        // أتمّ المعاملة
+        const { error: cErr } = await POS.transactions.complete(txnId);
+        if (cErr) throw cErr;
+        toast('تم إتمام البيع 🎉', 'success');
+        close();
+        // اعرض الإيصال
+        setTimeout(() => location.hash = '#pos_transaction/' + txnId, 200);
+        setTimeout(onSuccess, 1200);
+      } catch (err) {
+        errBox.textContent = err.message || 'حدث خطأ'; errBox.classList.add('show');
+      }
+    });
+  })();
+}
+
+async function pagePosTransactionDetail(body, idParam) {
+  const txnId = Number(idParam);
+  if (!txnId) { body.innerHTML = '<p class="error-msg show">معرف المعاملة غير صحيح</p>'; return; }
+  const [{ data: t, error }, { data: items }, { data: pays }] = await Promise.all([
+    POS.transactions.get(txnId),
+    POS.transactions.items(txnId),
+    POS.transactions.payments(txnId)
+  ]);
+  if (error) { body.innerHTML = `<p class="error-msg show">${esc(error.message)}</p>`; return; }
+  if (!t) { body.innerHTML = '<p class="empty-state">المعاملة غير موجودة</p>'; return; }
+  const money = n => (Number(n) || 0).toFixed(2);
+  const stCls = { draft: 'st-empty', completed: 'st-present', voided: 'st-absent' };
+  const stLbl = { draft: 'مسودة', completed: 'مكتملة', voided: 'ملغاة' };
+
+  body.innerHTML = `
+    <a href="#pos_session/${t.session_id}" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للجلسة</a>
+    <div class="hr-emp-hero">
+      <div class="hr-emp-hero-content">
+        <div class="hr-emp-hero-avatar"><span data-lucide="receipt" style="width:28px;height:28px;"></span></div>
+        <div class="hr-emp-hero-info">
+          <h2 class="hr-emp-hero-name">${esc(t.transaction_no)}</h2>
+          <div class="hr-emp-hero-meta">
+            <span>${esc(t.branches?.name || '')}</span>
+            <span>${esc(POS_CHANNEL_LABELS[t.channel] || t.channel)}</span>
+            <span><span class="hr-att-cell ${stCls[t.status]}" style="cursor:default;padding:3px 10px;width:auto;height:auto;font-size:11px;">${esc(stLbl[t.status])}</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hr-info-grid" style="margin-bottom:18px;">
+      ${_hrInfo('الكاشير', t.cashier?.full_name)}
+      ${_hrInfo('العميل', t.customer?.full_name || 'بدون عميل')}
+      ${_hrInfo('تاريخ الإنشاء', new Date(t.created_at).toLocaleString('ar-SA'))}
+      ${_hrInfo('تاريخ الإتمام', t.completed_at ? new Date(t.completed_at).toLocaleString('ar-SA') : '—')}
+      ${_hrInfo('القيد المحاسبي', t.journal_entry_id ? `<a href="#acct_journal_entry/${t.journal_entry_id}" style="color:#12372F;font-weight:700;">عرض القيد</a>` : '—')}
+    </div>
+
+    <div class="mod-section-title"><span data-lucide="list" style="width:16px;height:16px;"></span> البنود</div>
+    <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>الصنف</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي</th></tr></thead>
+      <tbody>${(items || []).map(it => `<tr>
+        <td><strong>${esc(it.item_name)}</strong></td>
+        <td class="mono-num">${Number(it.quantity)}</td>
+        <td class="mono-num">${money(it.unit_price)}</td>
+        <td class="mono-num" style="font-weight:800;">${money(it.line_total)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div></div></div>
+
+    <div class="hr-info-grid" style="margin-top:14px;">
+      ${_hrInfo('المجموع الفرعي', money(t.subtotal) + ' ر.س')}
+      ${Number(t.discount_amount) > 0 ? _hrInfo('الخصم', '−' + money(t.discount_amount) + ' ر.س') : ''}
+      ${_hrInfo('الضريبة', money(t.vat_amount) + ' ر.س')}
+      ${_hrInfo('الإجمالي', `<span style="font-weight:900;color:#12372F;">${money(t.total_amount)} ر.س</span>`)}
+    </div>
+
+    <div class="mod-section-title"><span data-lucide="credit-card" style="width:16px;height:16px;"></span> طرق الدفع</div>
+    <div class="panel"><div class="panel-body" style="padding:0;"><div style="overflow-x:auto;"><table class="hr-emp-table">
+      <thead><tr><th>الوسيلة</th><th>المبلغ</th><th>المرجع</th></tr></thead>
+      <tbody>${(pays || []).map(p => `<tr>
+        <td>${esc(POS_METHOD_LABELS[p.method] || p.method)}</td>
+        <td class="mono-num" style="font-weight:800;">${money(p.amount)}</td>
+        <td class="mono-num">${esc(p.reference || '—')}</td>
+      </tr>`).join('')}</tbody>
+    </table></div></div></div>
+
+    ${t.zatca_qr ? `
+      <div class="mod-section-title"><span data-lucide="qr-code" style="width:16px;height:16px;"></span> QR ZATCA للإيصال</div>
+      <div class="panel"><div class="panel-body" style="text-align:center;">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(t.zatca_qr)}" alt="ZATCA QR" style="max-width:200px;">
+        <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">هذا الكود يمكن مسحه بأي تطبيق ZATCA للتحقق.</p>
+      </div></div>
+    ` : ''}
+  `;
+  if (window.lucide) lucide.createIcons();
 }
 
 async function pageComingSoonModule(body, key) {
