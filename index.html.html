@@ -464,6 +464,35 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   box-shadow: 0 10px 22px -5px rgba(16,185,129,0.40), 0 6px 14px -3px rgba(139,92,246,0.35);
   border-color: transparent;
 }
+
+/* ═══ إصلاح: .btn-outline على خلفية داكنة (v130) ═══
+   المشكلة السابقة: زر outline مخفي لأن الخلفية بيضاء والنص أبيض inline.
+   الحل: أي زر عليه color:#fff inline بيتحول لـ ghost شفاف على أي خلفية داكنة.
+   يعمل تلقائيًا على vision, dark panels, أي مكان شبيه. */
+.btn-outline[style*="color:#fff"],
+.btn-outline[style*="color: #fff"],
+.btn-outline[style*="color:#FFF"],
+.btn-outline[style*="color: #FFF"],
+.btn-outline[style*="color:white"],
+.btn-outline[style*="color: white"] {
+  background: transparent !important;
+  background-image: none !important;
+  border: 1.5px solid rgba(255,255,255,0.45) !important;
+  box-shadow: none !important;
+}
+.btn-outline[style*="color:#fff"]:hover,
+.btn-outline[style*="color: #fff"]:hover,
+.btn-outline[style*="color:#FFF"]:hover,
+.btn-outline[style*="color: #FFF"]:hover,
+.btn-outline[style*="color:white"]:hover,
+.btn-outline[style*="color: white"]:hover {
+  background: rgba(255,255,255,0.18) !important;
+  background-image: none !important;
+  border-color: rgba(255,255,255,0.80) !important;
+  color: #fff !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+}
 .btn-ghost {
   background: transparent; color: var(--primary-600); border: none;
 }
@@ -5158,7 +5187,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v129-2026-07-18-dual-toggles-visible-logout';
+const APP_VERSION = 'v130-2026-07-18-fix-outline-on-dark';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
