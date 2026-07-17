@@ -472,7 +472,8 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 .error-msg { background: #fdecea; color: var(--danger); padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
 .error-msg.show { display: block; }
 
-.app-layout { display: flex; min-height: 100vh; }
+/* Layout ثابت — القائمة والمحتوى يسكرولا بشكل مستقل بدل الصفحة كلها */
+.app-layout { display: flex; height: 100vh; overflow: hidden; }
 .sidebar {
   width: 230px;
   background: linear-gradient(180deg, #082019 0%, #0A2B20 60%, #123F32 100%);
@@ -1181,6 +1182,10 @@ tr:hover td { background: var(--primary-light); }
 #appBackFab:active { transform: scale(0.96); }
 @media (max-width: 768px) {
   #appBackFab { width: 44px; height: 44px; bottom: 76px; right: 16px; }
+}
+/* على الديسكتوب: الرجوع متوفر عبر السايدبار + المتصفح، فنخفي الزر العائم */
+@media (min-width: 769px) {
+  #appBackFab { display: none !important; }
 }
 
 /* ═══ Empty state فاخر (UX #3) ═══ */
@@ -5137,7 +5142,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v127-2026-07-18-sidebar-enterprise';
+const APP_VERSION = 'v128-2026-07-18-fixed-layout';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
