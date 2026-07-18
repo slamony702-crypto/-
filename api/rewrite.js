@@ -1,25 +1,54 @@
 // Vercel Serverless Function: يعيد صياغة النص العربي بأسلوب سهل واضح مهذّب
 // المفتاح يعيش في Vercel Environment Variables (GEMINI_API_KEY) — لا يظهر في الكود العميل
+//
+// 🔒 أمان (security/api-hardening-phase1): CORS allowlist + rate limit + JWT scaffold
+//    + size/content-type limits + error masking. لا wildcard CORS.
+
+import {
+  applyCors, checkContentType, rateLimit, clientKey,
+  requireAiAuth, productionGuard, newRequestId, maskError
+} from './_security.js';
 
 export default async function handler(req, res) {
-  // CORS للسماح للمنصة بالاتصال
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
+  const reqId = newRequestId();
+
+  // (1) CORS allowlist
+  const cors = applyCors(req, res);
+  if (cors.handled) return;
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Only POST is allowed' });
   }
 
+  // (2) Production Guard
+  if (productionGuard(res).blocked) return;
+
+  // (3) Content-Type
+  if (!checkContentType(req, res)) return;
+
+  // (4) Rate limit
+  const rl = rateLimit('rewrite:' + clientKey(req), { max: 30, windowMs: 60000 });
+  if (!rl.ok) {
+    res.setHeader('Retry-After', Math.ceil(rl.resetInMs / 1000));
+    return res.status(429).json({ error: 'طلبات كثيرة — حاول بعد قليل', requestId: reqId });
+  }
+
+  // (5) المصادقة
+  const auth = await requireAiAuth(req, res);
+  if (!auth.ok) return;
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY غير مضبوط في إعدادات Vercel' });
+    return maskError(res, 500, 'الخدمة غير مهيأة', { name: 'ConfigError' }, reqId);
   }
 
   const { text, mode } = req.body || {};
   if (!text || typeof text !== 'string' || text.trim().length < 2) {
-    return res.status(400).json({ error: 'أدخل نصًا صحيحًا' });
+    return res.status(400).json({ error: 'أدخل نصًا صحيحًا', requestId: reqId });
+  }
+  // حد أقصى لطول النص — يمنع استهلاك مفرط
+  if (text.length > 8000) {
+    return res.status(400).json({ error: 'النص طويل جدًا (الحد 8000 حرف)', requestId: reqId });
   }
 
   // أنماط مختلفة (نبدأ بواحد ونضيف لاحقًا لو حبيت)
@@ -63,14 +92,17 @@ export default async function handler(req, res) {
       break;
     }
     if (!gRes.ok) {
-      const msg = gData?.error?.message || 'خطأ من خدمة Gemini';
-      return res.status(gRes.status === 429 ? 429 : 500).json({ error: msg });
+      // لا نُسرّب رسالة المزود الخام للعميل — رسالة عامة + تسجيل داخلي
+      return maskError(res, gRes.status === 429 ? 429 : 502,
+        gRes.status === 429 ? 'تم استهلاك الحصة — حاول لاحقًا' : 'تعذّرت إعادة الصياغة — حاول لاحقًا',
+        { name: 'GeminiHttp' + gRes.status }, reqId);
     }
     const output = gData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
     const cleaned = output.trim().replace(/^["""«»]+|["""«»]+$/g, '').trim();
-    if (!cleaned) return res.status(500).json({ error: 'لم يتم توليد نص' });
+    if (!cleaned) return res.status(502).json({ error: 'لم يتم توليد نص', requestId: reqId });
     return res.status(200).json({ text: cleaned, model: usedModel });
   } catch (err) {
-    return res.status(500).json({ error: err.message || 'فشل الاتصال بخدمة Gemini' });
+    // لا Stack Trace للعميل
+    return maskError(res, 502, 'فشل الاتصال بخدمة الذكاء الاصطناعي', err, reqId);
   }
 }

@@ -5,6 +5,27 @@
 // النموذج يطلب أداة → نعيد الطلب للمتصفح → المتصفح يجلب البيانات
 // بصلاحيات المستخدم نفسه (RLS) → يرسل النتيجة → النموذج يجيب.
 // بذلك لا يستطيع المساعد رؤية أي بيانات لا يراها المستخدم بنفسه.
+//
+// 🔒 أمان (security/api-hardening-phase1):
+//   - CORS allowlist صارم من ALLOWED_ORIGINS (لا wildcard).
+//   - تعليمات النظام server-side فقط. لا يُقبل أي نص عميل في System Prompt.
+//   - promptMode معرّف من قائمة مسموحة يُحوَّل server-side إلى prompt موثوق.
+//   - Rate limit + size limits + content-type + error masking + request id.
+//   - JWT scaffold خلف AI_REQUIRE_SUPABASE_JWT + Production Guard.
+
+import {
+  applyCors, checkContentType, rateLimit, clientKey,
+  requireAiAuth, productionGuard, newRequestId, maskError, safeLog
+} from './_security.js';
+
+// أنماط التعليمات المسموحة — معرّفات فقط، والخادم يحوّلها إلى نص موثوق.
+// لا يُقبل أي نص حر من العميل. أي معرّف غير معروف يُرفض.
+const ALLOWED_PROMPT_MODES = {
+  default: '',
+  summarize: '\n\nنمط: قدّم ملخصًا موجزًا منظّمًا في نقاط قصيرة.',
+  operational_analysis: '\n\nنمط: حلّل البيانات التشغيلية وأبرز المخاطر والفروع التي تحتاج انتباهًا.',
+  report_generation: '\n\nنمط: صُغ النتائج كتقرير إداري منظّم بعناوين وأرقام واضحة.'
+};
 
 // ملاحظة: Gemini يرفض parameters من نوع object بخصائص فارغة —
 // الأدوات بلا وسائط تُعرَّف بدون حقل parameters نهائيًا.
@@ -57,38 +78,59 @@ const SYSTEM_INSTRUCTION = `أنت «المساعد الذكي» لمنصة «ش
 6. لو السؤال خارج نطاق بيانات المنصة (سياسة، دين، أخبار...) اعتذر واذكر أن تخصصك بيانات المنصة فقط.`;
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
+  const reqId = newRequestId();
+
+  // (1) CORS allowlist — يتعامل مع OPTIONS ويرفض الأصول غير المسموحة
+  const cors = applyCors(req, res);
+  if (cors.handled) return; // OPTIONS أو أصل مرفوض
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'Only POST is allowed' });
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY غير مضبوط في إعدادات Vercel' });
+  // (2) Production Guard — يمنع تشغيل الإنتاج بلا مصادقة
+  if (productionGuard(res).blocked) return;
 
-  const { contents, extraInstructions } = req.body || {};
+  // (3) Content-Type
+  if (!checkContentType(req, res)) return;
+
+  // (4) Rate limit (best-effort per instance)
+  const rl = rateLimit('agent:' + clientKey(req), { max: 20, windowMs: 60000 });
+  if (!rl.ok) {
+    res.setHeader('Retry-After', Math.ceil(rl.resetInMs / 1000));
+    return res.status(429).json({ error: 'طلبات كثيرة — حاول بعد قليل', requestId: reqId });
+  }
+
+  // (5) المصادقة (خلف AI_REQUIRE_SUPABASE_JWT)
+  const auth = await requireAiAuth(req, res);
+  if (!auth.ok) return; // ردّت 401/403 بالفعل
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return maskError(res, 500, 'الخدمة غير مهيأة', { name: 'ConfigError' }, reqId);
+
+  // ⛔ لا نقبل extraInstructions من العميل نهائيًا — فقط promptMode معرّف مسموح
+  const { contents, promptMode } = req.body || {};
 
   // تحقق صارم من شكل وحجم المدخلات قبل أي استدعاء
   if (!Array.isArray(contents) || !contents.length) {
-    return res.status(400).json({ error: 'صيغة المحادثة غير صحيحة' });
+    return res.status(400).json({ error: 'صيغة المحادثة غير صحيحة', requestId: reqId });
   }
   if (contents.length > 40) {
-    return res.status(400).json({ error: 'المحادثة طويلة جدًا — ابدأ جلسة جديدة' });
+    return res.status(400).json({ error: 'المحادثة طويلة جدًا — ابدأ جلسة جديدة', requestId: reqId });
   }
   let totalChars = 0;
   for (const c of contents) {
     if (!c || (c.role !== 'user' && c.role !== 'model') || !Array.isArray(c.parts)) {
-      return res.status(400).json({ error: 'صيغة الرسائل غير صحيحة' });
+      return res.status(400).json({ error: 'صيغة الرسائل غير صحيحة', requestId: reqId });
     }
     for (const p of c.parts) totalChars += JSON.stringify(p).length;
   }
   if (totalChars > 120000) {
-    return res.status(400).json({ error: 'حجم المحادثة تجاوز الحد — ابدأ جلسة جديدة' });
+    return res.status(400).json({ error: 'حجم المحادثة تجاوز الحد — ابدأ جلسة جديدة', requestId: reqId });
   }
 
-  const systemText = SYSTEM_INSTRUCTION +
-    (extraInstructions && typeof extraInstructions === 'string' && extraInstructions.length < 2000
-      ? '\n\nتعليمات إضافية من إدارة المنصة:\n' + extraInstructions : '');
+  // نمط التعليمات: معرّف فقط من قائمة مسموحة. أي قيمة أخرى → default (لا رفض قاسٍ حتى لا نكسر الواجهة)
+  const modeKey = (typeof promptMode === 'string' && Object.prototype.hasOwnProperty.call(ALLOWED_PROMPT_MODES, promptMode))
+    ? promptMode : 'default';
+  const systemText = SYSTEM_INSTRUCTION + ALLOWED_PROMPT_MODES[modeKey];
 
   const models = ['gemini-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-flash'];
   let lastError = 'تعذر الاتصال بمزود الذكاء الاصطناعي';
@@ -154,8 +196,10 @@ export default async function handler(req, res) {
     }
   }
 
+  // لا نُرسِل model_errors الخام للعميل (قد تحتوي تفاصيل مزود) — نسجّلها server-side فقط
+  safeLog('warn', `[${reqId}] all models failed`, { name: 'ModelExhausted' });
   const finalError = quotaHit
     ? 'تم استهلاك حصة اليوم من مزود الذكاء الاصطناعي — حاول لاحقًا، أو فعِّل الفوترة على مفتاح Gemini لرفع الحد'
-    : lastError;
-  return res.status(quotaHit ? 429 : 502).json({ error: finalError, model_errors: modelErrors });
+    : 'تعذّر الاتصال بمزود الذكاء الاصطناعي — حاول لاحقًا';
+  return res.status(quotaHit ? 429 : 502).json({ error: finalError, requestId: reqId });
 }
