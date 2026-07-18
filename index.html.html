@@ -8563,6 +8563,135 @@ const PROC = {
 window.PROC = PROC;
 
 // ═══════════════════════════════════════════════════════════════════
+// طبقة اعتماد متعدد المستويات لطلبات الشراء
+// (feature branch: feature/purchase-orders-wave1 — 2026-07-18)
+// إضافي فقط. لا يعدّل PROC.requisitions الموجود — يستخدمه كـfallback.
+// ═══════════════════════════════════════════════════════════════════
+PROC.approvals = {
+  // تقديم طلب للاعتماد — يستدعي RPC ذرية على السيرفر
+  async submit(reqId) {
+    const { data, error } = await sb.rpc('proc_submit_requisition', { p_req_id: reqId });
+    return { data, error };
+  },
+  // اعتماد خطوة واحدة (بواسطة المعتمِد الحالي)
+  async approveStep(stepId, comment) {
+    const { data, error } = await sb.rpc('proc_approve_step', {
+      p_step_id: stepId, p_comment: comment || null
+    });
+    return { data, error };
+  },
+  // رفض خطوة — يرفض الطلب كامل
+  async rejectStep(stepId, reason) {
+    const { data, error } = await sb.rpc('proc_reject_step', {
+      p_step_id: stepId, p_reason: reason
+    });
+    return { data, error };
+  },
+  // إلغاء طلب خلال الاعتماد
+  async cancelRequisition(reqId, reason) {
+    const { data, error } = await sb.rpc('proc_cancel_requisition_approval', {
+      p_req_id: reqId, p_reason: reason
+    });
+    return { data, error };
+  },
+  // قراءة سلسلة الاعتماد لطلب
+  async getChain(reqId) {
+    const { data, error } = await sb.rpc('proc_get_approval_chain', { p_req_id: reqId });
+    return { data: data || { steps: [], activity: [] }, error };
+  },
+  // اقرأ حساب المبلغ التقديري لطلب (helper)
+  async requisitionTotal(reqId) {
+    const { data, error } = await sb.rpc('proc_requisition_total', { p_req_id: reqId });
+    return { data: Number(data || 0), error };
+  },
+  // ─── إدارة قواعد الاعتماد ───
+  rules: {
+    async list(filters = {}) {
+      let q = sb.from('proc_approval_rules')
+        .select('*, branches(name), departments(name), creator:created_by(full_name)')
+        .order('step_order', { ascending: true })
+        .order('specificity_key', { ascending: true, nullsFirst: true }); // best-effort; falls back
+      if (filters.entity_type) q = q.eq('entity_type', filters.entity_type);
+      if (filters.active_only) q = q.eq('is_active', true);
+      const { data, error } = await q.limit(500);
+      return { data: data || [], error };
+    },
+    async get(id) {
+      const { data, error } = await sb.from('proc_approval_rules')
+        .select('*, branches(name), departments(name)')
+        .eq('id', id).maybeSingle();
+      return { data, error };
+    },
+    async create(payload) {
+      const clean = {
+        rule_name: payload.rule_name,
+        entity_type: payload.entity_type || 'requisition',
+        min_amount: Number(payload.min_amount || 0),
+        max_amount: payload.max_amount === '' || payload.max_amount == null ? null : Number(payload.max_amount),
+        branch_id: payload.branch_id || null,
+        department_id: payload.department_id || null,
+        required_role: payload.required_role,
+        step_order: Number(payload.step_order || 1),
+        is_active: payload.is_active !== false,
+        notes: payload.notes || null,
+        created_by: CURRENT_USER?.id || null
+      };
+      const { data, error } = await sb.from('proc_approval_rules').insert(clean).select().single();
+      return { data, error };
+    },
+    async update(id, payload) {
+      const clean = { ...payload };
+      if ('min_amount' in clean) clean.min_amount = Number(clean.min_amount || 0);
+      if ('max_amount' in clean) {
+        clean.max_amount = clean.max_amount === '' || clean.max_amount == null ? null : Number(clean.max_amount);
+      }
+      if ('step_order' in clean) clean.step_order = Number(clean.step_order || 1);
+      const { data, error } = await sb.from('proc_approval_rules').update(clean).eq('id', id).select().single();
+      return { data, error };
+    },
+    async toggleActive(id, active) {
+      const { error } = await sb.from('proc_approval_rules').update({ is_active: !!active }).eq('id', id);
+      return { error };
+    },
+    async remove(id) {
+      const { error } = await sb.from('proc_approval_rules').delete().eq('id', id);
+      return { error };
+    }
+  }
+};
+
+// خرائط عرض لحالة خطوة الاعتماد
+const PROC_APPR_STATUS_LABELS = {
+  pending: 'قيد الانتظار',
+  approved: 'مُعتمَد',
+  rejected: 'مرفوض',
+  skipped: 'تم تخطيه',
+  cancelled: 'ملغى'
+};
+const PROC_APPR_ACTION_LABELS = {
+  submitted: 'تم التقديم',
+  approved: 'تم الاعتماد',
+  rejected: 'تم الرفض',
+  cancelled: 'تم الإلغاء',
+  resubmitted: 'إعادة تقديم',
+  skipped: 'تم التخطي',
+  legacy_submit: 'تقديم (نمط قديم)',
+  legacy_approve: 'اعتماد (نمط قديم)',
+  legacy_reject: 'رفض (نمط قديم)'
+};
+// أدوار مسموحة كخطوة اعتماد (تُعرض في شاشة القواعد)
+const PROC_APPR_ROLES = [
+  { value: 'branch_manager',      label: 'مدير الفرع' },
+  { value: 'deputy_manager',      label: 'نائب مدير الفرع' },
+  { value: 'operations_manager',  label: 'مدير التشغيل' },
+  { value: 'procurement_manager', label: 'مدير المشتريات' },
+  { value: 'finance_manager',     label: 'المدير المالي' },
+  { value: 'ap_accountant',       label: 'محاسب موردين' },
+  { value: 'gl_accountant',       label: 'محاسب حسابات عامة' },
+  { value: 'company_manager',     label: 'مدير الشركة' }
+];
+
+// ═══════════════════════════════════════════════════════════════════
 // إدارة الأداء Performance — Phase 1 (Wave 2 Module 29)
 // KPIs + سكوركارد شهري + تقييمات دورية + أهداف SMART
 // ═══════════════════════════════════════════════════════════════════
