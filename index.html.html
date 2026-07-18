@@ -8627,6 +8627,43 @@ PROC.approvals = {
       return { error };
     }
   },
+  // ─── سجل تدقيق القواعد ───
+  history: {
+    async list(ruleId) {
+      let q = sb.from('proc_approval_rules_history')
+        .select('*, actor:actor_id(full_name)')
+        .order('created_at', { ascending: false });
+      if (ruleId) q = q.eq('rule_id', ruleId);
+      const { data, error } = await q.limit(200);
+      return { data: data || [], error };
+    }
+  },
+  // ─── فحص جاهزية النظام (Feature Detection) ───
+  // يُستدعى مرة واحدة قبل عرض شاشات الاعتماد. Cache النتيجة داخل الجلسة.
+  _availability: null,
+  async checkAvailability() {
+    if (this._availability !== null) return this._availability;
+    try {
+      const { error } = await sb.from('proc_approval_settings').select('id').limit(1);
+      if (error) {
+        const msg = String(error.message || '');
+        // 42P01 = undefined_table
+        if (msg.includes('does not exist') || msg.includes('42P01')) {
+          this._availability = { available: false, reason: 'tables_missing', message: 'جداول نظام الاعتماد غير موجودة — لم يتم تطبيق SQL بعد' };
+          return this._availability;
+        }
+        this._availability = { available: false, reason: 'error', message: msg };
+        return this._availability;
+      }
+      this._availability = { available: true };
+      return this._availability;
+    } catch (e) {
+      this._availability = { available: false, reason: 'exception', message: String(e?.message || e) };
+      return this._availability;
+    }
+  },
+  // reset cache (للتحديث بعد تطبيق SQL دون reload)
+  _resetAvailability() { this._availability = null; },
   // ─── إدارة قواعد الاعتماد ───
   rules: {
     async list(filters = {}) {
@@ -8648,6 +8685,7 @@ PROC.approvals = {
     async create(payload) {
       const clean = {
         rule_name: payload.rule_name,
+        description: payload.description || null,
         entity_type: payload.entity_type || 'requisition',
         min_amount: Number(payload.min_amount || 0),
         max_amount: payload.max_amount === '' || payload.max_amount == null ? null : Number(payload.max_amount),
@@ -8656,6 +8694,9 @@ PROC.approvals = {
         required_role: payload.required_role,
         step_order: Number(payload.step_order || 1),
         priority: Number(payload.priority ?? 100),
+        sla_hours: payload.sla_hours === '' || payload.sla_hours == null ? null : Number(payload.sla_hours),
+        activation_date: payload.activation_date || null,
+        allow_self_approval: !!payload.allow_self_approval,
         is_active: payload.is_active !== false,
         notes: payload.notes || null,
         created_by: CURRENT_USER?.id || null
@@ -8671,7 +8712,24 @@ PROC.approvals = {
       }
       if ('step_order' in clean) clean.step_order = Number(clean.step_order || 1);
       if ('priority' in clean) clean.priority = Number(clean.priority ?? 100);
+      if ('sla_hours' in clean) {
+        clean.sla_hours = clean.sla_hours === '' || clean.sla_hours == null ? null : Number(clean.sla_hours);
+      }
+      if ('allow_self_approval' in clean) clean.allow_self_approval = !!clean.allow_self_approval;
       const { data, error } = await sb.from('proc_approval_rules').update(clean).eq('id', id).select().single();
+      return { data, error };
+    },
+    async duplicate(id) {
+      const { data: original, error: gErr } = await sb.from('proc_approval_rules').select('*').eq('id', id).maybeSingle();
+      if (gErr || !original) return { data: null, error: gErr || { message: 'القاعدة الأصلية غير موجودة' } };
+      const copy = { ...original };
+      delete copy.id;
+      delete copy.created_at;
+      delete copy.updated_at;
+      copy.rule_name = original.rule_name + ' — نسخة';
+      copy.is_active = false;  // النسخة تُنشأ معطَّلة
+      copy.created_by = CURRENT_USER?.id || null;
+      const { data, error } = await sb.from('proc_approval_rules').insert(copy).select().single();
       return { data, error };
     },
     async toggleActive(id, active) {
@@ -32533,26 +32591,42 @@ function _renderProcApprovalChain(chain, req) {
 
 async function pageProcRequisitionDetail(body, idParam) {
   const id = Number(idParam);
-  const [reqRes, chainRes, totalRes, settingsRes] = await Promise.all([
-    PROC.requisitions.get(id),
-    PROC.approvals.getChain(id),
-    PROC.approvals.requisitionTotal(id),
-    PROC.approvals.settings.get()
-  ]);
-  const { req, items, error } = reqRes;
+  // 1) اقرأ الطلب أولًا — أساس الشاشة
+  const { req, items, error } = await PROC.requisitions.get(id);
   if (error || !req) { body.innerHTML = `<p class="error-msg show">${esc(error?.message || 'الطلب غير موجود')}</p>`; return; }
-  const chain = chainRes.data || { steps: [], activity: [] };
-  const estimatedTotal = totalRes.data || 0;
-  const settings = settingsRes.data || { allow_legacy_approval: false };
-  const allowLegacy = !!settings.allow_legacy_approval;
+  // 2) Feature Detection — قبل استدعاء أي RPC للاعتماد
+  const avail = await PROC.approvals.checkAvailability();
+  // 3) إذا الطبقة غير متاحة، اعرض بيانات الطلب + بانر تنبيه ولا تستدعِ RPCs
+  const chain = { steps: [], activity: [] };
+  let estimatedTotal = items.reduce((s, it) => s + (Number(it.estimated_price || 0) * Number(it.quantity || 0)), 0);
+  let allowLegacy = false;
+  if (avail.available) {
+    const [chainRes, totalRes, settingsRes] = await Promise.all([
+      PROC.approvals.getChain(id),
+      PROC.approvals.requisitionTotal(id),
+      PROC.approvals.settings.get()
+    ]);
+    Object.assign(chain, chainRes.data || {});
+    if (totalRes.data != null) estimatedTotal = totalRes.data;
+    allowLegacy = !!(settingsRes.data && settingsRes.data.allow_legacy_approval);
+  }
   const isOwner = req.requested_by === CURRENT_USER.id;
   const canApprove = isProcurementManager();
   const hasChain = Array.isArray(chain.steps) && chain.steps.length > 0;
-  // legacy approve/reject: submitted + لا سلسلة + flag legacy مفعّل
-  const showLegacyActions = canApprove && req.status === 'submitted' && !hasChain && allowLegacy;
-  const canCancelDuringAppr = (isOwner || canApprove) && req.status === 'submitted';
+  // legacy approve/reject: submitted + لا سلسلة + flag legacy مفعّل + النظام متاح
+  const showLegacyActions = avail.available && canApprove && req.status === 'submitted' && !hasChain && allowLegacy;
+  const canCancelDuringAppr = avail.available && (isOwner || canApprove) && req.status === 'submitted';
+  const canSubmit = avail.available && isOwner && req.status === 'draft';
+  const notReadyBanner = avail.available ? '' : `
+    <div class="panel" style="border:1px solid #f0d878;background:#fff8e1;margin-bottom:14px;">
+      <div class="panel-body">
+        <h3 style="margin:0 0 6px 0;color:#8a6d00;font-size:14.5px;"><span data-lucide="alert-triangle" style="width:16px;height:16px;vertical-align:-3px;margin-left:6px;"></span> نظام الاعتماد الجديد لم يُفعَّل بعد</h3>
+        <p style="margin:0;color:#8a6d00;font-size:12.5px;">لم يتم تطبيق SQL الطبقة على قاعدة البيانات. أزرار التقديم/الاعتماد معطَّلة. راجع <code>PROC_APPROVAL_SQL_APPLY_ORDER.md</code>.</p>
+      </div>
+    </div>`;
   body.innerHTML = `
     <a href="#proc_requisitions" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للطلبات</a>
+    ${notReadyBanner}
     <div class="hr-emp-hero">
       <div class="hr-emp-hero-content">
         <div class="hr-emp-hero-avatar"><span data-lucide="file-text" style="width:28px;height:28px;"></span></div>
@@ -32566,11 +32640,11 @@ async function pageProcRequisitionDetail(body, idParam) {
           </div>
         </div>
         <div class="hr-emp-hero-actions">
-          ${isOwner && req.status === 'draft' ? `<button type="button" class="hr-emp-hero-btn" id="procReqSubmit"><span data-lucide="send" style="width:13px;height:13px;"></span> تقديم للاعتماد</button>` : ''}
+          ${canSubmit ? `<button type="button" class="hr-emp-hero-btn" id="procReqSubmit"><span data-lucide="send" style="width:13px;height:13px;"></span> تقديم للاعتماد</button>` : ''}
           ${showLegacyActions ? `<button type="button" class="hr-emp-hero-btn" id="procReqApprove"><span data-lucide="check" style="width:13px;height:13px;"></span> اعتماد</button>` : ''}
           ${showLegacyActions ? `<button type="button" class="hr-emp-hero-btn" id="procReqReject"><span data-lucide="x" style="width:13px;height:13px;"></span> رفض</button>` : ''}
           ${canCancelDuringAppr ? `<button type="button" class="hr-emp-hero-btn" id="procReqCancel"><span data-lucide="ban" style="width:13px;height:13px;"></span> إلغاء الطلب</button>` : ''}
-          ${canApprove && req.status === 'approved' ? `<button type="button" class="hr-emp-hero-btn" id="procReqConvert"><span data-lucide="shopping-bag" style="width:13px;height:13px;"></span> تحويل لأمر شراء</button>` : ''}
+          ${avail.available && canApprove && req.status === 'approved' ? `<button type="button" class="hr-emp-hero-btn" id="procReqConvert"><span data-lucide="shopping-bag" style="width:13px;height:13px;"></span> تحويل لأمر شراء</button>` : ''}
         </div>
       </div>
     </div>
@@ -33047,6 +33121,23 @@ async function pageProcApprovalRules(body) {
     body.innerHTML = `<div class="panel"><div class="panel-body"><p class="error-msg show">لا تملك صلاحية إدارة قواعد الاعتماد. مطلوب: مدير مشتريات / مالي / شركة / admin.</p></div></div>`;
     return;
   }
+  // Feature Detection
+  const avail = await PROC.approvals.checkAvailability();
+  if (!avail.available) {
+    body.innerHTML = `
+      <a href="#procurement" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للمشتريات</a>
+      <div class="panel" style="border:1px solid #f0d878;background:#fff8e1;">
+        <div class="panel-body">
+          <h3 style="margin:0 0 8px 0;color:#8a6d00;"><span data-lucide="alert-triangle" style="width:18px;height:18px;vertical-align:-3px;margin-left:6px;"></span> نظام الاعتماد غير مُفعَّل بعد</h3>
+          <p style="margin:0 0 10px 0;color:#8a6d00;">لم يتم تطبيق ملفات SQL لطبقة الاعتماد على قاعدة البيانات. الشاشة معطَّلة مؤقتًا لحين تطبيقها.</p>
+          <p style="margin:0;color:#8a6d00;font-size:12.5px;">السبب التقني: <code>${esc(avail.reason)}</code> — ${esc(avail.message)}</p>
+          <p style="margin:12px 0 0 0;color:#8a6d00;font-size:12.5px;">راجع <code>PROC_APPROVAL_SQL_APPLY_ORDER.md</code> على الفرع لتعليمات التطبيق.</p>
+        </div>
+      </div>
+    `;
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
   const [{ data: rules }, { data: branches }, { data: depts }, { data: settings }] = await Promise.all([
     PROC.approvals.rules.list(),
     sb.from('branches').select('id, name').eq('is_active', true).order('name'),
@@ -33107,6 +33198,8 @@ async function pageProcApprovalRules(body) {
             <td>
               <button type="button" class="btn-slim proc-rule-edit" data-id="${r.id}" title="تعديل"><span data-lucide="edit" style="width:12px;height:12px;"></span></button>
               <button type="button" class="btn-slim proc-rule-toggle" data-id="${r.id}" data-active="${r.is_active ? 1 : 0}" title="تفعيل/إيقاف"><span data-lucide="${r.is_active ? 'pause' : 'play'}" style="width:12px;height:12px;"></span></button>
+              <button type="button" class="btn-slim proc-rule-dup" data-id="${r.id}" title="نسخة جديدة (معطَّلة)"><span data-lucide="copy" style="width:12px;height:12px;"></span></button>
+              <button type="button" class="btn-slim proc-rule-hist" data-id="${r.id}" title="سجل التغييرات"><span data-lucide="history" style="width:12px;height:12px;"></span></button>
               <button type="button" class="btn-slim btn-slim-danger proc-rule-del" data-id="${r.id}" title="حذف"><span data-lucide="trash-2" style="width:12px;height:12px;"></span></button>
             </td>
           </tr>`).join('') : `<tr><td colspan="11" style="text-align:center;color:var(--text-secondary);padding:16px;">لم تُضَف أي قاعدة بعد. اضغط "قاعدة جديدة" للبدء.</td></tr>`}</tbody>
@@ -33132,10 +33225,16 @@ async function pageProcApprovalRules(body) {
             <form id="procRuleForm" class="hr-form-grid">
               <div class="form-field full"><label>اسم القاعدة *</label>
                 <input class="form-input" name="rule_name" required value="${esc(existing?.rule_name || '')}"></div>
+              <div class="form-field full"><label>الوصف</label>
+                <textarea class="form-input" name="description" rows="2" placeholder="اختياري — يظهر في التقارير">${esc(existing?.description || '')}</textarea></div>
               <div class="form-field"><label>رقم الخطوة *</label>
                 <input class="form-input mono-num" type="number" min="1" name="step_order" required value="${existing?.step_order || 1}"></div>
               <div class="form-field"><label>الأولوية (أعلى يفوز عند التعادل)</label>
                 <input class="form-input mono-num" type="number" name="priority" value="${existing?.priority ?? 100}" title="القاعدة الأعلى priority تفوز عند تساوي التخصيص والنطاق"></div>
+              <div class="form-field"><label>مدة SLA (ساعات)</label>
+                <input class="form-input mono-num" type="number" min="1" name="sla_hours" value="${existing?.sla_hours ?? ''}" placeholder="اختياري — للتقارير"></div>
+              <div class="form-field"><label>تاريخ سريان القاعدة</label>
+                <input class="form-input" type="date" name="activation_date" value="${existing?.activation_date || ''}" title="قواعد قبل هذا التاريخ لا تُطبَّق"></div>
               <div class="form-field"><label>الدور المطلوب *</label>
                 <select class="form-select" name="required_role" required>
                   <option value="">اختر الدور</option>
@@ -33157,6 +33256,12 @@ async function pageProcApprovalRules(body) {
                   <span>مفعّل</span>
                 </label>
               </div>
+              <div class="form-field full">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#8b1e2b;">
+                  <input type="checkbox" name="allow_self_approval" ${existing?.allow_self_approval ? 'checked' : ''}>
+                  <span>السماح بالاعتماد الذاتي (خطر — يُوصى بتركه غير مُفعّل)</span>
+                </label>
+              </div>
               <div class="form-field full" style="display:flex;gap:8px;justify-content:flex-end;">
                 <button type="button" class="btn" id="procRuleCancel">إلغاء</button>
                 <button type="submit" class="btn btn-primary">${isEdit ? 'حفظ التعديلات' : 'حفظ القاعدة'}</button>
@@ -33175,6 +33280,7 @@ async function pageProcApprovalRules(body) {
       const fd = new FormData(e.target);
       const payload = {
         rule_name: fd.get('rule_name'),
+        description: fd.get('description') || null,
         step_order: fd.get('step_order'),
         priority: fd.get('priority') || 100,
         required_role: fd.get('required_role'),
@@ -33182,6 +33288,9 @@ async function pageProcApprovalRules(body) {
         max_amount: fd.get('max_amount'),
         branch_id: fd.get('branch_id') || null,
         department_id: fd.get('department_id') || null,
+        sla_hours: fd.get('sla_hours') || null,
+        activation_date: fd.get('activation_date') || null,
+        allow_self_approval: fd.get('allow_self_approval') === 'on',
         notes: fd.get('notes'),
         is_active: fd.get('is_active') === 'on'
       };
@@ -33243,9 +33352,65 @@ async function pageProcApprovalRules(body) {
       const id = Number(btn.getAttribute('data-id'));
       if (!confirm('تأكيد حذف القاعدة؟ هذا لن يؤثر على الطلبات المُعتمَدة سابقًا لكن سيمنع تطبيقها على طلبات جديدة.')) return;
       const { error } = await PROC.approvals.rules.remove(id);
-      if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+      if (error) {
+        const msg = String(error.message || '');
+        if (msg.includes('RULE_IN_USE')) {
+          if (confirm('لا يمكن حذف القاعدة لأنها مستخدمة في طلبات قائمة. هل تريد تعطيلها بدلًا من الحذف؟')) {
+            const { error: e2 } = await PROC.approvals.rules.toggleActive(id, false);
+            if (e2) { toast('تعذّر: ' + e2.message, 'error'); return; }
+            toast('تم تعطيل القاعدة', 'success');
+            route();
+          }
+          return;
+        }
+        toast('تعذّر: ' + msg, 'error');
+        return;
+      }
       toast('تم حذف القاعدة', 'success');
       route();
+    });
+  });
+  document.querySelectorAll('.proc-rule-dup').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = Number(btn.getAttribute('data-id'));
+      if (!confirm('نسخ القاعدة إلى قاعدة جديدة معطَّلة؟')) return;
+      const { data, error } = await PROC.approvals.rules.duplicate(id);
+      if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+      toast(`تم إنشاء نسخة #${data.id} — مُعطَّلة`, 'success');
+      route();
+    });
+  });
+  document.querySelectorAll('.proc-rule-hist').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = Number(btn.getAttribute('data-id'));
+      const { data: entries, error } = await PROC.approvals.history.list(id);
+      if (error) { toast('تعذّر تحميل السجل: ' + error.message, 'error'); return; }
+      const host = document.createElement('div');
+      host.className = 'modal-overlay';
+      const rows = (entries || []).map(e => `<tr>
+        <td class="mono-num" style="font-size:11px;">${esc((e.created_at || '').slice(0,16).replace('T',' '))}</td>
+        <td>${esc(e.action)}</td>
+        <td>${esc(e.actor?.full_name || '—')}</td>
+        <td>${esc((e.changed_keys || []).join(', ') || '—')}</td>
+        <td>${esc(e.note || '—')}</td>
+      </tr>`).join('');
+      host.innerHTML = `
+        <div class="panel modal-box" style="width:720px;max-width:96%;max-height:80vh;overflow:auto;">
+          <div class="panel-header">
+            <h3><span data-lucide="history" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> سجل تغييرات القاعدة #${id}</h3>
+            <button class="modal-close-x" id="procHistClose"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+          </div>
+          <div class="panel-body" style="padding:0;">
+            <div style="overflow-x:auto;"><table class="hr-emp-table">
+              <thead><tr><th>الوقت</th><th>الحدث</th><th>المستخدم</th><th>الحقول المتغيرة</th><th>ملاحظة</th></tr></thead>
+              <tbody>${rows || `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-secondary);">لا سجلات حتى الآن</td></tr>`}</tbody>
+            </table></div>
+          </div>
+        </div>`;
+      document.body.appendChild(host);
+      if (window.lucide) lucide.createIcons();
+      document.getElementById('procHistClose').addEventListener('click', () => host.remove());
+      host.addEventListener('click', (e) => { if (e.target === host) host.remove(); });
     });
   });
 }
