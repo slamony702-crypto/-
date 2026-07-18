@@ -8655,6 +8655,7 @@ PROC.approvals = {
         department_id: payload.department_id || null,
         required_role: payload.required_role,
         step_order: Number(payload.step_order || 1),
+        priority: Number(payload.priority ?? 100),
         is_active: payload.is_active !== false,
         notes: payload.notes || null,
         created_by: CURRENT_USER?.id || null
@@ -8669,6 +8670,7 @@ PROC.approvals = {
         clean.max_amount = clean.max_amount === '' || clean.max_amount == null ? null : Number(clean.max_amount);
       }
       if ('step_order' in clean) clean.step_order = Number(clean.step_order || 1);
+      if ('priority' in clean) clean.priority = Number(clean.priority ?? 100);
       const { data, error } = await sb.from('proc_approval_rules').update(clean).eq('id', id).select().single();
       return { data, error };
     },
@@ -32601,12 +32603,20 @@ async function pageProcRequisitionDetail(body, idParam) {
     const { data, error } = await PROC.approvals.submit(id);
     if (error) {
       const msg = String(error.message || '');
+      const canManage = ['admin','company_manager','procurement_manager','finance_manager'].includes(CURRENT_USER?.role);
       if (msg.includes('APPROVAL_CONFIGURATION_MISSING')) {
-        const canManage = ['admin','company_manager','procurement_manager','finance_manager'].includes(CURRENT_USER?.role);
         if (canManage && confirm('لا توجد قواعد اعتماد مطابقة لهذا الطلب. هل تريد فتح شاشة إدارة القواعد الآن؟')) {
           location.hash = '#proc_approval_rules';
         } else {
           toast('لا يمكن التقديم: يلزم إعداد قاعدة اعتماد أولًا. تواصل مع المسؤول.', 'error');
+        }
+        return;
+      }
+      if (msg.includes('AMBIGUOUS_APPROVAL_RULES')) {
+        if (canManage && confirm('يوجد أكثر من قاعدة اعتماد متطابقة تمامًا على نفس الخطوة — لا يمكن الاختيار تلقائيًا. افتح شاشة القواعد لضبط priority أو النطاقات؟')) {
+          location.hash = '#proc_approval_rules';
+        } else {
+          toast('لا يمكن التقديم: قواعد الاعتماد متضاربة. تواصل مع المسؤول.', 'error');
         }
         return;
       }
@@ -33080,6 +33090,7 @@ async function pageProcApprovalRules(body) {
             <th>#</th><th>الاسم</th><th>خطوة</th><th>الدور</th>
             <th>من مبلغ</th><th>إلى مبلغ</th>
             <th>الفرع</th><th>القسم</th>
+            <th>أولوية</th>
             <th>مفعّل</th><th>إجراء</th>
           </tr></thead>
           <tbody>${(rules || []).length ? (rules).map(r => `<tr>
@@ -33091,13 +33102,14 @@ async function pageProcApprovalRules(body) {
             <td class="mono-num">${r.max_amount == null ? '∞' : Number(r.max_amount).toFixed(2)}</td>
             <td>${esc(r.branches?.name || '— كل الفروع —')}</td>
             <td>${esc(r.departments?.name || '— كل الأقسام —')}</td>
+            <td class="mono-num">${r.priority ?? 100}</td>
             <td>${r.is_active ? '<span class="proc-appr-badge proc-appr-approved">مفعّل</span>' : '<span class="proc-appr-badge proc-appr-cancelled">موقوف</span>'}</td>
             <td>
               <button type="button" class="btn-slim proc-rule-edit" data-id="${r.id}" title="تعديل"><span data-lucide="edit" style="width:12px;height:12px;"></span></button>
               <button type="button" class="btn-slim proc-rule-toggle" data-id="${r.id}" data-active="${r.is_active ? 1 : 0}" title="تفعيل/إيقاف"><span data-lucide="${r.is_active ? 'pause' : 'play'}" style="width:12px;height:12px;"></span></button>
               <button type="button" class="btn-slim btn-slim-danger proc-rule-del" data-id="${r.id}" title="حذف"><span data-lucide="trash-2" style="width:12px;height:12px;"></span></button>
             </td>
-          </tr>`).join('') : `<tr><td colspan="10" style="text-align:center;color:var(--text-secondary);padding:16px;">لم تُضَف أي قاعدة بعد. اضغط "قاعدة جديدة" للبدء.</td></tr>`}</tbody>
+          </tr>`).join('') : `<tr><td colspan="11" style="text-align:center;color:var(--text-secondary);padding:16px;">لم تُضَف أي قاعدة بعد. اضغط "قاعدة جديدة" للبدء.</td></tr>`}</tbody>
         </table></div>
       </div>
     </div>
@@ -33122,6 +33134,8 @@ async function pageProcApprovalRules(body) {
                 <input class="form-input" name="rule_name" required value="${esc(existing?.rule_name || '')}"></div>
               <div class="form-field"><label>رقم الخطوة *</label>
                 <input class="form-input mono-num" type="number" min="1" name="step_order" required value="${existing?.step_order || 1}"></div>
+              <div class="form-field"><label>الأولوية (أعلى يفوز عند التعادل)</label>
+                <input class="form-input mono-num" type="number" name="priority" value="${existing?.priority ?? 100}" title="القاعدة الأعلى priority تفوز عند تساوي التخصيص والنطاق"></div>
               <div class="form-field"><label>الدور المطلوب *</label>
                 <select class="form-select" name="required_role" required>
                   <option value="">اختر الدور</option>
@@ -33162,6 +33176,7 @@ async function pageProcApprovalRules(body) {
       const payload = {
         rule_name: fd.get('rule_name'),
         step_order: fd.get('step_order'),
+        priority: fd.get('priority') || 100,
         required_role: fd.get('required_role'),
         min_amount: fd.get('min_amount'),
         max_amount: fd.get('max_amount'),
