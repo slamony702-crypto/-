@@ -188,6 +188,7 @@ WITH
     JOIN pg_language l ON l.oid = p.prolang
     JOIN target_funcs tf ON tf.fname = p.proname
     WHERE n.nspname = 'public'
+      AND p.prokind IN ('f','p')  -- تجنّب pg_get_functiondef على aggregate/window
   ),
 
   -- ═══ (10) صلاحيات تنفيذ الدوال المستهدفة ═══
@@ -215,13 +216,16 @@ WITH
     WHERE col.table_schema = 'public' AND col.column_name = 'password_plain'
     UNION ALL
     -- (11b) دوال تشير إلى password_plain
+    -- نستخدم p.prosrc (النص الخام للجسم — عمود عادي لا يرمي خطأ)
+    -- بدل pg_get_functiondef الذي يفشل على aggregate/window functions.
     SELECT 11, 'DEP_password_plain', 'public', p.proname,
            'function_body', 'REFERENCES_password_plain',
            'returns=' || pg_get_function_result(p.oid), '-'
     FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public'
-      AND pg_get_functiondef(p.oid) ILIKE '%password_plain%'
+      AND p.prokind IN ('f','p')
+      AND p.prosrc ILIKE '%password_plain%'
     UNION ALL
     -- (11c) دوال تشير إلى auth.uid()
     SELECT 11, 'DEP_auth_uid', 'public', p.proname,
@@ -230,7 +234,8 @@ WITH
     FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public'
-      AND pg_get_functiondef(p.oid) ILIKE '%auth.uid()%'
+      AND p.prokind IN ('f','p')
+      AND p.prosrc ILIKE '%auth.uid()%'
     UNION ALL
     -- (11d) policies تشير إلى current_app_user_id / current_app_role / auth.uid
     SELECT 11, 'DEP_identity_in_policy', 'public', pol.tablename,
