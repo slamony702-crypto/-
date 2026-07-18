@@ -17379,6 +17379,7 @@ async function route() {
     else if (page === 'proc_order') await pageProcOrderDetail(body, param);
     else if (page === 'proc_receipts') await pageProcReceipts(body);
     else if (page === 'proc_receipt') await pageProcReceiptDetail(body, param);
+    else if (page === 'proc_approval_rules') await pageProcApprovalRules(body);
     else if (page === 'performance') await pagePerfDashboard(body);
     else if (page === 'perf_kpis') await pagePerfKpis(body);
     else if (page === 'perf_scorecards') await pagePerfScorecards(body, query);
@@ -32265,6 +32266,7 @@ async function pageProcDashboard(body) {
         <a href="#proc_requisitions" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="file-text" style="width:12px;height:12px;"></span> طلبات الشراء</a>
         <a href="#proc_orders" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="shopping-bag" style="width:12px;height:12px;"></span> أوامر الشراء</a>
         <a href="#proc_receipts" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="package-check" style="width:12px;height:12px;"></span> إيصالات الاستلام</a>
+        ${['admin','company_manager','procurement_manager','finance_manager'].includes(CURRENT_USER?.role) ? `<a href="#proc_approval_rules" class="mod-hero-badge" style="text-decoration:none;cursor:pointer;"><span data-lucide="git-branch" style="width:12px;height:12px;"></span> قواعد الاعتماد</a>` : ''}
       </div>
     </div>
     <div class="mod-stats" id="procKpis">
@@ -32981,6 +32983,184 @@ async function pageProcReceiptDetail(body, idParam) {
     if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
     toast('تم الاستلام + فاتورة #' + billId + ' جاهزة', 'success');
     route();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// شاشة إدارة قواعد اعتماد طلبات الشراء
+// route: #proc_approval_rules
+// (feature branch: purchase-orders-wave1)
+// ═══════════════════════════════════════════════════════════════════
+async function pageProcApprovalRules(body) {
+  const canManage = ['admin', 'company_manager', 'procurement_manager', 'finance_manager'].includes(CURRENT_USER?.role);
+  if (!canManage) {
+    body.innerHTML = `<div class="panel"><div class="panel-body"><p class="error-msg show">لا تملك صلاحية إدارة قواعد الاعتماد. مطلوب: مدير مشتريات / مالي / شركة / admin.</p></div></div>`;
+    return;
+  }
+  const [{ data: rules }, { data: branches }, { data: depts }] = await Promise.all([
+    PROC.approvals.rules.list(),
+    sb.from('branches').select('id, name').eq('is_active', true).order('name'),
+    sb.from('departments').select('id, name').order('name')
+  ]);
+  const roleOpts = PROC_APPR_ROLES.map(r => `<option value="${r.value}">${esc(r.label)}</option>`).join('');
+  const branchOpts = `<option value="">— كل الفروع —</option>` + (branches || []).map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('');
+  const deptOpts = `<option value="">— كل الأقسام —</option>` + (depts || []).map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  body.innerHTML = `
+    <a href="#procurement" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للمشتريات</a>
+    <div class="mod-hero">
+      <h2 class="mod-hero-title"><span data-lucide="git-branch" style="width:22px;height:22px;"></span> قواعد اعتماد طلبات الشراء</h2>
+      <p class="mod-hero-desc">هنا تُعرَّف مصفوفة الاعتماد متعدد المستويات. أي طلب شراء عند تقديمه يمر عبر الخطوات المطابقة لمبلغه/فرعه/قسمه.</p>
+      <div style="margin-top:8px;background:#fff8e1;border:1px solid #f0d878;padding:10px 12px;border-radius:8px;color:#8a6d00;font-size:12.5px;">
+        <strong>ملاحظة مهمة:</strong> إذا لم تُضِف أي قاعدة، يعمل النظام بالنمط التقليدي (مُعتمِد واحد). أضِف قاعدة على الأقل لتفعيل الاعتماد متعدد المستويات.
+      </div>
+    </div>
+    <div class="panel" style="margin-top:16px;">
+      <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <h3>القواعد المُعرَّفة (${(rules || []).length})</h3>
+        <button type="button" class="btn btn-primary" id="procRuleNew"><span data-lucide="plus" style="width:14px;height:14px;"></span> قاعدة جديدة</button>
+      </div>
+      <div class="panel-body" style="padding:0;">
+        <div style="overflow-x:auto;"><table class="hr-emp-table">
+          <thead><tr>
+            <th>#</th><th>الاسم</th><th>خطوة</th><th>الدور</th>
+            <th>من مبلغ</th><th>إلى مبلغ</th>
+            <th>الفرع</th><th>القسم</th>
+            <th>مفعّل</th><th>إجراء</th>
+          </tr></thead>
+          <tbody>${(rules || []).length ? (rules).map(r => `<tr>
+            <td class="mono-num">${r.id}</td>
+            <td><strong>${esc(r.rule_name)}</strong></td>
+            <td class="mono-num">${r.step_order}</td>
+            <td>${esc((PROC_APPR_ROLES.find(x => x.value === r.required_role) || {}).label || r.required_role)}</td>
+            <td class="mono-num">${Number(r.min_amount).toFixed(2)}</td>
+            <td class="mono-num">${r.max_amount == null ? '∞' : Number(r.max_amount).toFixed(2)}</td>
+            <td>${esc(r.branches?.name || '— كل الفروع —')}</td>
+            <td>${esc(r.departments?.name || '— كل الأقسام —')}</td>
+            <td>${r.is_active ? '<span class="proc-appr-badge proc-appr-approved">مفعّل</span>' : '<span class="proc-appr-badge proc-appr-cancelled">موقوف</span>'}</td>
+            <td>
+              <button type="button" class="btn-slim proc-rule-edit" data-id="${r.id}" title="تعديل"><span data-lucide="edit" style="width:12px;height:12px;"></span></button>
+              <button type="button" class="btn-slim proc-rule-toggle" data-id="${r.id}" data-active="${r.is_active ? 1 : 0}" title="تفعيل/إيقاف"><span data-lucide="${r.is_active ? 'pause' : 'play'}" style="width:12px;height:12px;"></span></button>
+              <button type="button" class="btn-slim btn-slim-danger proc-rule-del" data-id="${r.id}" title="حذف"><span data-lucide="trash-2" style="width:12px;height:12px;"></span></button>
+            </td>
+          </tr>`).join('') : `<tr><td colspan="10" style="text-align:center;color:var(--text-secondary);padding:16px;">لم تُضَف أي قاعدة بعد. اضغط "قاعدة جديدة" للبدء.</td></tr>`}</tbody>
+        </table></div>
+      </div>
+    </div>
+    <div id="procRuleModalHost"></div>
+  `;
+  if (window.lucide) lucide.createIcons();
+
+  const openForm = (existing) => {
+    const isEdit = !!existing;
+    const host = document.getElementById('procRuleModalHost');
+    host.innerHTML = `
+      <div class="modal-overlay">
+        <div class="panel modal-box" style="width:520px;max-width:96%;">
+          <div class="panel-header">
+            <h3><span data-lucide="git-branch" style="width:16px;height:16px;vertical-align:-2px;margin-left:5px;"></span> ${isEdit ? 'تعديل قاعدة اعتماد' : 'قاعدة اعتماد جديدة'}</h3>
+            <button class="modal-close-x" id="procRuleCloseX"><span data-lucide="x" style="width:14px;height:14px;"></span></button>
+          </div>
+          <div class="panel-body">
+            <div class="error-msg" id="procRuleErr"></div>
+            <form id="procRuleForm" class="hr-form-grid">
+              <div class="form-field full"><label>اسم القاعدة *</label>
+                <input class="form-input" name="rule_name" required value="${esc(existing?.rule_name || '')}"></div>
+              <div class="form-field"><label>رقم الخطوة *</label>
+                <input class="form-input mono-num" type="number" min="1" name="step_order" required value="${existing?.step_order || 1}"></div>
+              <div class="form-field"><label>الدور المطلوب *</label>
+                <select class="form-select" name="required_role" required>
+                  <option value="">اختر الدور</option>
+                  ${PROC_APPR_ROLES.map(r => `<option value="${r.value}" ${existing?.required_role === r.value ? 'selected' : ''}>${esc(r.label)}</option>`).join('')}
+                </select></div>
+              <div class="form-field"><label>من مبلغ (ر.س) *</label>
+                <input class="form-input mono-num" type="number" step="0.01" min="0" name="min_amount" required value="${existing?.min_amount ?? 0}"></div>
+              <div class="form-field"><label>إلى مبلغ (اتركه فارغًا = بلا حد)</label>
+                <input class="form-input mono-num" type="number" step="0.01" min="0" name="max_amount" value="${existing?.max_amount ?? ''}"></div>
+              <div class="form-field"><label>الفرع (اختياري)</label>
+                <select class="form-select" name="branch_id">${branchOpts.replace(`value="${existing?.branch_id || ''}"`, `value="${existing?.branch_id || ''}" selected`)}</select></div>
+              <div class="form-field"><label>القسم (اختياري)</label>
+                <select class="form-select" name="department_id">${deptOpts.replace(`value="${existing?.department_id || ''}"`, `value="${existing?.department_id || ''}" selected`)}</select></div>
+              <div class="form-field full"><label>ملاحظات</label>
+                <textarea class="form-input" name="notes" rows="2">${esc(existing?.notes || '')}</textarea></div>
+              <div class="form-field full">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                  <input type="checkbox" name="is_active" ${existing?.is_active !== false ? 'checked' : ''}>
+                  <span>مفعّل</span>
+                </label>
+              </div>
+              <div class="form-field full" style="display:flex;gap:8px;justify-content:flex-end;">
+                <button type="button" class="btn" id="procRuleCancel">إلغاء</button>
+                <button type="submit" class="btn btn-primary">${isEdit ? 'حفظ التعديلات' : 'حفظ القاعدة'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+    if (window.lucide) lucide.createIcons();
+    const closeM = () => { host.innerHTML = ''; };
+    document.getElementById('procRuleCloseX').addEventListener('click', closeM);
+    document.getElementById('procRuleCancel').addEventListener('click', closeM);
+    document.getElementById('procRuleForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const payload = {
+        rule_name: fd.get('rule_name'),
+        step_order: fd.get('step_order'),
+        required_role: fd.get('required_role'),
+        min_amount: fd.get('min_amount'),
+        max_amount: fd.get('max_amount'),
+        branch_id: fd.get('branch_id') || null,
+        department_id: fd.get('department_id') || null,
+        notes: fd.get('notes'),
+        is_active: fd.get('is_active') === 'on'
+      };
+      if (!payload.rule_name || !payload.required_role) {
+        document.getElementById('procRuleErr').textContent = 'اسم القاعدة والدور مطلوبان';
+        document.getElementById('procRuleErr').classList.add('show');
+        return;
+      }
+      const { error } = isEdit
+        ? await PROC.approvals.rules.update(existing.id, payload)
+        : await PROC.approvals.rules.create(payload);
+      if (error) {
+        document.getElementById('procRuleErr').textContent = 'تعذّر: ' + error.message;
+        document.getElementById('procRuleErr').classList.add('show');
+        return;
+      }
+      toast(isEdit ? 'تم تحديث القاعدة' : 'تمت إضافة القاعدة', 'success');
+      closeM();
+      route();
+    });
+  };
+
+  document.getElementById('procRuleNew')?.addEventListener('click', () => openForm(null));
+  document.querySelectorAll('.proc-rule-edit').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = Number(btn.getAttribute('data-id'));
+      const { data } = await PROC.approvals.rules.get(id);
+      if (data) openForm(data);
+    });
+  });
+  document.querySelectorAll('.proc-rule-toggle').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = Number(btn.getAttribute('data-id'));
+      const currentlyActive = btn.getAttribute('data-active') === '1';
+      const { error } = await PROC.approvals.rules.toggleActive(id, !currentlyActive);
+      if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+      toast(currentlyActive ? 'تم إيقاف القاعدة' : 'تم تفعيل القاعدة', 'success');
+      route();
+    });
+  });
+  document.querySelectorAll('.proc-rule-del').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = Number(btn.getAttribute('data-id'));
+      if (!confirm('تأكيد حذف القاعدة؟ هذا لن يؤثر على الطلبات المُعتمَدة سابقًا لكن سيمنع تطبيقها على طلبات جديدة.')) return;
+      const { error } = await PROC.approvals.rules.remove(id);
+      if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+      toast('تم حذف القاعدة', 'success');
+      route();
+    });
   });
 }
 
