@@ -612,6 +612,202 @@ END $$;
 ROLLBACK TO SAVEPOINT tb3;
 
 -- ═══════════════════════════════════════════════════════════
+-- TEST 16: disabled rule after workflow creation
+--          → إذا عُطّلت قاعدة بعد إنشاء سلسلة، السلسلة القائمة تبقى سليمة
+-- ═══════════════════════════════════════════════════════════
+SAVEPOINT t16;
+DO $$
+DECLARE
+  v_req BIGINT;
+  v_rule_id BIGINT;
+  v_s1 BIGINT;
+  v_status_before TEXT;
+  v_status_after  TEXT;
+BEGIN
+  INSERT INTO proc_approval_rules (rule_name, min_amount, required_role, step_order)
+  VALUES ('TEST_L1', 0, 'procurement_manager', 1)
+  RETURNING id INTO v_rule_id;
+
+  v_req := _test_create_req(500);
+  PERFORM _test_as(99001); PERFORM proc_submit_requisition(v_req);
+  SELECT id INTO v_s1 FROM proc_requisition_approvals WHERE requisition_id = v_req AND step_no = 1;
+  SELECT status INTO v_status_before FROM proc_requisition_approvals WHERE id = v_s1;
+
+  -- الآن نعطّل القاعدة
+  UPDATE proc_approval_rules SET is_active = FALSE WHERE id = v_rule_id;
+
+  -- الخطوة يجب أن تبقى pending وقابلة للاعتماد
+  SELECT status INTO v_status_after FROM proc_requisition_approvals WHERE id = v_s1;
+
+  PERFORM _test_as(99003);
+  PERFORM proc_approve_step(v_s1, 'approve after rule disabled');
+
+  IF v_status_before = 'pending' AND v_status_after = 'pending'
+     AND (SELECT status FROM proc_requisitions WHERE id = v_req) = 'approved' THEN
+    RAISE NOTICE 'TEST 16: PASS — تعطيل القاعدة لم يؤثر على السلسلة القائمة';
+  ELSE
+    RAISE NOTICE 'TEST 16: FAIL — before=%, after=%', v_status_before, v_status_after;
+  END IF;
+END $$;
+ROLLBACK TO SAVEPOINT t16;
+
+-- ═══════════════════════════════════════════════════════════
+-- TEST 17: legacy fallback DISABLED — صريح
+-- ═══════════════════════════════════════════════════════════
+SAVEPOINT t17;
+DO $$
+DECLARE
+  v_req BIGINT;
+  v_allow BOOLEAN;
+BEGIN
+  SELECT allow_legacy_approval INTO v_allow FROM proc_approval_settings WHERE id = TRUE;
+
+  IF v_allow THEN
+    RAISE NOTICE 'TEST 17: SKIPPED — flag ON (default should be FALSE, reset needed)';
+  ELSE
+    -- لا قواعد، flag OFF → يجب أن يرفض
+    v_req := _test_create_req(1000);
+    PERFORM _test_as(99001);
+    BEGIN
+      PERFORM proc_submit_requisition(v_req);
+      RAISE NOTICE 'TEST 17: FAIL — كان يجب رفع APPROVAL_CONFIGURATION_MISSING';
+    EXCEPTION WHEN OTHERS THEN
+      IF SQLERRM LIKE '%APPROVAL_CONFIGURATION_MISSING%' THEN
+        RAISE NOTICE 'TEST 17: PASS — legacy disabled يرفض التقديم صراحة';
+      ELSE
+        RAISE NOTICE 'TEST 17: FAIL — خطأ غير متوقع: %', SQLERRM;
+      END IF;
+    END;
+    -- تحقق أن الطلب لسه draft (ما تغيّرش)
+    IF (SELECT status FROM proc_requisitions WHERE id = v_req) = 'draft' THEN
+      RAISE NOTICE 'TEST 17b: PASS — الطلب باقٍ في draft بعد الرفض';
+    ELSE
+      RAISE NOTICE 'TEST 17b: FAIL — تغيّرت حالة الطلب رغم الرفض';
+    END IF;
+  END IF;
+END $$;
+ROLLBACK TO SAVEPOINT t17;
+
+-- ═══════════════════════════════════════════════════════════
+-- TEST 20: two matching rules — deterministic pick (branch+dept فوق global)
+-- ═══════════════════════════════════════════════════════════
+SAVEPOINT t20;
+DO $$
+DECLARE
+  v_req BIGINT;
+  v_branch BIGINT;
+  v_dept BIGINT;
+  v_rule_global BIGINT;
+  v_rule_specific BIGINT;
+  v_selected_rule_id BIGINT;
+  v_snapshot JSONB;
+BEGIN
+  SELECT id INTO v_branch FROM branches WHERE is_active = TRUE LIMIT 1;
+  SELECT id INTO v_dept FROM departments LIMIT 1;
+  IF v_branch IS NULL OR v_dept IS NULL THEN
+    RAISE NOTICE 'TEST 20: SKIPPED — لا يوجد فرع أو قسم في القاعدة';
+    RETURN;
+  END IF;
+
+  -- قاعدة عامة (global)
+  INSERT INTO proc_approval_rules (rule_name, min_amount, required_role, step_order, priority)
+  VALUES ('TEST_GLOBAL', 0, 'finance_manager', 1, 100)
+  RETURNING id INTO v_rule_global;
+
+  -- قاعدة أكثر تخصيصًا (branch + dept)
+  INSERT INTO proc_approval_rules (rule_name, min_amount, required_role, step_order, priority, branch_id, department_id)
+  VALUES ('TEST_SPECIFIC', 0, 'procurement_manager', 1, 100, v_branch, v_dept)
+  RETURNING id INTO v_rule_specific;
+
+  v_req := _test_create_req(500, v_branch, v_dept);
+  PERFORM _test_as(99001); PERFORM proc_submit_requisition(v_req);
+
+  SELECT (rule_snapshot->>'rule_id')::BIGINT INTO v_selected_rule_id
+  FROM proc_requisition_approvals WHERE requisition_id = v_req AND step_no = 1;
+
+  IF v_selected_rule_id = v_rule_specific THEN
+    RAISE NOTICE 'TEST 20: PASS — القاعدة الأكثر تخصيصًا اُختيرت (rule_id=%)', v_selected_rule_id;
+  ELSE
+    RAISE NOTICE 'TEST 20: FAIL — تم اختيار rule_id=% بدل الأكثر تخصيصًا (%)', v_selected_rule_id, v_rule_specific;
+  END IF;
+END $$;
+ROLLBACK TO SAVEPOINT t20;
+
+-- ═══════════════════════════════════════════════════════════
+-- TEST 20b: two matching rules with different priority — الأعلى priority يفوز
+-- ═══════════════════════════════════════════════════════════
+SAVEPOINT t20b;
+DO $$
+DECLARE
+  v_req BIGINT;
+  v_rule_low BIGINT;
+  v_rule_high BIGINT;
+  v_selected BIGINT;
+BEGIN
+  -- قاعدتان عامتان بنفس النطاق، لكن priority مختلف
+  INSERT INTO proc_approval_rules (rule_name, min_amount, required_role, step_order, priority)
+  VALUES ('TEST_LOW_PRIO', 0, 'branch_manager', 1, 50)
+  RETURNING id INTO v_rule_low;
+  INSERT INTO proc_approval_rules (rule_name, min_amount, required_role, step_order, priority)
+  VALUES ('TEST_HIGH_PRIO', 0, 'finance_manager', 1, 200)
+  RETURNING id INTO v_rule_high;
+
+  v_req := _test_create_req(500);
+  PERFORM _test_as(99001); PERFORM proc_submit_requisition(v_req);
+
+  SELECT (rule_snapshot->>'rule_id')::BIGINT INTO v_selected
+  FROM proc_requisition_approvals WHERE requisition_id = v_req AND step_no = 1;
+
+  IF v_selected = v_rule_high THEN
+    RAISE NOTICE 'TEST 20b: PASS — الأعلى priority اُختير (rule_id=%)', v_selected;
+  ELSE
+    RAISE NOTICE 'TEST 20b: FAIL — priority لم يُطبَّق: v_selected=%, high=%', v_selected, v_rule_high;
+  END IF;
+END $$;
+ROLLBACK TO SAVEPOINT t20b;
+
+-- ═══════════════════════════════════════════════════════════
+-- TEST 21: AMBIGUOUS_APPROVAL_RULES — قاعدتان متطابقتان تمامًا
+-- ═══════════════════════════════════════════════════════════
+SAVEPOINT t21;
+DO $$
+DECLARE
+  v_req BIGINT;
+  v_r1 BIGINT; v_r2 BIGINT;
+  v_now TIMESTAMPTZ := now();
+BEGIN
+  -- قاعدتان بنفس (specificity, range, priority, updated_at)
+  INSERT INTO proc_approval_rules (rule_name, min_amount, max_amount, required_role, step_order, priority)
+  VALUES ('TEST_A', 0, 1000, 'branch_manager', 1, 100)
+  RETURNING id INTO v_r1;
+  INSERT INTO proc_approval_rules (rule_name, min_amount, max_amount, required_role, step_order, priority)
+  VALUES ('TEST_B', 0, 1000, 'finance_manager', 1, 100)
+  RETURNING id INTO v_r2;
+  -- توحيد updated_at لضمان التعادل التام
+  UPDATE proc_approval_rules SET updated_at = v_now WHERE id IN (v_r1, v_r2);
+
+  v_req := _test_create_req(500);
+  PERFORM _test_as(99001);
+  BEGIN
+    PERFORM proc_submit_requisition(v_req);
+    RAISE NOTICE 'TEST 21: FAIL — كان يجب رفع AMBIGUOUS_APPROVAL_RULES';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM LIKE '%AMBIGUOUS_APPROVAL_RULES%' THEN
+      RAISE NOTICE 'TEST 21: PASS — التعادل التام اكتُشف ورُفع AMBIGUOUS_APPROVAL_RULES';
+    ELSE
+      RAISE NOTICE 'TEST 21: FAIL — خطأ غير متوقع: %', SQLERRM;
+    END IF;
+  END;
+  -- تحقق أن الطلب لم يتقدم
+  IF (SELECT status FROM proc_requisitions WHERE id = v_req) = 'draft' THEN
+    RAISE NOTICE 'TEST 21b: PASS — الطلب باقٍ في draft بعد الرفض';
+  ELSE
+    RAISE NOTICE 'TEST 21b: FAIL — تغيّرت حالة الطلب رغم الرفض';
+  END IF;
+END $$;
+ROLLBACK TO SAVEPOINT t21;
+
+-- ═══════════════════════════════════════════════════════════
 -- تنظيف نهائي — ROLLBACK يلغي كل شيء (بما فيه المستخدمين التجريبيين)
 -- ═══════════════════════════════════════════════════════════
 ROLLBACK;
@@ -620,5 +816,6 @@ ROLLBACK;
 -- ملاحظة أخيرة:
 -- بعد التنفيذ، راجع رسائل NOTICE في مخرجات psql/Supabase SQL Editor.
 -- ابحث عن PASS/FAIL/SKIPPED.
--- 12 اختبار أساسي + 3 bonus. المتوقع: 15/15 PASS (منها test 7 SKIPPED للتنفيذ اليدوي).
+-- الاختبارات: 12 core + 3 bonus + 5 (16, 17, 20, 20b, 21) = 20+
+-- المتوقع: كل الاختبارات PASS (منها test 7 SKIPPED — يستخدم proc-concurrency-session-*.sql)
 -- ═══════════════════════════════════════════════════════════
