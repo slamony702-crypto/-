@@ -4056,6 +4056,18 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
   body.mobile-app-ready .sidebar-overlay,
   body.mobile-app-ready #sidebarToggleBtn,
   body.mobile-app-ready .topbar { display: none !important; }
+  /* ═══ إصلاح تمرير الموبايل (hotfix/mobile-app-freeze) ═══
+     .app-layout عليه height:100vh + overflow:hidden (إصلاح التمرير المستقل
+     للديسكتوب). على الموبايل ده كان بيقصّ المحتوى ويمنع أي scroll لأسفل.
+     الموبايل يستخدم appbar/search/nav ثابتة (position:fixed) والـbody
+     نفسه هو اللي يمرّر — فنُلغي القيد على .app-layout ونخلي المحتوى يتدفق. */
+  body.mobile-app-ready .app-layout {
+    height: auto !important;
+    min-height: 100vh;
+    overflow: visible !important;
+  }
+  body.mobile-app-ready .main-content,
+  body.mobile-app-ready .page-body { overflow: visible !important; }
   body.mobile-app-ready .main-content { margin: 0 !important; padding: 0 !important; }
   body.mobile-app-ready .page-body { padding: calc(env(safe-area-inset-top, 0px) + 86px) 14px 24px !important; margin-top: 0 !important; }
   body.mobile-app-ready.more-open .sidebar {
