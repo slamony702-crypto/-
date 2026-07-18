@@ -37,6 +37,11 @@ VALUES
   (99005, 'TEST Inactive PM',     'procurement_manager', '99999999-0000-0000-0000-000000090005'::UUID, FALSE)
 ON CONFLICT (id) DO NOTHING;
 
+-- مورد تجريبي (لاختبارات تحويل PO)
+INSERT INTO acct_vendors (id, name) VALUES (99001, 'TEST Vendor') ON CONFLICT (id) DO NOTHING;
+-- بعض الجداول تستخدم SERIAL — نضبط sequence بعد INSERT صريح
+SELECT setval('acct_vendors_id_seq', GREATEST((SELECT MAX(id) FROM acct_vendors), 1));
+
 -- ───────────────────────────────────────────────────────────
 -- Helper: switch active user (SECURITY DEFINER wrapper)
 -- ───────────────────────────────────────────────────────────
@@ -349,8 +354,9 @@ BEGIN
 
   PERFORM _test_as(99003); PERFORM proc_reject_step(v_s1, 'test rejection');
 
-  -- الطلب الآن rejected. المحاولات المتوقعة:
-  PERFORM _test_as(99001);
+  -- الطلب الآن rejected. المحاولات المتوقعة كـauthenticated (لتشغيل triggers)
+  PERFORM _test_as(99003);  -- procurement_manager يمر بـRLS
+  SET LOCAL ROLE authenticated;
   BEGIN
     UPDATE proc_requisitions SET status = 'submitted' WHERE id = v_req;
     RAISE NOTICE 'TEST 9a: FAIL — كان يجب رفع REQ_TERMINAL_STATE (rejected → submitted)';
@@ -372,6 +378,7 @@ BEGIN
       RAISE NOTICE 'TEST 9b: FAIL — خطأ غير متوقع: %', SQLERRM;
     END IF;
   END;
+  RESET ROLE;
 END $$;
 ROLLBACK TO SAVEPOINT t9;
 
@@ -391,6 +398,9 @@ BEGIN
 
   v_req := _test_create_req(500);
   PERFORM _test_as(99001); PERFORM proc_submit_requisition(v_req);
+  -- تحول لـauthenticated لتفعيل triggers الحرس
+  PERFORM _test_as(99003);
+  SET LOCAL ROLE authenticated;
 
   -- 10a: تعديل branch_id بعد التقديم
   BEGIN
@@ -440,6 +450,7 @@ BEGIN
       RAISE NOTICE 'TEST 10d: FAIL — خطأ غير متوقع: %', SQLERRM;
     END IF;
   END;
+  RESET ROLE;
 END $$;
 ROLLBACK TO SAVEPOINT t10;
 

@@ -243,10 +243,8 @@ BEGIN
   END IF;
 
   -- (1) قفل الطلب على مستوى المعاملة (Advisory Lock)
-  PERFORM pg_advisory_xact_lock(
-    hashtext('proc_requisitions')::BIGINT,
-    p_req_id
-  );
+  --     نستخدم توقيع (integer, integer) لأن (bigint, bigint) غير موجود.
+  PERFORM pg_advisory_xact_lock(hashtext('proc_requisitions'), p_req_id::INT);
 
   SELECT * INTO v_req FROM proc_requisitions WHERE id = p_req_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'REQ_NOT_FOUND: الطلب غير موجود'; END IF;
@@ -366,7 +364,7 @@ BEGIN
   END IF;
 
   -- Advisory Lock على الطلب — أي عملية اعتماد/رفض على نفس الطلب تنتظر
-  PERFORM pg_advisory_xact_lock(hashtext('proc_requisitions')::BIGINT, v_req_id);
+  PERFORM pg_advisory_xact_lock(hashtext('proc_requisitions'), v_req_id::INT);
 
   -- الآن اقفل الخطوة والطلب معًا وأعد قراءتهما
   SELECT * INTO v_step FROM proc_requisition_approvals WHERE id = p_step_id FOR UPDATE;
@@ -458,7 +456,7 @@ BEGIN
   IF v_req_id IS NULL THEN
     RAISE EXCEPTION 'STEP_NOT_FOUND: خطوة الاعتماد غير موجودة';
   END IF;
-  PERFORM pg_advisory_xact_lock(hashtext('proc_requisitions')::BIGINT, v_req_id);
+  PERFORM pg_advisory_xact_lock(hashtext('proc_requisitions'), v_req_id::INT);
 
   SELECT * INTO v_step FROM proc_requisition_approvals WHERE id = p_step_id FOR UPDATE;
   IF v_step.status <> 'pending' THEN
@@ -518,7 +516,7 @@ BEGIN
     RAISE EXCEPTION 'USER_INACTIVE: المستخدم غير نشط';
   END IF;
 
-  PERFORM pg_advisory_xact_lock(hashtext('proc_requisitions')::BIGINT, p_req_id);
+  PERFORM pg_advisory_xact_lock(hashtext('proc_requisitions'), p_req_id::INT);
 
   SELECT * INTO v_req FROM proc_requisitions WHERE id = p_req_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'REQ_NOT_FOUND: الطلب غير موجود'; END IF;
@@ -594,7 +592,7 @@ BEGIN
     RAISE EXCEPTION 'PERMISSION_DENIED: يشترط دور مدير مشتريات/مالية';
   END IF;
 
-  PERFORM pg_advisory_xact_lock(hashtext('proc_requisitions')::BIGINT, p_req_id);
+  PERFORM pg_advisory_xact_lock(hashtext('proc_requisitions'), p_req_id::INT);
 
   SELECT * INTO v_req FROM proc_requisitions WHERE id = p_req_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'REQ_NOT_FOUND: الطلب غير موجود'; END IF;

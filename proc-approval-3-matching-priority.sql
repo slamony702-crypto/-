@@ -168,7 +168,7 @@ BEGIN
     RAISE EXCEPTION 'USER_INACTIVE: المستخدم غير نشط';
   END IF;
 
-  PERFORM pg_advisory_xact_lock(hashtext('proc_requisitions')::BIGINT, p_req_id);
+  PERFORM pg_advisory_xact_lock(hashtext('proc_requisitions'), p_req_id::INT);
 
   SELECT * INTO v_req FROM proc_requisitions WHERE id = p_req_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'REQ_NOT_FOUND: الطلب غير موجود'; END IF;
