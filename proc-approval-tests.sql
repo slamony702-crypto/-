@@ -808,6 +808,437 @@ END $$;
 ROLLBACK TO SAVEPOINT t21;
 
 -- ═══════════════════════════════════════════════════════════
+-- ═══════════════════════════════════════════════════════════
+-- PART 2 — اختبارات إضافية (بعد Migration 4 و 5)
+-- ═══════════════════════════════════════════════════════════
+-- ═══════════════════════════════════════════════════════════
+
+-- إعداد مستخدم إضافي لخمسة مستويات (deputy_manager)
+INSERT INTO users (id, full_name, role, auth_id, is_active)
+VALUES (99006, 'TEST Deputy Manager', 'deputy_manager', '99999999-0000-0000-0000-000000090006'::UUID, TRUE),
+       (99007, 'TEST Ops Manager',    'operations_manager', '99999999-0000-0000-0000-000000090007'::UUID, TRUE)
+ON CONFLICT (id) DO NOTHING;
+
+-- ═══════════════════════════════════════════════════════════
+-- TEST 22: five level approval
+-- ═══════════════════════════════════════════════════════════
+SAVEPOINT t22;
+DO $$
+DECLARE
+  v_req BIGINT;
+  v_s BIGINT;
+  v_final TEXT;
+BEGIN
+  INSERT INTO proc_approval_rules (rule_name, min_amount, required_role, step_order) VALUES
+    ('TEST_L1', 0, 'branch_manager',      1),
+    ('TEST_L2', 0, 'deputy_manager',      2),
+    ('TEST_L3', 0, 'operations_manager',  3),
+    ('TEST_L4', 0, 'procurement_manager', 4),
+    ('TEST_L5', 0, 'finance_manager',     5);
+
+  v_req := _test_create_req(50000);
+  PERFORM _test_as(99001); PERFORM proc_submit_requisition(v_req);
+
+  -- اعتمد بالتسلسل
+  SELECT id INTO v_s FROM proc_requisition_approvals WHERE requisition_id = v_req AND step_no = 1;
+  PERFORM _test_as(99002); PERFORM proc_approve_step(v_s, 'L1');
+  SELECT id INTO v_s FROM proc_requisition_approvals WHERE requisition_id = v_req AND step_no = 2;
+  PERFORM _test_as(99006); PERFORM proc_approve_step(v_s, 'L2');
+  SELECT id INTO v_s FROM proc_requisition_approvals WHERE requisition_id = v_req AND step_no = 3;
+  PERFORM _test_as(99007); PERFORM proc_approve_step(v_s, 'L3');
+  SELECT id INTO v_s FROM proc_requisition_approvals WHERE requisition_id = v_req AND step_no = 4;
+  PERFORM _test_as(99003); PERFORM proc_approve_step(v_s, 'L4');
+  SELECT id INTO v_s FROM proc_requisition_approvals WHERE requisition_id = v_req AND step_no = 5;
+  PERFORM _test_as(99004); PERFORM proc_approve_step(v_s, 'L5');
+
+  SELECT status INTO v_final FROM proc_requisitions WHERE id = v_req;
+  IF v_final = 'approved' THEN
+    RAISE NOTICE 'TEST 22: PASS — 5 مستويات تسلسلي انتهى بـapproved';
+  ELSE
+    RAISE NOTICE 'TEST 22: FAIL — الحالة النهائية: %', v_final;
+  END IF;
+END $$;
+ROLLBACK TO SAVEPOINT t22;
+
+-- ═══════════════════════════════════════════════════════════
+-- TEST 23: snapshot immutability — تعديل القاعدة بعد بدء المسار
+--          لا يؤثر على الخطوة الجارية
+-- ═══════════════════════════════════════════════════════════
+SAVEPOINT t23;
+DO $$
+DECLARE
+  v_req BIGINT;
+  v_rule_id BIGINT;
+  v_step BIGINT;
+  v_role_before TEXT; v_role_after TEXT;
+  v_snapshot_role_before TEXT; v_snapshot_role_after TEXT;
+BEGIN
+  INSERT INTO proc_approval_rules (rule_name, min_amount, required_role, step_order)
+  VALUES ('TEST_L1', 0, 'procurement_manager', 1)
+  RETURNING id INTO v_rule_id;
+
+  v_req := _test_create_req(500);
+  PERFORM _test_as(99001); PERFORM proc_submit_requisition(v_req);
+  SELECT id, required_role, rule_snapshot->>'required_role' INTO v_step, v_role_before, v_snapshot_role_before
+    FROM proc_requisition_approvals WHERE requisition_id = v_req AND step_no = 1;
+
+  -- الآن نغير الدور المطلوب في القاعدة
+  UPDATE proc_approval_rules SET required_role = 'finance_manager' WHERE id = v_rule_id;
+
+  SELECT required_role, rule_snapshot->>'required_role' INTO v_role_after, v_snapshot_role_after
+    FROM proc_requisition_approvals WHERE id = v_step;
+
+  IF v_role_before = v_role_after
+     AND v_snapshot_role_before = v_snapshot_role_after
+     AND v_role_before = 'procurement_manager' THEN
+    RAISE NOTICE 'TEST 23: PASS — snapshot ثابت بعد تعديل القاعدة';
+  ELSE
+    RAISE NOTICE 'TEST 23: FAIL — before role=%, after role=%, snap_before=%, snap_after=%',
+      v_role_before, v_role_after, v_snapshot_role_before, v_snapshot_role_after;
+  END IF;
+END $$;
+ROLLBACK TO SAVEPOINT t23;
+
+-- ═══════════════════════════════════════════════════════════
+-- TEST 24: rule disabled after submission — الخطوة القائمة قابلة للاعتماد
+-- (مشابه TEST 16 لكن مركّز على allow_self_approval snapshot أيضًا)
+-- ═══════════════════════════════════════════════════════════
+SAVEPOINT t24;
+DO $$
+DECLARE
+  v_req BIGINT;
+  v_rule_id BIGINT;
+  v_step BIGINT;
+BEGIN
+  INSERT INTO proc_approval_rules (rule_name, min_amount, required_role, step_order, allow_self_approval)
+  VALUES ('TEST_L1', 0, 'procurement_manager', 1, FALSE)
+  RETURNING id INTO v_rule_id;
+
+  v_req := _test_create_req(500);
+  PERFORM _test_as(99001); PERFORM proc_submit_requisition(v_req);
+
+  -- عطّل + غيّر allow_self_approval في القاعدة
+  UPDATE proc_approval_rules
+  SET is_active = FALSE, allow_self_approval = TRUE
+  WHERE id = v_rule_id;
+
+  -- المفروض snapshot يفرض allow_self_approval = FALSE
+  SELECT id INTO v_step FROM proc_requisition_approvals WHERE requisition_id = v_req AND step_no = 1;
+
+  -- صاحب الطلب (99001) يحاول الاعتماد — يجب أن يُرفض حتى بعد تعديل القاعدة الحية
+  PERFORM _test_as(99001);
+  -- لكن دوره employee، ليس procurement_manager — لن يمر role check أولًا
+  -- نغير دور 99001 مؤقتًا لـprocurement_manager
+  UPDATE users SET role = 'procurement_manager' WHERE id = 99001;
+
+  BEGIN
+    PERFORM proc_approve_step(v_step, 'self');
+    RAISE NOTICE 'TEST 24: FAIL — كان يجب رفع SELF_APPROVAL_BLOCKED (snapshot يحدد الحماية)';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM LIKE '%SELF_APPROVAL_BLOCKED%' THEN
+      RAISE NOTICE 'TEST 24: PASS — snapshot allow_self_approval=FALSE محفوظ رغم تعديل القاعدة';
+    ELSE
+      RAISE NOTICE 'TEST 24: FAIL — خطأ غير متوقع: %', SQLERRM;
+    END IF;
+  END;
+END $$;
+ROLLBACK TO SAVEPOINT t24;
+
+-- ═══════════════════════════════════════════════════════════
+-- TEST 25: duplicate PO creation — UNIQUE partial index يمنع
+-- ═══════════════════════════════════════════════════════════
+SAVEPOINT t25;
+DO $$
+DECLARE
+  v_req BIGINT;
+  v_s BIGINT;
+  v_vendor BIGINT;
+  v_po1 BIGINT;
+BEGIN
+  INSERT INTO proc_approval_rules (rule_name, min_amount, required_role, step_order)
+  VALUES ('TEST_L1', 0, 'procurement_manager', 1);
+  v_req := _test_create_req(500);
+  PERFORM _test_as(99001); PERFORM proc_submit_requisition(v_req);
+  SELECT id INTO v_s FROM proc_requisition_approvals WHERE requisition_id = v_req AND step_no = 1;
+  PERFORM _test_as(99003); PERFORM proc_approve_step(v_s, 'ok');
+
+  SELECT id INTO v_vendor FROM acct_vendors LIMIT 1;
+  IF v_vendor IS NULL THEN
+    RAISE NOTICE 'TEST 25: SKIPPED — لا يوجد مورد';
+    RETURN;
+  END IF;
+
+  -- PO الأول
+  INSERT INTO proc_purchase_orders (vendor_id, requisition_id, created_by)
+  VALUES (v_vendor, v_req, 99003)
+  RETURNING id INTO v_po1;
+
+  -- محاولة PO ثانٍ لنفس الطلب — يجب أن يفشل بـUNIQUE
+  BEGIN
+    INSERT INTO proc_purchase_orders (vendor_id, requisition_id, created_by)
+    VALUES (v_vendor, v_req, 99003);
+    RAISE NOTICE 'TEST 25: FAIL — تم إنشاء PO ثانٍ! المفروض UNIQUE يمنع';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM LIKE '%duplicate key%' OR SQLERRM LIKE '%proc_po_unique_requisition%' THEN
+      RAISE NOTICE 'TEST 25: PASS — منع PO ثانٍ لنفس الطلب';
+    ELSE
+      RAISE NOTICE 'TEST 25: FAIL — خطأ غير متوقع: %', SQLERRM;
+    END IF;
+  END;
+END $$;
+ROLLBACK TO SAVEPOINT t25;
+
+-- ═══════════════════════════════════════════════════════════
+-- TEST 26: RULE_IN_USE — منع حذف قاعدة مستخدمة
+-- ═══════════════════════════════════════════════════════════
+SAVEPOINT t26;
+DO $$
+DECLARE
+  v_req BIGINT;
+  v_rule BIGINT;
+BEGIN
+  INSERT INTO proc_approval_rules (rule_name, min_amount, required_role, step_order)
+  VALUES ('TEST_L1', 0, 'procurement_manager', 1)
+  RETURNING id INTO v_rule;
+  v_req := _test_create_req(500);
+  PERFORM _test_as(99001); PERFORM proc_submit_requisition(v_req);
+
+  BEGIN
+    DELETE FROM proc_approval_rules WHERE id = v_rule;
+    RAISE NOTICE 'TEST 26: FAIL — كان يجب رفع RULE_IN_USE';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM LIKE '%RULE_IN_USE%' THEN
+      RAISE NOTICE 'TEST 26: PASS — منع حذف قاعدة مستخدمة';
+    ELSE
+      RAISE NOTICE 'TEST 26: FAIL — خطأ غير متوقع: %', SQLERRM;
+    END IF;
+  END;
+END $$;
+ROLLBACK TO SAVEPOINT t26;
+
+-- ═══════════════════════════════════════════════════════════
+-- TEST 27: audit — إنشاء قاعدة يُسجَّل في history
+-- ═══════════════════════════════════════════════════════════
+SAVEPOINT t27;
+DO $$
+DECLARE
+  v_rule BIGINT;
+  v_hist_count INT;
+BEGIN
+  PERFORM _test_as(99003);
+  INSERT INTO proc_approval_rules (rule_name, min_amount, required_role, step_order)
+  VALUES ('TEST_AUDIT_C', 0, 'procurement_manager', 1)
+  RETURNING id INTO v_rule;
+
+  SELECT COUNT(*) INTO v_hist_count FROM proc_approval_rules_history
+    WHERE rule_id = v_rule AND action = 'created';
+  IF v_hist_count = 1 THEN
+    RAISE NOTICE 'TEST 27: PASS — created مسجَّل في history';
+  ELSE
+    RAISE NOTICE 'TEST 27: FAIL — count = %', v_hist_count;
+  END IF;
+END $$;
+ROLLBACK TO SAVEPOINT t27;
+
+-- ═══════════════════════════════════════════════════════════
+-- TEST 28: audit — تعديل يسجل الحقول المتغيرة
+-- ═══════════════════════════════════════════════════════════
+SAVEPOINT t28;
+DO $$
+DECLARE
+  v_rule BIGINT;
+  v_keys TEXT[];
+BEGIN
+  PERFORM _test_as(99003);
+  INSERT INTO proc_approval_rules (rule_name, min_amount, required_role, step_order, priority)
+  VALUES ('TEST_AUDIT_U', 0, 'procurement_manager', 1, 100)
+  RETURNING id INTO v_rule;
+
+  UPDATE proc_approval_rules
+  SET priority = 200, description = 'تحديث'
+  WHERE id = v_rule;
+
+  SELECT changed_keys INTO v_keys FROM proc_approval_rules_history
+    WHERE rule_id = v_rule AND action = 'updated'
+    ORDER BY created_at DESC LIMIT 1;
+
+  IF 'priority' = ANY(v_keys) AND 'description' = ANY(v_keys) THEN
+    RAISE NOTICE 'TEST 28: PASS — updated سجل priority و description';
+  ELSE
+    RAISE NOTICE 'TEST 28: FAIL — changed_keys=%', v_keys;
+  END IF;
+END $$;
+ROLLBACK TO SAVEPOINT t28;
+
+-- ═══════════════════════════════════════════════════════════
+-- TEST 29: audit — تعطيل يُسجَّل كـdeactivated (وليس updated)
+-- ═══════════════════════════════════════════════════════════
+SAVEPOINT t29;
+DO $$
+DECLARE
+  v_rule BIGINT;
+  v_action TEXT;
+BEGIN
+  PERFORM _test_as(99003);
+  INSERT INTO proc_approval_rules (rule_name, min_amount, required_role, step_order)
+  VALUES ('TEST_AUDIT_D', 0, 'procurement_manager', 1)
+  RETURNING id INTO v_rule;
+
+  UPDATE proc_approval_rules SET is_active = FALSE WHERE id = v_rule;
+
+  SELECT action INTO v_action FROM proc_approval_rules_history
+    WHERE rule_id = v_rule AND action IN ('activated','deactivated')
+    ORDER BY created_at DESC LIMIT 1;
+  IF v_action = 'deactivated' THEN
+    RAISE NOTICE 'TEST 29: PASS — deactivated مُسجَّل بشكل مختلف عن updated';
+  ELSE
+    RAISE NOTICE 'TEST 29: FAIL — action=%', v_action;
+  END IF;
+END $$;
+ROLLBACK TO SAVEPOINT t29;
+
+-- ═══════════════════════════════════════════════════════════
+-- TEST 30: notifications — إشعار عند إرسال الطلب لأول خطوة
+-- ═══════════════════════════════════════════════════════════
+SAVEPOINT t30;
+DO $$
+DECLARE
+  v_req BIGINT;
+  v_notif_count INT;
+BEGIN
+  INSERT INTO proc_approval_rules (rule_name, min_amount, required_role, step_order)
+  VALUES ('TEST_L1', 0, 'procurement_manager', 1);
+
+  v_req := _test_create_req(500);
+  PERFORM _test_as(99001); PERFORM proc_submit_requisition(v_req);
+
+  -- 99003 هو procurement_manager — يجب أن يستقبل إشعار
+  SELECT COUNT(*) INTO v_notif_count FROM notifications
+    WHERE user_id = 99003 AND link = '#proc_requisition/' || v_req;
+  IF v_notif_count >= 1 THEN
+    RAISE NOTICE 'TEST 30: PASS — إشعار وصل للـprocurement_manager (%)', v_notif_count;
+  ELSE
+    RAISE NOTICE 'TEST 30: FAIL — لم يصل إشعار';
+  END IF;
+END $$;
+ROLLBACK TO SAVEPOINT t30;
+
+-- ═══════════════════════════════════════════════════════════
+-- TEST 31: notifications — لا إشعار للخطوات المستقبلية قبل دورها
+-- ═══════════════════════════════════════════════════════════
+SAVEPOINT t31;
+DO $$
+DECLARE
+  v_req BIGINT;
+  v_fin_notifs INT;
+BEGIN
+  INSERT INTO proc_approval_rules (rule_name, min_amount, required_role, step_order) VALUES
+    ('TEST_L1', 0, 'branch_manager',      1),
+    ('TEST_L2', 0, 'finance_manager',     2);
+
+  v_req := _test_create_req(500);
+  PERFORM _test_as(99001); PERFORM proc_submit_requisition(v_req);
+
+  -- finance_manager (99004) لا يجب أن يستقبل إشعار قبل خطوة 1
+  SELECT COUNT(*) INTO v_fin_notifs FROM notifications
+    WHERE user_id = 99004 AND link = '#proc_requisition/' || v_req;
+  IF v_fin_notifs = 0 THEN
+    RAISE NOTICE 'TEST 31: PASS — لا إشعار لخطوة مستقبلية';
+  ELSE
+    RAISE NOTICE 'TEST 31: FAIL — إشعار وصل مبكرًا (%)', v_fin_notifs;
+  END IF;
+END $$;
+ROLLBACK TO SAVEPOINT t31;
+
+-- ═══════════════════════════════════════════════════════════
+-- TEST 32: notifications — بعد خطوة 1، الإشعار ينتقل للخطوة 2
+-- ═══════════════════════════════════════════════════════════
+SAVEPOINT t32;
+DO $$
+DECLARE
+  v_req BIGINT;
+  v_s1 BIGINT;
+  v_fin_notifs INT;
+BEGIN
+  INSERT INTO proc_approval_rules (rule_name, min_amount, required_role, step_order) VALUES
+    ('TEST_L1', 0, 'branch_manager',      1),
+    ('TEST_L2', 0, 'finance_manager',     2);
+
+  v_req := _test_create_req(500);
+  PERFORM _test_as(99001); PERFORM proc_submit_requisition(v_req);
+  SELECT id INTO v_s1 FROM proc_requisition_approvals WHERE requisition_id = v_req AND step_no = 1;
+  PERFORM _test_as(99002); PERFORM proc_approve_step(v_s1, 'L1 ok');
+
+  -- الآن finance_manager (99004) يجب أن يستقبل إشعار
+  SELECT COUNT(*) INTO v_fin_notifs FROM notifications
+    WHERE user_id = 99004 AND link = '#proc_requisition/' || v_req;
+  IF v_fin_notifs >= 1 THEN
+    RAISE NOTICE 'TEST 32: PASS — الإشعار انتقل للخطوة التالية';
+  ELSE
+    RAISE NOTICE 'TEST 32: FAIL — لم ينتقل الإشعار (%)', v_fin_notifs;
+  END IF;
+END $$;
+ROLLBACK TO SAVEPOINT t32;
+
+-- ═══════════════════════════════════════════════════════════
+-- TEST 33: notifications — إشعار صاحب الطلب عند الاعتماد النهائي
+-- ═══════════════════════════════════════════════════════════
+SAVEPOINT t33;
+DO $$
+DECLARE
+  v_req BIGINT;
+  v_s1 BIGINT;
+  v_req_notifs INT;
+BEGIN
+  INSERT INTO proc_approval_rules (rule_name, min_amount, required_role, step_order)
+  VALUES ('TEST_L1', 0, 'procurement_manager', 1);
+
+  v_req := _test_create_req(500);
+  PERFORM _test_as(99001); PERFORM proc_submit_requisition(v_req);
+  SELECT id INTO v_s1 FROM proc_requisition_approvals WHERE requisition_id = v_req AND step_no = 1;
+  PERFORM _test_as(99003); PERFORM proc_approve_step(v_s1, 'ok');
+
+  SELECT COUNT(*) INTO v_req_notifs FROM notifications
+    WHERE user_id = 99001 AND link = '#proc_requisition/' || v_req
+      AND title LIKE '%اعتماد%';
+  IF v_req_notifs >= 1 THEN
+    RAISE NOTICE 'TEST 33: PASS — صاحب الطلب يستقبل إشعار الاعتماد النهائي';
+  ELSE
+    RAISE NOTICE 'TEST 33: FAIL — لم يصل إشعار (%)', v_req_notifs;
+  END IF;
+END $$;
+ROLLBACK TO SAVEPOINT t33;
+
+-- ═══════════════════════════════════════════════════════════
+-- TEST 34: notifications — إشعار صاحب الطلب عند الرفض
+-- ═══════════════════════════════════════════════════════════
+SAVEPOINT t34;
+DO $$
+DECLARE
+  v_req BIGINT;
+  v_s1 BIGINT;
+  v_req_notifs INT;
+BEGIN
+  INSERT INTO proc_approval_rules (rule_name, min_amount, required_role, step_order)
+  VALUES ('TEST_L1', 0, 'procurement_manager', 1);
+
+  v_req := _test_create_req(500);
+  PERFORM _test_as(99001); PERFORM proc_submit_requisition(v_req);
+  SELECT id INTO v_s1 FROM proc_requisition_approvals WHERE requisition_id = v_req AND step_no = 1;
+  PERFORM _test_as(99003); PERFORM proc_reject_step(v_s1, 'not needed');
+
+  SELECT COUNT(*) INTO v_req_notifs FROM notifications
+    WHERE user_id = 99001 AND link = '#proc_requisition/' || v_req
+      AND title LIKE '%رفض%';
+  IF v_req_notifs >= 1 THEN
+    RAISE NOTICE 'TEST 34: PASS — صاحب الطلب يستقبل إشعار الرفض';
+  ELSE
+    RAISE NOTICE 'TEST 34: FAIL — لم يصل إشعار رفض';
+  END IF;
+END $$;
+ROLLBACK TO SAVEPOINT t34;
+
+-- ═══════════════════════════════════════════════════════════
 -- تنظيف نهائي — ROLLBACK يلغي كل شيء (بما فيه المستخدمين التجريبيين)
 -- ═══════════════════════════════════════════════════════════
 ROLLBACK;
