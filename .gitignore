@@ -1,1 +1,21 @@
 node_modules/
+.vercel
+
+# Environment files — NEVER commit real values
+.env
+.env.local
+.env.staging.local
+.env.production.local
+.env.*.local
+.env.staging
+!.env.example
+
+# Supabase local artifacts
+supabase/.temp/
+supabase/.branches/
+_reengineering/cloud-test/**/*.local.*
+_reengineering/cloud-test/screenshots/**/*.tmp
+
+# Local test artifacts (nothing sensitive but noise)
+*.local.sql
+scratchpad/

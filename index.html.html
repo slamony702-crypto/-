@@ -5271,9 +5271,55 @@ const APP_VERSION = 'v132-2026-07-18-larger-logo';
 })();
 
 // ============ إعداد الاتصال بـ Supabase ============
-const SUPABASE_URL = 'https://dfuqmmagtteemtpywody.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_kWfHiBqJC_8pzHSnAIfXUw_ZKwDOP4f';
+// ═══════════════════════════════════════════════════════════
+// Supabase Client — Production + Staging Override
+// ═══════════════════════════════════════════════════════════
+// آلية Staging Override آمنة:
+//   1) استخدم "?staging=1" في URL لفتح البيئة الاختبارية
+//   2) أو localStorage.setItem('sg_env', 'staging') يدويًا
+//   3) URL + anon key لـstaging يُقرآن من localStorage:
+//        sg_staging_url, sg_staging_anon
+//      (لن يُلصَقا في Git، تُدخل يدويًا من DevTools)
+//   4) بأي حالة أخرى: القيم الافتراضية (Production).
+//   5) شارة بصرية في الـtop bar تُظهر البيئة الحالية.
+// ═══════════════════════════════════════════════════════════
+const _PROD_SUPABASE_URL = 'https://dfuqmmagtteemtpywody.supabase.co';
+const _PROD_SUPABASE_KEY = 'sb_publishable_kWfHiBqJC_8pzHSnAIfXUw_ZKwDOP4f';
+
+function _detectSupabaseEnv() {
+  try {
+    // 1) URL query wins (سهل للتبديل السريع)
+    const qs = new URLSearchParams(location.search);
+    if (qs.get('staging') === '1') localStorage.setItem('sg_env', 'staging');
+    if (qs.get('staging') === '0') localStorage.setItem('sg_env', 'production');
+    // 2) اقرأ من localStorage
+    const envName = localStorage.getItem('sg_env') || 'production';
+    if (envName === 'staging') {
+      const url = localStorage.getItem('sg_staging_url');
+      const key = localStorage.getItem('sg_staging_anon');
+      if (url && key) return { env: 'staging', url, key };
+      console.warn('Staging mode selected but sg_staging_url/sg_staging_anon not set — falling back to production');
+    }
+  } catch (e) { /* localStorage غير متاح */ }
+  return { env: 'production', url: _PROD_SUPABASE_URL, key: _PROD_SUPABASE_KEY };
+}
+
+const _SB_ENV = _detectSupabaseEnv();
+const SUPABASE_URL = _SB_ENV.url;
+const SUPABASE_KEY = _SB_ENV.key;
+const CURRENT_ENV  = _SB_ENV.env;
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// شارة بصرية عند الاختبار على staging
+if (CURRENT_ENV === 'staging') {
+  window.addEventListener('DOMContentLoaded', () => {
+    const badge = document.createElement('div');
+    badge.textContent = 'STAGING';
+    badge.style.cssText = 'position:fixed;top:10px;left:10px;z-index:99999;background:#F59E0B;color:#111;padding:4px 10px;border-radius:6px;font-weight:800;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,.2);pointer-events:none;';
+    document.body.appendChild(badge);
+    console.log('%c⚠️ STAGING ENVIRONMENT ⚠️', 'background:#F59E0B;color:#111;padding:6px 12px;font-size:14px;font-weight:800;');
+  });
+}
 
 // fetch مع مهلة زمنية — يمنع تعليق الواجهة لو الشبكة/API بطيء
 // الاستخدام: await fetchWithTimeout(url, opts, 30000)
