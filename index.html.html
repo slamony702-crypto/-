@@ -32431,12 +32431,96 @@ async function openProcRequisitionModal() {
   });
 }
 
+// helper: render chain section (steps + activity)
+function _renderProcApprovalChain(chain, req) {
+  const steps = (chain && chain.steps) || [];
+  const activity = (chain && chain.activity) || [];
+  if (steps.length === 0 && activity.length === 0) return '';
+  const stepRows = steps.length ? steps.map(s => {
+    const roleLabel = (PROC_APPR_ROLES.find(r => r.value === s.required_role) || {}).label || s.required_role;
+    const statusLabel = PROC_APPR_STATUS_LABELS[s.status] || s.status;
+    const statusClass = ({
+      pending: 'proc-appr-pending',
+      approved: 'proc-appr-approved',
+      rejected: 'proc-appr-rejected',
+      cancelled: 'proc-appr-cancelled',
+      skipped: 'proc-appr-cancelled'
+    })[s.status] || '';
+    const canActThisStep = (
+      req.status === 'submitted'
+      && s.status === 'pending'
+      && (CURRENT_USER?.role === 'admin' || CURRENT_USER?.role === s.required_role)
+      && (s.assigned_to == null || s.assigned_to === CURRENT_USER?.id || CURRENT_USER?.role === 'admin')
+      && req.requested_by !== CURRENT_USER?.id
+    );
+    // منع التصرف قبل اكتمال الخطوات السابقة
+    const priorPending = steps.some(x => x.step_no < s.step_no && x.status !== 'approved');
+    const canActFinal = canActThisStep && !priorPending;
+    return `<tr>
+      <td class="mono-num">${s.step_no}</td>
+      <td>${esc(roleLabel)}</td>
+      <td><span class="proc-appr-badge ${statusClass}">${esc(statusLabel)}</span></td>
+      <td>${esc(s.decided_by_name || '—')}</td>
+      <td>${s.decided_at ? esc(s.decided_at.slice(0,10)) : '—'}</td>
+      <td>${esc(s.comment || '—')}</td>
+      <td>${canActFinal
+        ? `<button type="button" class="btn-slim btn-slim-primary proc-step-approve" data-step-id="${s.id}"><span data-lucide="check" style="width:11px;height:11px;"></span> اعتماد</button>
+           <button type="button" class="btn-slim btn-slim-danger proc-step-reject" data-step-id="${s.id}"><span data-lucide="x" style="width:11px;height:11px;"></span> رفض</button>`
+        : ''}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:12px;">لا توجد خطوات اعتماد — الطلب في التدفق التقليدي (مُعتمِد واحد)</td></tr>`;
+  const activityRows = activity.length ? activity.map(a => `<tr>
+    <td>${esc(PROC_APPR_ACTION_LABELS[a.action] || a.action)}</td>
+    <td>${esc(a.actor_name || '—')}</td>
+    <td>${esc(a.actor_role || '—')}</td>
+    <td>${esc(a.note || '—')}</td>
+    <td class="mono-num" style="font-size:11px;">${a.created_at ? esc(a.created_at.slice(0,16).replace('T',' ')) : ''}</td>
+  </tr>`).join('') : '';
+  return `
+    <style>
+      .proc-appr-badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;}
+      .proc-appr-pending{background:#fff8e1;color:#8a6d00;border:1px solid #f0d878;}
+      .proc-appr-approved{background:#e8f8f2;color:#0a6e50;border:1px solid #8ed7bd;}
+      .proc-appr-rejected{background:#fde7ea;color:#8b1e2b;border:1px solid #e88a99;}
+      .proc-appr-cancelled{background:#eef0f2;color:#5a6b73;border:1px solid #cfd6db;}
+      .btn-slim{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:8px;border:1px solid transparent;font-size:12px;cursor:pointer;margin:1px;}
+      .btn-slim-primary{background:#0FAF83;color:#fff;border-color:#0FAF83;}
+      .btn-slim-primary:hover{background:#0d9873;}
+      .btn-slim-danger{background:#fff;color:#c83d4d;border-color:#e88a99;}
+      .btn-slim-danger:hover{background:#fde7ea;}
+    </style>
+    <div class="panel" style="margin-top:18px;"><div class="panel-header"><h3><span data-lucide="workflow" style="width:14px;height:14px;vertical-align:-2px;margin-left:5px;"></span> سلسلة الاعتماد</h3></div><div class="panel-body" style="padding:0;">
+      <div style="overflow-x:auto;"><table class="hr-emp-table">
+        <thead><tr><th>#</th><th>الدور المطلوب</th><th>الحالة</th><th>القرار من</th><th>تاريخ القرار</th><th>ملاحظة</th><th>إجراء</th></tr></thead>
+        <tbody>${stepRows}</tbody>
+      </table></div>
+    </div></div>
+    ${activityRows ? `<div class="panel" style="margin-top:14px;"><div class="panel-header"><h3><span data-lucide="history" style="width:14px;height:14px;vertical-align:-2px;margin-left:5px;"></span> سجل نشاط الاعتماد</h3></div><div class="panel-body" style="padding:0;">
+      <div style="overflow-x:auto;"><table class="hr-emp-table">
+        <thead><tr><th>الحدث</th><th>المستخدم</th><th>الدور</th><th>ملاحظة</th><th>الوقت</th></tr></thead>
+        <tbody>${activityRows}</tbody>
+      </table></div>
+    </div></div>` : ''}
+  `;
+}
+
 async function pageProcRequisitionDetail(body, idParam) {
   const id = Number(idParam);
-  const { req, items, error } = await PROC.requisitions.get(id);
+  const [reqRes, chainRes, totalRes] = await Promise.all([
+    PROC.requisitions.get(id),
+    PROC.approvals.getChain(id),
+    PROC.approvals.requisitionTotal(id)
+  ]);
+  const { req, items, error } = reqRes;
   if (error || !req) { body.innerHTML = `<p class="error-msg show">${esc(error?.message || 'الطلب غير موجود')}</p>`; return; }
+  const chain = chainRes.data || { steps: [], activity: [] };
+  const estimatedTotal = totalRes.data || 0;
   const isOwner = req.requested_by === CURRENT_USER.id;
   const canApprove = isProcurementManager();
+  const hasChain = Array.isArray(chain.steps) && chain.steps.length > 0;
+  // legacy approve/reject شرطها: submitted + لا توجد سلسلة (fallback)
+  const showLegacyActions = canApprove && req.status === 'submitted' && !hasChain;
+  const canCancelDuringAppr = (isOwner || canApprove) && req.status === 'submitted';
   body.innerHTML = `
     <a href="#proc_requisitions" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للطلبات</a>
     <div class="hr-emp-hero">
@@ -32448,12 +32532,14 @@ async function pageProcRequisitionDetail(body, idParam) {
             <span>${esc(req.requester?.full_name || '—')}</span>
             <span>${esc(PROC_REQ_STATUS_LABELS[req.status])}</span>
             <span>${esc(PROC_PRIORITY_LABELS[req.priority])}</span>
+            <span>الإجمالي التقديري: <strong class="mono-num">${estimatedTotal.toFixed(2)}</strong> ر.س</span>
           </div>
         </div>
         <div class="hr-emp-hero-actions">
-          ${isOwner && req.status === 'draft' ? `<button type="button" class="hr-emp-hero-btn" id="procReqSubmit"><span data-lucide="send" style="width:13px;height:13px;"></span> تقديم</button>` : ''}
-          ${canApprove && req.status === 'submitted' ? `<button type="button" class="hr-emp-hero-btn" id="procReqApprove"><span data-lucide="check" style="width:13px;height:13px;"></span> اعتماد</button>` : ''}
-          ${canApprove && req.status === 'submitted' ? `<button type="button" class="hr-emp-hero-btn" id="procReqReject"><span data-lucide="x" style="width:13px;height:13px;"></span> رفض</button>` : ''}
+          ${isOwner && req.status === 'draft' ? `<button type="button" class="hr-emp-hero-btn" id="procReqSubmit"><span data-lucide="send" style="width:13px;height:13px;"></span> تقديم للاعتماد</button>` : ''}
+          ${showLegacyActions ? `<button type="button" class="hr-emp-hero-btn" id="procReqApprove"><span data-lucide="check" style="width:13px;height:13px;"></span> اعتماد</button>` : ''}
+          ${showLegacyActions ? `<button type="button" class="hr-emp-hero-btn" id="procReqReject"><span data-lucide="x" style="width:13px;height:13px;"></span> رفض</button>` : ''}
+          ${canCancelDuringAppr ? `<button type="button" class="hr-emp-hero-btn" id="procReqCancel"><span data-lucide="ban" style="width:13px;height:13px;"></span> إلغاء الطلب</button>` : ''}
           ${canApprove && req.status === 'approved' ? `<button type="button" class="hr-emp-hero-btn" id="procReqConvert"><span data-lucide="shopping-bag" style="width:13px;height:13px;"></span> تحويل لأمر شراء</button>` : ''}
         </div>
       </div>
@@ -32462,8 +32548,8 @@ async function pageProcRequisitionDetail(body, idParam) {
       ${_hrInfo('الفرع', req.branches?.name)}
       ${_hrInfo('القسم', req.departments?.name)}
       ${_hrInfo('مطلوب في', req.needed_by_date)}
-      ${req.approver ? _hrInfo('اعتمده', req.approver.full_name) : ''}
-      ${req.rejection_reason ? _hrInfo('سبب الرفض', req.rejection_reason) : ''}
+      ${req.approver ? _hrInfo('المُعتمِد النهائي', req.approver.full_name) : ''}
+      ${req.rejection_reason ? _hrInfo('سبب الرفض/الإلغاء', req.rejection_reason) : ''}
     </div>
     <div class="panel"><div class="panel-header"><h3>البنود</h3></div><div class="panel-body" style="padding:0;">
       <div style="overflow-x:auto;"><table class="hr-emp-table">
@@ -32477,14 +32563,23 @@ async function pageProcRequisitionDetail(body, idParam) {
         </tr>`).join('')}</tbody>
       </table></div>
     </div></div>
+    ${_renderProcApprovalChain(chain, req)}
     <div id="procModalHost"></div>
   `;
   if (window.lucide) lucide.createIcons();
+
+  // تقديم للاعتماد — يستخدم RPC اللي يقرر تلقائيًا: multi أو legacy
   document.getElementById('procReqSubmit')?.addEventListener('click', async () => {
-    const { error } = await PROC.requisitions.submit(id);
+    const { data, error } = await PROC.approvals.submit(id);
     if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
-    toast('تم تقديم الطلب', 'success'); route();
+    const mode = data?.mode === 'multi'
+      ? `تم التقديم — ${data.steps_created} خطوة اعتماد`
+      : 'تم التقديم (لا توجد قواعد اعتماد مُعرَّفة — تدفق تقليدي)';
+    toast(mode, 'success');
+    route();
   });
+
+  // legacy fallback: اعتماد مباشر
   document.getElementById('procReqApprove')?.addEventListener('click', async () => {
     const { error } = await PROC.requisitions.approve(id);
     if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
@@ -32497,6 +32592,39 @@ async function pageProcRequisitionDetail(body, idParam) {
     if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
     toast('تم رفض الطلب', 'success'); route();
   });
+
+  // إلغاء الطلب أثناء الاعتماد
+  document.getElementById('procReqCancel')?.addEventListener('click', async () => {
+    const reason = await customPrompt('سبب الإلغاء:', '');
+    if (reason === null) return;
+    const { error } = await PROC.approvals.cancelRequisition(id, reason || '—');
+    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+    toast('تم إلغاء الطلب', 'success'); route();
+  });
+
+  // multi-level: اعتماد خطوة معينة
+  document.querySelectorAll('.proc-step-approve').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const stepId = Number(btn.getAttribute('data-step-id'));
+      const comment = await customPrompt('ملاحظة (اختياري):', '');
+      const { data, error } = await PROC.approvals.approveStep(stepId, comment || null);
+      if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+      toast(data?.is_final ? 'تم الاعتماد النهائي' : 'تم اعتماد خطوتك — بانتظار الخطوة التالية', 'success');
+      route();
+    });
+  });
+  // multi-level: رفض خطوة معينة
+  document.querySelectorAll('.proc-step-reject').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const stepId = Number(btn.getAttribute('data-step-id'));
+      const reason = await customPrompt('سبب الرفض (مطلوب):', '');
+      if (!reason || !String(reason).trim()) { toast('سبب الرفض مطلوب', 'error'); return; }
+      const { error } = await PROC.approvals.rejectStep(stepId, reason);
+      if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
+      toast('تم رفض الطلب', 'success'); route();
+    });
+  });
+
   document.getElementById('procReqConvert')?.addEventListener('click', () => openProcConvertToPoModal(id));
 }
 
