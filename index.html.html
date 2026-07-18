@@ -7511,38 +7511,52 @@ const AIA = {
 
   // الحد اليومي: عدد أسئلة المستخدم اليوم مقابل ai_settings.daily_message_limit
   async checkDailyLimit() {
+    // ملاحظة أمنية: لم نعد نقرأ extra_instructions هنا — العميل لا يمرر أي تعليمات
+    // نظام للخادم. التعليمات محفوظة server-side فقط (promptMode معرّف مسموح).
     try {
-      const { data: settings } = await sb.from('ai_settings').select('is_enabled, daily_message_limit, extra_instructions').eq('id', 1).maybeSingle();
+      const { data: settings } = await sb.from('ai_settings').select('is_enabled, daily_message_limit').eq('id', 1).maybeSingle();
       if (settings && settings.is_enabled === false) return { ok: false, reason: 'المساعد الذكي موقوف حاليًا من الإدارة' };
       const limit = settings ? Number(settings.daily_message_limit) : 50;
       const { data: own } = await sb.from('ai_sessions').select('id').eq('user_id', CURRENT_USER.id).limit(200);
       const ids = (own || []).map(s => s.id);
-      if (!ids.length) return { ok: true, extra: settings?.extra_instructions || null };
+      if (!ids.length) return { ok: true };
       const today = new Date(); today.setHours(0, 0, 0, 0);
       const { count } = await sb.from('ai_session_messages').select('id', { count: 'exact', head: true })
         .in('session_id', ids).eq('role', 'user').gte('created_at', today.toISOString());
       if ((count || 0) >= limit) return { ok: false, reason: `وصلت للحد اليومي (${limit} سؤالًا) — عد غدًا` };
-      return { ok: true, extra: settings?.extra_instructions || null };
-    } catch (e) { return { ok: true, extra: null }; }
+      return { ok: true };
+    } catch (e) { return { ok: true }; }
   },
 
   // ─── حلقة المحادثة: سؤال → (أدوات؟) → تنفيذ محلي بصلاحيات المستخدم → إجابة ───
-  async ask(sessionId, question, historyMessages, onStatus, extraInstructions) {
+  // ملاحظة أمنية: لم نعد نرسل أي تعليمات نظام من العميل — الخادم يتحكم بها بالكامل.
+  // promptMode معرّف مسموح فقط (اختياري): default / summarize / operational_analysis / report_generation
+  async ask(sessionId, question, historyMessages, onStatus, promptMode) {
     const contents = [];
     (historyMessages || []).slice(-10).forEach(m => {
       contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] });
     });
     contents.push({ role: 'user', parts: [{ text: question }] });
 
+    // توكن Supabase للمصادقة (يُفعَّل server-side خلف AI_REQUIRE_SUPABASE_JWT)
+    let authHeader = {};
+    try {
+      const { data: sess } = await sb.auth.getSession();
+      const tok = sess?.session?.access_token;
+      if (tok) authHeader = { Authorization: 'Bearer ' + tok };
+    } catch (e) { /* بلا توكن — وضع تطوير فقط */ }
+
     const toolsUsed = [];
     for (let step = 0; step < 4; step++) {
       // مهلة 60 ثانية: agent قد يستدعي أدوات ويستنتج، فيحتاج أطول من fetch عادي
       const res = await fetchWithTimeout('/api/agent', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents, extraInstructions: extraInstructions || null })
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ contents, promptMode: promptMode || 'default' })
       }, 60000);
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401 || res.status === 403) throw new Error('خدمة الذكاء الاصطناعي تتطلب تسجيل دخول صالحًا');
+      if (res.status === 503) throw new Error('خدمة الذكاء الاصطناعي متوقفة مؤقتًا لحين استكمال إعدادات الأمان');
       if (!res.ok) throw new Error(data.error || 'تعذر الاتصال بالمساعد');
 
       if (data.text) return { text: data.text, toolsUsed };
@@ -10153,13 +10167,22 @@ function chatInputBarHtml() {
 
 // إعادة صياغة الرسالة عبر Gemini (يستدعي Vercel serverless function)
 async function rewriteMessageWithAI(text, mode) {
+  // توكن Supabase للمصادقة (يُفعَّل server-side خلف AI_REQUIRE_SUPABASE_JWT)
+  let authHeader = {};
+  try {
+    const { data: sess } = await sb.auth.getSession();
+    const tok = sess?.session?.access_token;
+    if (tok) authHeader = { Authorization: 'Bearer ' + tok };
+  } catch (e) { /* بلا توكن — وضع تطوير فقط */ }
   // مهلة 25 ثانية — قبل ضياع مهلة Vercel الافتراضية (10s) للعملاء الحرة
   const res = await fetchWithTimeout('/api/rewrite', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeader },
     body: JSON.stringify({ text, mode: mode || 'default' })
   }, 25000);
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401 || res.status === 403) throw new Error('خدمة تحسين الصياغة تتطلب تسجيل دخول صالحًا');
+  if (res.status === 503) throw new Error('خدمة الذكاء الاصطناعي متوقفة مؤقتًا لحين استكمال إعدادات الأمان');
   if (!res.ok) throw new Error(data.error || 'فشل تحسين الصياغة');
   return data.text;
 }
@@ -29109,7 +29132,7 @@ async function pageAiAssistant(body) {
       const { text: answer, toolsUsed } = await AIA.ask(
         currentSessionId, q, history,
         (toolLabel) => updateTyping('يقرأ: ' + toolLabel + '...'),
-        limit.extra
+        'default'  // لا تعليمات عميل — الخادم يتحكم في التعليمات
       );
 
       removeTyping();
@@ -29160,8 +29183,8 @@ async function pageAiSettings(body) {
         <div class="form-field"><label>اسم المساعد الظاهر</label><input class="form-input" name="assistant_name" value="${esc(s?.assistant_name || 'المساعد الذكي')}"></div>
         <div class="form-field"><label>الحد اليومي للأسئلة لكل مستخدم</label><input class="form-input mono-num" type="number" min="1" max="1000" name="daily_message_limit" value="${Number(s?.daily_message_limit) || 50}"></div>
         <div class="form-field full">
-          <label>تعليمات إضافية للمساعد <span style="font-weight:400;color:var(--text-muted);">(تُضاف لشخصيته — مثال: "ركّز دائمًا على فرع العليا"، حد أقصى 2000 حرف)</span></label>
-          <textarea class="form-input" name="extra_instructions" rows="4" maxlength="2000">${esc(s?.extra_instructions || '')}</textarea>
+          <label>تعليمات إضافية للمساعد <span style="font-weight:400;color:#C4650E;">(⏸ معطّلة مؤقتًا لأسباب أمنية — لن تُطبَّق حتى استكمال ترحيل المصادقة. تُحفَظ فقط.)</span></label>
+          <textarea class="form-input" name="extra_instructions" rows="4" maxlength="2000" placeholder="غير مفعّلة حاليًا">${esc(s?.extra_instructions || '')}</textarea>
         </div>
         <div class="full" style="display:flex;justify-content:flex-end;">
           <button type="submit" class="btn" style="background:linear-gradient(90deg,#12372F,#123F32);color:#fff;">حفظ الإعدادات</button>
