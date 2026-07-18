@@ -17,6 +17,7 @@
 <link rel="preconnect" href="https://dfuqmmagtteemtpywody.supabase.co" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://unpkg.com" crossorigin>
+<link rel="preconnect" href="https://dfuqmmagtteemtpywody.supabase.co" crossorigin>
 <link rel="dns-prefetch" href="https://api.qrserver.com">
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&family=Noto+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;700;800&family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -5200,7 +5201,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v132-2026-07-18-larger-logo';
+const APP_VERSION = 'v133-2026-07-19-swr-backnav';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -5241,7 +5242,16 @@ const APP_VERSION = 'v132-2026-07-18-larger-logo';
       <button id="appLiveUpdateDismiss" aria-label="إغلاق" style="background:none;border:none;color:#fff;font-size:18px;line-height:1;cursor:pointer;padding:4px 6px;opacity:.85;">✕</button>
     `;
     document.body.appendChild(bar);
-    document.getElementById('appLiveUpdateBtn').onclick = () => location.reload();
+    document.getElementById('appLiveUpdateBtn').onclick = async () => {
+      // امسح كاش الـSW أولًا حتى تأتي النسخة الجديدة من الشبكة فورًا
+      try {
+        if ('caches' in window) {
+          const ks = await caches.keys();
+          await Promise.all(ks.map(k => caches.delete(k)));
+        }
+      } catch(e) {}
+      location.reload();
+    };
     document.getElementById('appLiveUpdateDismiss').onclick = () => bar.remove();
     // اهتزاز خفيف على الأجهزة الداعمة
     try { navigator.vibrate && navigator.vibrate([25, 60, 25]); } catch(e) {}
@@ -17358,6 +17368,8 @@ async function route() {
   try { enhanceAllSelectsForMobile(); } catch (e) { fwReport('enhanceAllSelectsForMobile', e); }
   try { scrollToTableTarget(query && query.scroll); } catch (e) { fwReport('scrollToTableTarget', e); }
   try { updateBackButtonVisibility(page); } catch (e) {}
+  // الرئيسية = جذر التنقل: سلّح مصيدة إيقاف الرجوع، وفكّها في باقي الصفحات
+  try { if (page === 'dashboard') armDashboardBackTrap(); else __dashTrapArmed = false; } catch (e) {}
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -17381,8 +17393,30 @@ function updateBackButtonVisibility(page) {
     document.body.appendChild(btn);
     if (window.lucide) lucide.createIcons();
   }
-  btn.style.display = 'flex';
+  // الرئيسية هي جذر التنقل — لا يوجد "خلف" نرجع له، فنخفي الزر بدل زر لا يعمل
+  btn.style.display = (page === 'dashboard') ? 'none' : 'flex';
 }
+
+// ═══════════════════════════════════════════════════════════
+// إيقاف زر الرجوع عند الرئيسية — طلب صريح: لما المستخدم يوصل
+// للوحة التحكم، الضغط على رجوع (زر الأندرويد/المتصفح) يقف هناك
+// ولا يكمل لصفحات سابقة أو يخرج من التطبيق.
+// الفكرة: عند الوصول للرئيسية نضيف إدخال حارس مطابق لنفس العنوان
+// في الـhistory؛ الضغط على رجوع يستهلك الحارس (نفس الـURL → لا
+// يتغير شيء على الشاشة) ثم نعيد تسليحه فورًا — فالرجوع «يقف».
+// ═══════════════════════════════════════════════════════════
+let __dashTrapArmed = false;
+function armDashboardBackTrap() {
+  if (__dashTrapArmed) return;
+  try { history.pushState(null, '', location.href); __dashTrapArmed = true; } catch (e) {}
+}
+window.addEventListener('popstate', () => {
+  if (!CURRENT_USER) return;
+  if (currentRoute().page === 'dashboard') {
+    __dashTrapArmed = false;
+    armDashboardBackTrap();
+  }
+});
 
 // ═══════════════════════════════════════════════════════════
 // UX #2: Undo toast — بديل confirm() للعمليات القابلة للتراجع
@@ -36981,32 +37015,16 @@ async function pageDashboard(body) {
   if ('serviceWorker' in navigator) {
     let updateBannerShown = false;
     // ═══════════════════════════════════════════════════════
-    // 🚫 SW معطَّل — نُسجّل الملف الحالي (kill-switch) ليقوم بمسح
-    // نفسه ومسح كل الكاشات، ثم نستمر بلا SW نهائياً.
-    // كل التحديثات تظهر فوراً لأن المتصفح يذهب مباشرة للشبكة.
+    // ⚡ SW مفعَّل بكاش ذكي (Stale-While-Revalidate) — راجع
+    // service-worker.js. الفتح شبه لحظي من الكاش، والتحديثات
+    // تصل عبر فحص الإصدار الدوري (كل 45ث) + بانر «تحديث جديد»
+    // الذي يمسح الكاش قبل إعادة التحميل.
     // ═══════════════════════════════════════════════════════
-    // (أ) سجِّل الـkill-switch (لو مركّب SW قديم يُستبدل به فيتنظّف)
     navigator.serviceWorker.register('service-worker.js').then((reg) => {
-      // بعد لحظات، اطلب من كل الـregistrations أن تُلغَى
-      setTimeout(async () => {
-        try {
-          const regs = await navigator.serviceWorker.getRegistrations();
-          for (const r of regs) { try { await r.unregister(); } catch(e){} }
-        } catch(e) {}
-        try {
-          if ('caches' in window) {
-            const keys = await caches.keys();
-            for (const k of keys) { try { await caches.delete(k); } catch(e){} }
-          }
-        } catch(e) {}
-      }, 1500);
+      // اطلب فحص نسخة الـSW الآن ثم كل ساعة (بجانب فحص الـ45 ثانية داخل التطبيق)
+      try { reg.update(); } catch(e) {}
+      setInterval(() => { try { reg.update(); } catch(e) {} }, 60 * 60 * 1000);
     }).catch(() => {});
-    // (ب) لو الـSW القديم أرسل sw-removed → أظهر بانر تحديث لأن التطبيق نُظِّف
-    navigator.serviceWorker.addEventListener('message', (e) => {
-      if (e.data && e.data.type === 'sw-removed') {
-        // لا نُظهر بانر هنا — فقط نضمن الاستمرار
-      }
-    });
 
     // إشعار متصفح/PWA — لو المستخدم قافل التطبيق ونزل تحديث
     function tryPushNotification(title, body) {
