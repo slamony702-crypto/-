@@ -75,7 +75,7 @@ WITH
            'public' AS schema_name,
            rel.relname AS object_name,
            con.conname AS sub_object,
-           'contype=' || con.contype AS status,
+           'contype=' || con.contype::text AS status,
            pg_get_constraintdef(con.oid) AS definition,
            CASE WHEN con.contype = 'f'
                 THEN 'references ' || confrel.relname
@@ -144,7 +144,7 @@ WITH
   s7 AS (
     SELECT 7 AS section_order, 'TRIGGER' AS object_type, 'public' AS schema_name,
            rel.relname AS object_name, tg.tgname AS sub_object,
-           CASE WHEN tg.tgenabled = 'O' THEN 'enabled' ELSE 'state=' || tg.tgenabled END AS status,
+           CASE WHEN tg.tgenabled = 'O' THEN 'enabled' ELSE 'state=' || tg.tgenabled::text END AS status,
            pg_get_triggerdef(tg.oid) AS definition,
            'func=' || pr.proname AS details
     FROM pg_trigger tg
