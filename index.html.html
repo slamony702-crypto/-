@@ -8604,6 +8604,29 @@ PROC.approvals = {
     const { data, error } = await sb.rpc('proc_requisition_total', { p_req_id: reqId });
     return { data: Number(data || 0), error };
   },
+  // اعتماد/رفض عبر المسار القديم (RPC — بدل UPDATE المباشر)
+  // يعمل فقط عندما allow_legacy_approval=TRUE ولا توجد سلسلة اعتماد
+  async legacyDecide(reqId, decision, reason) {
+    const { data, error } = await sb.rpc('proc_legacy_decide_requisition', {
+      p_req_id: reqId, p_decision: decision, p_reason: reason || null
+    });
+    return { data, error };
+  },
+  // ─── إعدادات الطبقة ───
+  settings: {
+    async get() {
+      const { data, error } = await sb.from('proc_approval_settings')
+        .select('*, updated_user:updated_by(full_name)')
+        .eq('id', true).maybeSingle();
+      return { data, error };
+    },
+    async setAllowLegacy(allow) {
+      const { error } = await sb.from('proc_approval_settings')
+        .update({ allow_legacy_approval: !!allow, updated_by: CURRENT_USER?.id || null })
+        .eq('id', true);
+      return { error };
+    }
+  },
   // ─── إدارة قواعد الاعتماد ───
   rules: {
     async list(filters = {}) {
@@ -32508,20 +32531,23 @@ function _renderProcApprovalChain(chain, req) {
 
 async function pageProcRequisitionDetail(body, idParam) {
   const id = Number(idParam);
-  const [reqRes, chainRes, totalRes] = await Promise.all([
+  const [reqRes, chainRes, totalRes, settingsRes] = await Promise.all([
     PROC.requisitions.get(id),
     PROC.approvals.getChain(id),
-    PROC.approvals.requisitionTotal(id)
+    PROC.approvals.requisitionTotal(id),
+    PROC.approvals.settings.get()
   ]);
   const { req, items, error } = reqRes;
   if (error || !req) { body.innerHTML = `<p class="error-msg show">${esc(error?.message || 'الطلب غير موجود')}</p>`; return; }
   const chain = chainRes.data || { steps: [], activity: [] };
   const estimatedTotal = totalRes.data || 0;
+  const settings = settingsRes.data || { allow_legacy_approval: false };
+  const allowLegacy = !!settings.allow_legacy_approval;
   const isOwner = req.requested_by === CURRENT_USER.id;
   const canApprove = isProcurementManager();
   const hasChain = Array.isArray(chain.steps) && chain.steps.length > 0;
-  // legacy approve/reject شرطها: submitted + لا توجد سلسلة (fallback)
-  const showLegacyActions = canApprove && req.status === 'submitted' && !hasChain;
+  // legacy approve/reject: submitted + لا سلسلة + flag legacy مفعّل
+  const showLegacyActions = canApprove && req.status === 'submitted' && !hasChain && allowLegacy;
   const canCancelDuringAppr = (isOwner || canApprove) && req.status === 'submitted';
   body.innerHTML = `
     <a href="#proc_requisitions" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للطلبات</a>
@@ -32570,27 +32596,41 @@ async function pageProcRequisitionDetail(body, idParam) {
   `;
   if (window.lucide) lucide.createIcons();
 
-  // تقديم للاعتماد — يستخدم RPC اللي يقرر تلقائيًا: multi أو legacy
+  // تقديم للاعتماد — يستخدم RPC اللي يقرر تلقائيًا: multi أو يفشل بـAPPROVAL_CONFIGURATION_MISSING
   document.getElementById('procReqSubmit')?.addEventListener('click', async () => {
     const { data, error } = await PROC.approvals.submit(id);
-    if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
-    const mode = data?.mode === 'multi'
+    if (error) {
+      const msg = String(error.message || '');
+      if (msg.includes('APPROVAL_CONFIGURATION_MISSING')) {
+        const canManage = ['admin','company_manager','procurement_manager','finance_manager'].includes(CURRENT_USER?.role);
+        if (canManage && confirm('لا توجد قواعد اعتماد مطابقة لهذا الطلب. هل تريد فتح شاشة إدارة القواعد الآن؟')) {
+          location.hash = '#proc_approval_rules';
+        } else {
+          toast('لا يمكن التقديم: يلزم إعداد قاعدة اعتماد أولًا. تواصل مع المسؤول.', 'error');
+        }
+        return;
+      }
+      toast('تعذّر: ' + msg, 'error');
+      return;
+    }
+    const modeMsg = data?.mode === 'multi'
       ? `تم التقديم — ${data.steps_created} خطوة اعتماد`
-      : 'تم التقديم (لا توجد قواعد اعتماد مُعرَّفة — تدفق تقليدي)';
-    toast(mode, 'success');
+      : 'تم التقديم بالنمط القديم (flag مفعّل)';
+    toast(modeMsg, 'success');
     route();
   });
 
-  // legacy fallback: اعتماد مباشر
+  // legacy: اعتماد/رفض عبر RPC مخصصة (لا UPDATE مباشر بعد الآن)
   document.getElementById('procReqApprove')?.addEventListener('click', async () => {
-    const { error } = await PROC.requisitions.approve(id);
+    const { error } = await PROC.approvals.legacyDecide(id, 'approve');
     if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
-    toast('تم اعتماد الطلب', 'success'); route();
+    toast('تم اعتماد الطلب (نمط قديم)', 'success'); route();
   });
   document.getElementById('procReqReject')?.addEventListener('click', async () => {
-    const reason = await customPrompt('سبب الرفض:', '');
+    const reason = await customPrompt('سبب الرفض (إلزامي):', '');
     if (reason === null) return;
-    const { error } = await PROC.requisitions.reject(id, reason);
+    if (!String(reason).trim()) { toast('سبب الرفض مطلوب', 'error'); return; }
+    const { error } = await PROC.approvals.legacyDecide(id, 'reject', reason);
     if (error) { toast('تعذّر: ' + error.message, 'error'); return; }
     toast('تم رفض الطلب', 'success'); route();
   });
@@ -32997,21 +33037,36 @@ async function pageProcApprovalRules(body) {
     body.innerHTML = `<div class="panel"><div class="panel-body"><p class="error-msg show">لا تملك صلاحية إدارة قواعد الاعتماد. مطلوب: مدير مشتريات / مالي / شركة / admin.</p></div></div>`;
     return;
   }
-  const [{ data: rules }, { data: branches }, { data: depts }] = await Promise.all([
+  const [{ data: rules }, { data: branches }, { data: depts }, { data: settings }] = await Promise.all([
     PROC.approvals.rules.list(),
     sb.from('branches').select('id, name').eq('is_active', true).order('name'),
-    sb.from('departments').select('id, name').order('name')
+    sb.from('departments').select('id, name').order('name'),
+    PROC.approvals.settings.get()
   ]);
   const roleOpts = PROC_APPR_ROLES.map(r => `<option value="${r.value}">${esc(r.label)}</option>`).join('');
   const branchOpts = `<option value="">— كل الفروع —</option>` + (branches || []).map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('');
   const deptOpts = `<option value="">— كل الأقسام —</option>` + (depts || []).map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  const allowLegacy = !!(settings && settings.allow_legacy_approval);
   body.innerHTML = `
     <a href="#procurement" class="mt-back-link"><span data-lucide="arrow-right" style="width:14px;height:14px;"></span> رجوع للمشتريات</a>
     <div class="mod-hero">
       <h2 class="mod-hero-title"><span data-lucide="git-branch" style="width:22px;height:22px;"></span> قواعد اعتماد طلبات الشراء</h2>
       <p class="mod-hero-desc">هنا تُعرَّف مصفوفة الاعتماد متعدد المستويات. أي طلب شراء عند تقديمه يمر عبر الخطوات المطابقة لمبلغه/فرعه/قسمه.</p>
       <div style="margin-top:8px;background:#fff8e1;border:1px solid #f0d878;padding:10px 12px;border-radius:8px;color:#8a6d00;font-size:12.5px;">
-        <strong>ملاحظة مهمة:</strong> إذا لم تُضِف أي قاعدة، يعمل النظام بالنمط التقليدي (مُعتمِد واحد). أضِف قاعدة على الأقل لتفعيل الاعتماد متعدد المستويات.
+        <strong>ملاحظة أمن:</strong> إذا لم تُضِف قاعدة مطابقة، محاولة التقديم تُرفض بخطأ <code>APPROVAL_CONFIGURATION_MISSING</code>. لتفعيل النمط القديم مؤقتًا (مُعتمِد واحد يشتغل بلا قواعد)، فعّل flag "التوافق الانتقالي" أدناه — يفضّل تركه مُعطَّلًا في الإنتاج.
+      </div>
+    </div>
+    <div class="panel" style="margin-top:16px;">
+      <div class="panel-header"><h3><span data-lucide="settings" style="width:14px;height:14px;vertical-align:-2px;margin-left:5px;"></span> إعدادات الطبقة</h3></div>
+      <div class="panel-body" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div>
+          <div style="font-weight:600;margin-bottom:4px;">التوافق الانتقالي مع النمط القديم (Legacy Approval)</div>
+          <div style="font-size:12.5px;color:var(--text-secondary);">عند التفعيل: الطلبات اللي مفيش قواعد مطابقة تنتقل للنمط القديم (مُعتمِد واحد يقرر مباشرة). للسلامة يُفضّل تركه مُعطَّلًا.</div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;">
+          <input type="checkbox" id="procApprAllowLegacy" ${allowLegacy ? 'checked' : ''}>
+          <span>${allowLegacy ? 'مفعّل' : 'مُعطَّل'}</span>
+        </label>
       </div>
     </div>
     <div class="panel" style="margin-top:16px;">
@@ -33133,6 +33188,22 @@ async function pageProcApprovalRules(body) {
       route();
     });
   };
+
+  document.getElementById('procApprAllowLegacy')?.addEventListener('change', async (e) => {
+    const nextVal = e.target.checked;
+    if (nextVal && !confirm('تحذير: تفعيل النمط القديم يسمح باعتماد الطلبات بمُعتمِد واحد دون قواعد. مناسب فقط للانتقال المؤقت. متأكد؟')) {
+      e.target.checked = false;
+      return;
+    }
+    const { error } = await PROC.approvals.settings.setAllowLegacy(nextVal);
+    if (error) {
+      e.target.checked = !nextVal;
+      toast('تعذّر: ' + error.message, 'error');
+      return;
+    }
+    toast(nextVal ? 'تم تفعيل النمط القديم' : 'تم تعطيل النمط القديم', 'success');
+    route();
+  });
 
   document.getElementById('procRuleNew')?.addEventListener('click', () => openForm(null));
   document.querySelectorAll('.proc-rule-edit').forEach(btn => {
