@@ -211,8 +211,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS proc_po_unique_requisition
   ON proc_purchase_orders(requisition_id)
   WHERE requisition_id IS NOT NULL AND status NOT IN ('cancelled');
 -- ملاحظة: نستثني PO المُلغى من UNIQUE لأن التاجر قد يُلغيه ويعيد الإنشاء
-
-COMMIT;
+-- (لا COMMIT هنا — كل CREATE/ALTER أعلاه في auto-commit خارج BEGIN صريح.
+--  BEGIN/COMMIT الوحيدة في هذا الملف كانت لـ Section A فقط.)
 
 -- ═══════════════════════════════════════════════════════════
 -- (F) دمج الإشعارات داخل RPCs
