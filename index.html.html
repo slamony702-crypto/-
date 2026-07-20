@@ -4711,6 +4711,12 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
             mask-composite: exclude;
     pointer-events: none;
   }
+  /* وضع «القسم الوحيد» (مدير الفرع): التنقل السفلي كله يؤدي لأقسام
+     ممنوعة عليه، فنخفيه ونسترجع المساحة السفلية بدل ترك فراغ */
+  body.delivery-only-mode .m-bottomnav { display: none !important; }
+  body.delivery-only-mode.mobile-app-ready .page-body {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px) !important;
+  }
   .m-bottomnav-item {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 3px; padding: 6px 4px;
@@ -5201,7 +5207,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v134-2026-07-20-branch-delivery';
+const APP_VERSION = 'v135-2026-07-20-delivery-only';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -12537,6 +12543,19 @@ const BRANCH_DELIVERY_ROLES = ['branch_manager', 'admin'];
 function canUseBranchDelivery() {
   return !!(CURRENT_USER && BRANCH_DELIVERY_ROLES.includes(CURRENT_USER.role));
 }
+
+// ─────────────────────────────────────────────────────────
+// وضع «القسم الوحيد»: مدير الفرع لا يرى في النظام إلا طلبات
+// شركات التوصيل — لا لوحة تحكم ولا اجتماعات ولا أي قسم آخر.
+// admin مستثنى عمدًا: هو الدور التقني الذي يحتاج رؤية كل شيء.
+// القفل مطبَّق على خمسة مداخل: الصفحة الافتراضية، الراوتر،
+// القائمة الجانبية، شيت «المزيد»، والتنقل السفلي على الجوال.
+// ─────────────────────────────────────────────────────────
+const DELIVERY_ONLY_ROLES = ['branch_manager'];
+const BRANCH_DELIVERY_PAGES = ['branch_delivery', 'branch_delivery_new', 'branch_delivery_detail'];
+function isDeliveryOnlyUser() {
+  return !!(CURRENT_USER && DELIVERY_ONLY_ROLES.includes(CURRENT_USER.role));
+}
 // فلتر موحّد لعناصر القائمة التي تحمل onlyRoles
 function passesRoleGate(item) {
   if (!item || !item.onlyRoles) return true;
@@ -16567,7 +16586,9 @@ window.deleteDecision = async function(id) {
 
 
 function currentRoute() {
-  const hash = location.hash.replace('#', '') || 'dashboard';
+  // مدير الفرع يهبط على قسمه مباشرة بدل لوحة التحكم
+  const fallbackPage = isDeliveryOnlyUser() ? 'branch_delivery' : 'dashboard';
+  const hash = location.hash.replace('#', '') || fallbackPage;
   const [pathPart, queryPart] = hash.split('?');
   const [page, param] = pathPart.split('/');
   const query = {};
@@ -16880,7 +16901,11 @@ async function renderShellOnce() {
   // اجعل المجموعة التي فيها الصفحة الحالية مفتوحة تلقائيًا
   const groupContainingCurrent = MENU_GROUPS.find(g => g.items.some(it => it.key === page));
   const menuHtml = MENU_GROUPS.filter(passesRoleGate).map(group => {
-    const visibleItems = group.items.filter(item => passesRoleGate(item) && (ALWAYS_VISIBLE.includes(item.key) || can(item.key, 'view')));
+    const visibleItems = group.items.filter(item => {
+      // مدير الفرع: قسم واحد فقط في القائمة كلها
+      if (isDeliveryOnlyUser()) return item.key === 'branch_delivery';
+      return passesRoleGate(item) && (ALWAYS_VISIBLE.includes(item.key) || can(item.key, 'view'));
+    });
     if (!visibleItems.length) return '';
     const isOpen = isGroupOpen(group) || (groupContainingCurrent && groupContainingCurrent.key === group.key);
     const itemsHtml = visibleItems.map(item => {
@@ -17195,6 +17220,12 @@ function hideRouteLoader() {
 
 async function route() {
   const { page, param, query } = currentRoute();
+  // قفل «القسم الوحيد»: أي محاولة لفتح صفحة أخرى (بالرابط المباشر أو
+  // بزر رجوع المتصفح) تُعيده لقسمه بدل عرض الصفحة
+  if (isDeliveryOnlyUser() && !BRANCH_DELIVERY_PAGES.includes(page)) {
+    location.replace('#branch_delivery');
+    return;
+  }
   const myTk = ++__routeToken;
   document.title = 'شؤون الغذاء - ' + (PAGE_TITLES[page] || '');
   const body = document.getElementById('pageBody');
@@ -42659,7 +42690,10 @@ function openMobileMoreSheet() {
             { key:'branch_delivery', hash:'#branch_delivery', icon:'package', label:'طلبات شركات التوصيل', onlyRoles: BRANCH_DELIVERY_ROLES }
           ];
           // فقط التي مش موجود في الرئيسية، ومسموح بها لدور المستخدم
-          const hidden = swappable.filter(s => !homeKeys.includes(s.key) && passesRoleGate(s));
+          // مدير الفرع: قسمه فقط لا غير
+          const hidden = isDeliveryOnlyUser()
+            ? swappable.filter(s => s.key === 'branch_delivery')
+            : swappable.filter(s => !homeKeys.includes(s.key) && passesRoleGate(s));
           return hidden.map(s => {
             const soon = gatedModuleForPage(s.key) && !canAccessModule(s.key)
               ? ' <span class="nav-badge nav-badge-soon" style="margin-right:auto;">قريبًا</span>' : '';
@@ -42727,9 +42761,11 @@ function syncMobileBottomNav() {
 function applyMobileMode() {
   if (isMobileView() && CURRENT_USER) {
     document.body.classList.add('mobile-app-ready');
+    // مدير الفرع: نخفي التنقل السفلي لأن كل أزراره تؤدي لأقسام ممنوعة عليه
+    document.body.classList.toggle('delivery-only-mode', isDeliveryOnlyUser());
     ensureMobileShell();
   } else {
-    document.body.classList.remove('mobile-app-ready', 'more-open');
+    document.body.classList.remove('mobile-app-ready', 'more-open', 'delivery-only-mode');
     document.getElementById('mobileShellContainer')?.remove();
   }
 }
