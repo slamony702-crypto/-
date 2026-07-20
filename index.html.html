@@ -12526,6 +12526,23 @@ function gatedModuleForPage(page) {
   return null;
 }
 
+// ═══════════════════════════════════════════════════════════
+// سيكشن «طلبات شركات التوصيل» — مقصور على مدير الفرع
+// ─────────────────────────────────────────────────────────
+// admin مُدرَج لأنه الدور التقني الذي يجب أن يصل لكل شيء لأغراض الدعم
+// (نفس منطق can() الذي يمرّر admin دائمًا). أي دور آخر لا يرى السيكشن
+// إطلاقًا: لا في القائمة الجانبية، ولا في شيت «المزيد»، ولا بفتح الرابط
+// مباشرة — الحراسة مكرّرة في الثلاثة، وRLS يحرس البيانات نفسها.
+const BRANCH_DELIVERY_ROLES = ['branch_manager', 'admin'];
+function canUseBranchDelivery() {
+  return !!(CURRENT_USER && BRANCH_DELIVERY_ROLES.includes(CURRENT_USER.role));
+}
+// فلتر موحّد لعناصر القائمة التي تحمل onlyRoles
+function passesRoleGate(item) {
+  if (!item || !item.onlyRoles) return true;
+  return !!(CURRENT_USER && item.onlyRoles.includes(CURRENT_USER.role));
+}
+
 // عناصر القائمة الجانبية — منظمة في مجموعات قابلة للطي
 const MENU_GROUPS = [
   { key: '__main', label: 'الأساسيات', icon: 'home', defaultOpen: true, items: [
@@ -12590,6 +12607,11 @@ const MENU_GROUPS = [
   { key: '__cafe', label: 'ركن الكافيه', icon: 'coffee', defaultOpen: false, items: [
     { key: 'cafe', label: 'ركن الكافيه', icon: 'coffee' },
   ]},
+  // سيكشن خاص بمدير الفرع فقط — onlyRoles يُفلتَر في renderShellOnce وفي شيت
+  // «المزيد» على الموبايل، ويُحرَس مرة أخرى داخل صفحة العرض نفسها.
+  { key: '__branch_delivery', label: 'طلبات التوصيل', icon: 'package', defaultOpen: false, onlyRoles: BRANCH_DELIVERY_ROLES, items: [
+    { key: 'branch_delivery', label: 'طلبات شركات التوصيل', icon: 'package', onlyRoles: BRANCH_DELIVERY_ROLES },
+  ]},
   { key: '__comm', label: 'التواصل', icon: 'message-circle', defaultOpen: false, items: [
     { key: 'conversations', label: 'تواصل داخلي', icon: 'message-circle' },
     { key: 'emergency', label: 'تواصل طارئ', icon: 'siren' },
@@ -12604,7 +12626,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', acct_pay_partners: 'شركاء المدفوعات', acct_pay_partner: 'تفاصيل الشريك', acct_pay_statements: 'كشوف الشركاء', acct_pay_statement: 'تفاصيل الكشف', acct_pay_clearing: 'المقاصة والتسويات', acct_pay_clearing_batch: 'تفاصيل دفعة المقاصة', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', ops_issues: 'المشكلات التشغيلية', ops_issue_detail: 'تفاصيل المشكلة', ops_settings: 'إعدادات التشغيل', ai_assistant: 'المساعد الذكي', ai_settings: 'إعدادات المساعد الذكي', menu: 'المنيو والوصفات', menu_categories: 'فئات المنيو', menu_items: 'أصناف المنيو', menu_item: 'تفاصيل الصنف', menu_settings: 'إعدادات المنيو', crm: 'العملاء والولاء', crm_customers: 'قاعدة العملاء', crm_customer: 'ملف العميل', crm_complaints: 'الشكاوى', crm_complaint: 'تفاصيل الشكوى', pos: 'نقاط البيع', pos_terminals: 'الأجهزة', pos_sessions: 'جلسات الكاشير', pos_session: 'تفاصيل الجلسة', pos_cashier: 'شاشة الكاشير', pos_transaction: 'تفاصيل المعاملة', haccp: 'سلامة الغذاء', haccp_equipment: 'المعدات', haccp_temperature: 'سجلات الحرارة', haccp_batches: 'الدفعات الغذائية', haccp_certs: 'الشهادات الصحية', haccp_incidents: 'حوادث السلامة', haccp_incident: 'تفاصيل الحادث', haccp_settings: 'إعدادات HACCP', procurement: 'المشتريات', proc_requisitions: 'طلبات الشراء', proc_requisition: 'تفاصيل طلب الشراء', proc_orders: 'أوامر الشراء', proc_order: 'تفاصيل أمر الشراء', proc_receipts: 'إيصالات الاستلام', proc_receipt: 'تفاصيل الاستلام', performance: 'إدارة الأداء', perf_kpis: 'تعريفات مؤشرات الأداء', perf_scorecards: 'سكوركاردات الأداء', perf_scorecard: 'تفاصيل السكوركارد', perf_reviews: 'التقييمات الدورية', perf_review: 'تفاصيل التقييم', perf_goals: 'الأهداف الفردية', delivery: 'التوصيل', dlv_zones: 'مناطق التوصيل', dlv_riders: 'السائقين', dlv_orders: 'طلبات التوصيل', dlv_order: 'تفاصيل طلب التوصيل', dlv_settings: 'إعدادات التوصيل', documents: 'إدارة المستندات', doc_list: 'كل المستندات', doc_detail: 'تفاصيل المستند', doc_categories: 'تصنيفات المستندات', doc_expiring: 'المستندات المنتهية', call_center: 'مركز الاتصال', cc_agents: 'موظفي مركز الاتصال', cc_calls: 'سجل المكالمات', cc_call: 'تفاصيل مكالمة', cc_scripts: 'مكتبة السكريبتات', cc_followups: 'المتابعات المطلوبة', bi: 'الذكاء التحليلي', bi_reports: 'كتالوج التقارير', bi_report: 'تشغيل تقرير', integrations: 'التكاملات', int_marketplace: 'سوق المزوّدين', int_connections: 'الاتصالات', int_connection: 'تفاصيل الاتصال', int_events: 'سجل الأحداث', franchise: 'الامتياز التجاري', fr_partners: 'شركاء الفرنشايز', fr_partner: 'تفاصيل شريك', fr_agreements: 'العقود', fr_agreement: 'تفاصيل عقد', fr_reports: 'تقارير المبيعات', fr_royalties: 'فواتير الروياليتي', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', acct_pay_partners: 'شركاء المدفوعات', acct_pay_partner: 'تفاصيل الشريك', acct_pay_statements: 'كشوف الشركاء', acct_pay_statement: 'تفاصيل الكشف', acct_pay_clearing: 'المقاصة والتسويات', acct_pay_clearing_batch: 'تفاصيل دفعة المقاصة', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', ops_issues: 'المشكلات التشغيلية', ops_issue_detail: 'تفاصيل المشكلة', ops_settings: 'إعدادات التشغيل', ai_assistant: 'المساعد الذكي', ai_settings: 'إعدادات المساعد الذكي', menu: 'المنيو والوصفات', menu_categories: 'فئات المنيو', menu_items: 'أصناف المنيو', menu_item: 'تفاصيل الصنف', menu_settings: 'إعدادات المنيو', crm: 'العملاء والولاء', crm_customers: 'قاعدة العملاء', crm_customer: 'ملف العميل', crm_complaints: 'الشكاوى', crm_complaint: 'تفاصيل الشكوى', pos: 'نقاط البيع', pos_terminals: 'الأجهزة', pos_sessions: 'جلسات الكاشير', pos_session: 'تفاصيل الجلسة', pos_cashier: 'شاشة الكاشير', pos_transaction: 'تفاصيل المعاملة', haccp: 'سلامة الغذاء', haccp_equipment: 'المعدات', haccp_temperature: 'سجلات الحرارة', haccp_batches: 'الدفعات الغذائية', haccp_certs: 'الشهادات الصحية', haccp_incidents: 'حوادث السلامة', haccp_incident: 'تفاصيل الحادث', haccp_settings: 'إعدادات HACCP', procurement: 'المشتريات', proc_requisitions: 'طلبات الشراء', proc_requisition: 'تفاصيل طلب الشراء', proc_orders: 'أوامر الشراء', proc_order: 'تفاصيل أمر الشراء', proc_receipts: 'إيصالات الاستلام', proc_receipt: 'تفاصيل الاستلام', performance: 'إدارة الأداء', perf_kpis: 'تعريفات مؤشرات الأداء', perf_scorecards: 'سكوركاردات الأداء', perf_scorecard: 'تفاصيل السكوركارد', perf_reviews: 'التقييمات الدورية', perf_review: 'تفاصيل التقييم', perf_goals: 'الأهداف الفردية', delivery: 'التوصيل', dlv_zones: 'مناطق التوصيل', dlv_riders: 'السائقين', dlv_orders: 'طلبات التوصيل', dlv_order: 'تفاصيل طلب التوصيل', dlv_settings: 'إعدادات التوصيل', documents: 'إدارة المستندات', doc_list: 'كل المستندات', doc_detail: 'تفاصيل المستند', doc_categories: 'تصنيفات المستندات', doc_expiring: 'المستندات المنتهية', call_center: 'مركز الاتصال', cc_agents: 'موظفي مركز الاتصال', cc_calls: 'سجل المكالمات', cc_call: 'تفاصيل مكالمة', cc_scripts: 'مكتبة السكريبتات', cc_followups: 'المتابعات المطلوبة', bi: 'الذكاء التحليلي', bi_reports: 'كتالوج التقارير', bi_report: 'تشغيل تقرير', integrations: 'التكاملات', int_marketplace: 'سوق المزوّدين', int_connections: 'الاتصالات', int_connection: 'تفاصيل الاتصال', int_events: 'سجل الأحداث', franchise: 'الامتياز التجاري', fr_partners: 'شركاء الفرنشايز', fr_partner: 'تفاصيل شريك', fr_agreements: 'العقود', fr_agreement: 'تفاصيل عقد', fr_reports: 'تقارير المبيعات', fr_royalties: 'فواتير الروياليتي', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه', branch_delivery: 'طلبات شركات التوصيل', branch_delivery_new: 'توثيق طلب توصيل', branch_delivery_detail: 'تفاصيل طلب التوصيل' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -16850,14 +16872,15 @@ async function renderShellOnce() {
   } catch (e) { /* تجاهل بصمت لو فشل الحساب */ }
 
   // المديولات القادمة (Placeholder Overview) — تظهر للجميع لأنها صفحات عرض فقط
-  const ALWAYS_VISIBLE = ['hr', 'accounting', 'operations', 'ai_assistant', 'menu', 'crm', 'pos', 'haccp', 'procurement', 'performance', 'delivery', 'documents', 'call_center', 'bi', 'integrations', 'franchise'];
+  // 'branch_delivery' هنا لأن ظهوره محكوم بالدور (onlyRoles) لا بجدول الصلاحيات
+  const ALWAYS_VISIBLE = ['hr', 'accounting', 'operations', 'ai_assistant', 'menu', 'crm', 'pos', 'haccp', 'procurement', 'performance', 'delivery', 'documents', 'call_center', 'bi', 'integrations', 'franchise', 'branch_delivery'];
   const openGroupsRaw = localStorage.getItem('sidebar_open_groups');
   const openGroups = openGroupsRaw ? JSON.parse(openGroupsRaw) : null;
   function isGroupOpen(g) { return openGroups ? openGroups.includes(g.key) : g.defaultOpen; }
   // اجعل المجموعة التي فيها الصفحة الحالية مفتوحة تلقائيًا
   const groupContainingCurrent = MENU_GROUPS.find(g => g.items.some(it => it.key === page));
-  const menuHtml = MENU_GROUPS.map(group => {
-    const visibleItems = group.items.filter(item => ALWAYS_VISIBLE.includes(item.key) || can(item.key, 'view'));
+  const menuHtml = MENU_GROUPS.filter(passesRoleGate).map(group => {
+    const visibleItems = group.items.filter(item => passesRoleGate(item) && (ALWAYS_VISIBLE.includes(item.key) || can(item.key, 'view')));
     if (!visibleItems.length) return '';
     const isOpen = isGroupOpen(group) || (groupContainingCurrent && groupContainingCurrent.key === group.key);
     const itemsHtml = visibleItems.map(item => {
@@ -17320,6 +17343,9 @@ async function route() {
     else if (page === 'conversations') await pageConversations(body, query);
     else if (page === 'dept_chat') await pageDeptChat(body, param);
     else if (page === 'custom_chat') await pageCustomChat(body, param);
+    else if (page === 'branch_delivery') await pageBranchDelivery(body, query);
+    else if (page === 'branch_delivery_new') await pageBranchDeliveryNew(body);
+    else if (page === 'branch_delivery_detail') await pageBranchDeliveryDetail(body, param);
     else if (page === 'cafe') await pageCafe(body, query);
     else if (page === 'emergency') await pageEmergency(body);
     else if (page === 'maintenance') await pageMaintenance(body, query);
@@ -39827,6 +39853,350 @@ function compressImage(file, maxDim, quality) {
   });
 }
 
+/* ═══════════════════════════════════════════════════════════
+   سيكشن «طلبات شركات التوصيل» — مقصور على مدير الفرع
+   ─────────────────────────────────────────────────────────
+   مدير الفرع يوثّق أي طلب وارد من شركة توصيل: يختار الشركة،
+   ويصوّر الفاتورة (إلزامي) وصورتين للطلب. الصور تُضغط في المتصفح
+   قبل الرفع (توفير باقة الجوال) وتُرفع على bucket «maintenance»
+   تحت مسار delivery-requests/. الجداول في delivery-requests-schema.sql
+   ═══════════════════════════════════════════════════════════ */
+
+// حارس مشترك: يرسم شاشة «غير مصرح» ويرجع false لو المستخدم ليس مدير فرع
+function branchDeliveryGuard(body) {
+  if (canUseBranchDelivery()) return true;
+  body.innerHTML = `
+    <div style="text-align:center;padding:44px 20px;">
+      <div style="width:56px;height:56px;border-radius:50%;background:rgba(239,68,68,0.12);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+        <span data-lucide="lock" style="width:26px;height:26px;color:#DC2626;"></span>
+      </div>
+      <h3 style="font-size:16px;color:#0F172A;margin-bottom:6px;">هذا القسم مخصص لمديري الفروع</h3>
+      <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:18px;">لا تملك صلاحية الوصول لطلبات شركات التوصيل.</p>
+      <button class="btn btn-primary btn-sm" onclick="location.hash='#dashboard'">العودة للوحة التحكم</button>
+    </div>`;
+  return false;
+}
+
+// رسالة موحّدة لو جداول السيكشن لسه ما اتطبقتش على قاعدة البيانات
+function branchDeliverySetupNotice() {
+  return `
+    <div class="panel"><div class="panel-body" style="text-align:center;padding:34px 20px;">
+      <div style="font-size:30px;margin-bottom:10px;">🗄️</div>
+      <h3 style="font-size:15px;margin-bottom:6px;">القسم جاهز — ينقص تفعيل قاعدة البيانات</h3>
+      <p style="font-size:12.5px;color:var(--text-muted);line-height:1.7;">
+        لم يتم بعد تشغيل ملف <b>delivery-requests-schema.sql</b> على قاعدة البيانات.<br>
+        بعد تشغيله من لوحة Supabase سيعمل هذا القسم مباشرة.
+      </p>
+    </div></div>`;
+}
+
+// هل الخطأ بسبب جدول غير موجود؟
+// Postgres يرجّع 42P01، لكن PostgREST (طبقة Supabase) يرجّع PGRST205 برسالة
+// "Could not find the table ... in the schema cache" — نتعامل مع الاثنين.
+function isMissingTableError(err) {
+  if (!err) return false;
+  const code = err.code || '';
+  const msg = err.message || '';
+  return code === '42P01' || code === 'PGRST205' ||
+         /does not exist/i.test(msg) || /schema cache/i.test(msg);
+}
+
+async function pageBranchDelivery(body, urlQuery) {
+  if (!branchDeliveryGuard(body)) return;
+
+  const isOversight = ['admin', 'company_manager'].includes(CURRENT_USER.role);
+  let q = sb.from('branch_delivery_requests')
+    .select('*, branches(name), delivery_companies(name), users(full_name)')
+    .order('created_at', { ascending: false })
+    .limit(100);
+  // مدير الفرع يرى فرعه فقط (وRLS يفرض نفس القاعدة على مستوى قاعدة البيانات)
+  if (!isOversight && CURRENT_USER.branch_id) q = q.eq('branch_id', CURRENT_USER.branch_id);
+
+  const { data: rows, error } = await q;
+  if (error) {
+    body.innerHTML = isMissingTableError(error)
+      ? branchDeliverySetupNotice()
+      : `<p class="empty-state">تعذر تحميل الطلبات: ${esc(error.message)}</p>`;
+    return;
+  }
+
+  const list = rows || [];
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayCount = list.filter(r => (r.created_at || '').slice(0, 10) === todayStr).length;
+  const totalAmount = list.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+
+  body.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card"><div class="value">${todayCount}</div><div class="label">طلبات اليوم</div></div>
+      <div class="stat-card"><div class="value">${list.length}</div><div class="label">إجمالي الطلبات الموثّقة</div></div>
+      <div class="stat-card"><div class="value">${totalAmount.toFixed(2)}</div><div class="label">إجمالي القيم المسجّلة (ر.س)</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <h3 class="panel-title"><span data-lucide="package" style="width:18px;height:18px;vertical-align:-3px;"></span> طلبات شركات التوصيل</h3>
+        <button class="btn" id="bdNewBtn" style="background:var(--primary);color:#fff;">
+          <span data-lucide="camera" style="width:14px;height:14px;"></span> توثيق طلب جديد
+        </button>
+      </div>
+      <div class="panel-body">
+      ${list.length ? `
+        <div style="overflow-x:auto;">
+        <table class="adv-table">
+          <thead><tr>
+            <th>التاريخ</th><th>شركة التوصيل</th>${isOversight ? '<th>الفرع</th>' : ''}
+            <th>رقم الطلب</th><th>القيمة</th><th>الصور</th><th>سجّله</th>
+          </tr></thead>
+          <tbody>
+            ${list.map(r => {
+              const photos = [r.invoice_photo_url, r.order_photo1_url, r.order_photo2_url].filter(Boolean).length;
+              return `<tr style="cursor:pointer" data-bd-open="${r.id}">
+                <td>${(r.created_at || '').slice(0, 16).replace('T', ' ')}</td>
+                <td style="font-weight:600;">${esc(r.delivery_companies?.name || r.company_name || '-')}</td>
+                ${isOversight ? `<td>${esc(r.branches?.name || '-')}</td>` : ''}
+                <td>${esc(r.order_ref || '-')}</td>
+                <td>${r.amount != null ? Number(r.amount).toFixed(2) + ' ر.س' : '-'}</td>
+                <td><span class="badge-status badge-progress">${photos} صور</span></td>
+                <td>${esc(r.users?.full_name || '-')}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+        </div>` : `
+        <div style="text-align:center;padding:40px 20px;">
+          <div style="font-size:34px;margin-bottom:10px;">📦</div>
+          <h3 style="font-size:15px;margin-bottom:6px;">لا توجد طلبات موثّقة بعد</h3>
+          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:18px;">ابدأ بتوثيق أول طلب من شركة توصيل.</p>
+          <button class="btn btn-sm" id="bdNewBtnEmpty" style="background:var(--primary);color:#fff;">
+            <span data-lucide="camera" style="width:13px;height:13px;"></span> توثيق طلب جديد
+          </button>
+        </div>`}
+    </div></div>`;
+
+  if (window.lucide) lucide.createIcons();
+
+  document.getElementById('bdNewBtn')?.addEventListener('click', () => { location.hash = '#branch_delivery_new'; });
+  document.getElementById('bdNewBtnEmpty')?.addEventListener('click', () => { location.hash = '#branch_delivery_new'; });
+  body.querySelectorAll('[data-bd-open]').forEach(tr => {
+    tr.addEventListener('click', () => { location.hash = '#branch_delivery_detail/' + tr.dataset.bdOpen; });
+  });
+}
+
+async function pageBranchDeliveryNew(body) {
+  if (!branchDeliveryGuard(body)) return;
+
+  const { data: companies, error: cErr } = await sb.from('delivery_companies')
+    .select('id, name').eq('is_active', true).order('sort_order').limit(200);
+  if (cErr) {
+    body.innerHTML = isMissingTableError(cErr)
+      ? branchDeliverySetupNotice()
+      : `<p class="empty-state">تعذر تحميل شركات التوصيل: ${esc(cErr.message)}</p>`;
+    return;
+  }
+
+  // الصور المختارة كـ data URI بعد الضغط — تُرفع عند الحفظ فقط
+  const picked = { invoice: null, photo1: null, photo2: null };
+
+  const slot = (key, title, hint, required) => `
+    <div class="field">
+      <label>${title} ${required ? '<span style="color:var(--danger);">*</span>' : '<span style="font-size:11px;color:var(--text-muted);font-weight:400;">(اختياري)</span>'}</label>
+      <div class="bd-slot" data-bd-slot="${key}" style="border:2px dashed var(--border);border-radius:14px;padding:18px;text-align:center;cursor:pointer;background:var(--bg-soft,#F8FAF9);">
+        <div class="bd-slot-empty">
+          <span data-lucide="camera" style="width:26px;height:26px;color:#10B981;"></span>
+          <div style="font-size:13px;font-weight:700;margin-top:8px;">اضغط للتصوير أو الاختيار</div>
+          <div style="font-size:11.5px;color:var(--text-muted);margin-top:3px;">${hint}</div>
+        </div>
+        <img class="bd-slot-img" style="display:none;max-width:100%;border-radius:10px;max-height:220px;">
+      </div>
+      <input type="file" accept="image/*" capture="environment" data-bd-input="${key}" style="display:none;">
+      <button type="button" class="btn btn-outline btn-sm bd-clear" data-bd-clear="${key}" style="display:none;margin-top:6px;">
+        <span data-lucide="x" style="width:12px;height:12px;"></span> إزالة الصورة
+      </button>
+    </div>`;
+
+  body.innerHTML = `
+    <div class="panel">
+      <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <h3 class="panel-title"><span data-lucide="camera" style="width:18px;height:18px;vertical-align:-3px;"></span> توثيق طلب توصيل</h3>
+        <button class="btn btn-outline" onclick="location.hash='#branch_delivery'">رجوع</button>
+      </div>
+      <div class="panel-body">
+      <div class="error-msg" id="bdError"></div>
+      <form id="bdForm">
+        <div class="field">
+          <label>شركة التوصيل <span style="color:var(--danger);">*</span></label>
+          <select id="bdCompany" class="form-select" required>
+            <option value="">— اختر الشركة —</option>
+            ${(companies || []).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>رقم الطلب لدى الشركة <span style="font-size:11px;color:var(--text-muted);font-weight:400;">(اختياري)</span></label>
+          <input type="text" id="bdOrderRef" placeholder="مثال: HS-482913">
+        </div>
+        <div class="field">
+          <label>قيمة الفاتورة بالريال <span style="font-size:11px;color:var(--text-muted);font-weight:400;">(اختياري)</span></label>
+          <input type="number" id="bdAmount" step="0.01" min="0" placeholder="0.00">
+        </div>
+
+        ${slot('invoice', 'صورة الفاتورة', 'صورة واضحة لكامل الفاتورة', true)}
+        ${slot('photo1', 'صورة الطلب (1)', 'الطلب كما تم تجهيزه', true)}
+        ${slot('photo2', 'صورة الطلب (2)', 'زاوية أخرى للطلب', false)}
+
+        <div class="field">
+          <label>ملاحظات <span style="font-size:11px;color:var(--text-muted);font-weight:400;">(اختياري)</span></label>
+          <textarea id="bdNotes" rows="2" placeholder="أي ملاحظة على الطلب أو الفاتورة"></textarea>
+        </div>
+
+        <button type="submit" class="btn" id="bdSubmit" style="width:100%;padding:13px;font-size:14.5px;background:var(--primary);color:#fff;">
+          <span data-lucide="save" style="width:15px;height:15px;"></span> حفظ التوثيق
+        </button>
+      </form>
+    </div></div>`;
+
+  if (window.lucide) lucide.createIcons();
+
+  // ─── ربط خانات الصور: ضغط الصورة فورًا ثم معاينتها ───
+  body.querySelectorAll('[data-bd-slot]').forEach(slotEl => {
+    const key = slotEl.dataset.bdSlot;
+    const input = body.querySelector(`[data-bd-input="${key}"]`);
+    const clearBtn = body.querySelector(`[data-bd-clear="${key}"]`);
+    const imgEl = slotEl.querySelector('.bd-slot-img');
+    const emptyEl = slotEl.querySelector('.bd-slot-empty');
+
+    slotEl.addEventListener('click', () => input.click());
+    clearBtn.addEventListener('click', () => {
+      picked[key] = null; input.value = '';
+      imgEl.style.display = 'none'; emptyEl.style.display = '';
+      clearBtn.style.display = 'none';
+    });
+    input.addEventListener('change', async () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      if (!/^image\//.test(file.type)) { toast('الملف المختار ليس صورة', 'error'); input.value = ''; return; }
+      try {
+        // 1400px بجودة 0.72 — يكفي لقراءة الفاتورة ويظل حجمه صغيرًا على شبكة الجوال
+        picked[key] = await compressImage(file, 1400, 0.72);
+        imgEl.src = picked[key];
+        imgEl.style.display = ''; emptyEl.style.display = 'none';
+        clearBtn.style.display = '';
+      } catch (e) {
+        toast('تعذر معالجة الصورة — جرّب صورة أخرى', 'error');
+        input.value = '';
+      }
+    });
+  });
+
+  // ─── الحفظ ───
+  document.getElementById('bdForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('bdError');
+    const btn = document.getElementById('bdSubmit');
+    errEl.textContent = '';
+
+    const companyId = document.getElementById('bdCompany').value;
+    if (!companyId) { errEl.textContent = 'اختر شركة التوصيل'; return; }
+    if (!picked.invoice) { errEl.textContent = 'صورة الفاتورة مطلوبة'; return; }
+    if (!picked.photo1) { errEl.textContent = 'صورة الطلب الأولى مطلوبة'; return; }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span data-lucide="loader" style="width:15px;height:15px;"></span> جاري رفع الصور...';
+    if (window.lucide) lucide.createIcons();
+
+    try {
+      const prefix = `delivery-requests/${CURRENT_USER.branch_id || 'no-branch'}`;
+      const [invoiceUrl, p1Url, p2Url] = await Promise.all([
+        uploadDataUri(picked.invoice, prefix),
+        uploadDataUri(picked.photo1, prefix),
+        picked.photo2 ? uploadDataUri(picked.photo2, prefix) : Promise.resolve(null)
+      ]);
+      // صورة الفاتورة إلزامية في قاعدة البيانات — لو فشل رفعها نوقف بدل حفظ سجل ناقص
+      if (!invoiceUrl || !p1Url) throw new Error('فشل رفع الصور — تحقق من الاتصال وحاول مرة أخرى');
+
+      const companyName = (companies || []).find(c => String(c.id) === String(companyId))?.name || null;
+      const amountRaw = document.getElementById('bdAmount').value;
+
+      const { data: created, error } = await sb.from('branch_delivery_requests').insert({
+        branch_id: CURRENT_USER.branch_id || null,
+        company_id: Number(companyId),
+        company_name: companyName,
+        order_ref: document.getElementById('bdOrderRef').value.trim() || null,
+        amount: amountRaw ? Number(amountRaw) : null,
+        notes: document.getElementById('bdNotes').value.trim() || null,
+        invoice_photo_url: invoiceUrl,
+        order_photo1_url: p1Url,
+        order_photo2_url: p2Url,
+        created_by: CURRENT_USER.id
+      }).select('id').single();
+
+      if (error) throw new Error(error.message);
+      toast('تم توثيق الطلب بنجاح', 'success');
+      location.hash = '#branch_delivery_detail/' + created.id;
+    } catch (err) {
+      errEl.textContent = err.message || 'تعذر حفظ التوثيق';
+      btn.disabled = false;
+      btn.innerHTML = '<span data-lucide="save" style="width:15px;height:15px;"></span> حفظ التوثيق';
+      if (window.lucide) lucide.createIcons();
+    }
+  });
+}
+
+async function pageBranchDeliveryDetail(body, id) {
+  if (!branchDeliveryGuard(body)) return;
+  if (!id) { body.innerHTML = '<p class="empty-state">طلب غير معروف</p>'; return; }
+
+  const { data: r, error } = await sb.from('branch_delivery_requests')
+    .select('*, branches(name), delivery_companies(name), users(full_name)')
+    .eq('id', Number(id)).maybeSingle();
+
+  if (error) {
+    body.innerHTML = isMissingTableError(error)
+      ? branchDeliverySetupNotice()
+      : `<p class="empty-state">تعذر تحميل الطلب: ${esc(error.message)}</p>`;
+    return;
+  }
+  if (!r) { body.innerHTML = '<p class="empty-state">الطلب غير موجود أو لا تملك صلاحية عرضه</p>'; return; }
+
+  const photoCard = (url, title) => url ? `
+    <div style="flex:1;min-width:210px;">
+      <div style="font-size:12.5px;font-weight:700;margin-bottom:6px;">${title}</div>
+      <a href="${esc(url)}" target="_blank" rel="noopener">
+        <img src="${esc(url)}" alt="${title}" style="width:100%;border-radius:12px;border:1px solid var(--border);">
+      </a>
+    </div>` : '';
+
+  body.innerHTML = `
+    <div class="panel">
+      <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <h3 class="panel-title"><span data-lucide="package" style="width:18px;height:18px;vertical-align:-3px;"></span> ${esc(r.delivery_companies?.name || r.company_name || 'تفاصيل طلب التوصيل')}</h3>
+        <button class="btn btn-outline" onclick="location.hash='#branch_delivery'">رجوع للقائمة</button>
+      </div>
+      <div class="panel-body">
+      <table class="adv-table">
+        <tbody>
+          <tr><th style="width:170px;">شركة التوصيل</th><td>${esc(r.delivery_companies?.name || r.company_name || '-')}</td></tr>
+          <tr><th>الفرع</th><td>${esc(r.branches?.name || '-')}</td></tr>
+          <tr><th>رقم الطلب</th><td>${esc(r.order_ref || '-')}</td></tr>
+          <tr><th>قيمة الفاتورة</th><td>${r.amount != null ? Number(r.amount).toFixed(2) + ' ر.س' : '-'}</td></tr>
+          <tr><th>الملاحظات</th><td>${esc(r.notes || '-')}</td></tr>
+          <tr><th>سجّله</th><td>${esc(r.users?.full_name || '-')}</td></tr>
+          <tr><th>تاريخ التسجيل</th><td>${(r.created_at || '').slice(0, 16).replace('T', ' ')}</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+
+    <div class="panel"><div class="panel-header"><h3>الصور</h3></div><div class="panel-body">
+      <div style="display:flex;flex-wrap:wrap;gap:14px;">
+        ${photoCard(r.invoice_photo_url, 'صورة الفاتورة')}
+        ${photoCard(r.order_photo1_url, 'صورة الطلب (1)')}
+        ${photoCard(r.order_photo2_url, 'صورة الطلب (2)')}
+      </div>
+      <p style="font-size:11.5px;color:var(--text-muted);margin-top:12px;">اضغط أي صورة لفتحها بالحجم الكامل.</p>
+    </div></div>`;
+
+  if (window.lucide) lucide.createIcons();
+}
+
 /* ============ Detail + Timeline + Actions ============ */
 async function pageMaintenanceDetail(body, id) {
   if (!id) { body.innerHTML = '<p class="empty-state">طلب غير معروف</p>'; return; }
@@ -42284,10 +42654,12 @@ function openMobileMoreSheet() {
             { key:'invite', hash:'#invite', icon:'user-plus', label:'دعوة موظفين' },
             { key:'users', hash:'#users', icon:'users', label:'المستخدمون' },
             { key:'my_profile', hash:'#my_profile', icon:'user', label:'ملفي الشخصي' },
-            { key:'settings', hash:'#settings', icon:'settings', label:'الإعدادات' }
+            { key:'settings', hash:'#settings', icon:'settings', label:'الإعدادات' },
+            // مقصور على مدير الفرع — يُفلتَر أسفله بنفس حارس القائمة الجانبية
+            { key:'branch_delivery', hash:'#branch_delivery', icon:'package', label:'طلبات شركات التوصيل', onlyRoles: BRANCH_DELIVERY_ROLES }
           ];
-          // فقط التي مش موجود في الرئيسية
-          const hidden = swappable.filter(s => !homeKeys.includes(s.key));
+          // فقط التي مش موجود في الرئيسية، ومسموح بها لدور المستخدم
+          const hidden = swappable.filter(s => !homeKeys.includes(s.key) && passesRoleGate(s));
           return hidden.map(s => {
             const soon = gatedModuleForPage(s.key) && !canAccessModule(s.key)
               ? ' <span class="nav-badge nav-badge-soon" style="margin-right:auto;">قريبًا</span>' : '';
