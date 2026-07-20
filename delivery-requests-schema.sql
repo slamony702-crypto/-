@@ -68,22 +68,25 @@ CREATE INDEX IF NOT EXISTS bdr_created_by_idx
 ALTER TABLE delivery_companies       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE branch_delivery_requests ENABLE ROW LEVEL SECURITY;
 
+-- ملاحظة: كل السياسات مقيّدة بـ TO authenticated (نفس نمط باقي سكيمات
+-- المشروع) — الزائر غير المسجّل لا يمرّ من أي سياسة إطلاقًا.
+
 -- قائمة الشركات: كل مستخدم مسجّل يقرأها (يحتاجها لملء القائمة المنسدلة)
 DROP POLICY IF EXISTS delivery_companies_read ON delivery_companies;
 CREATE POLICY delivery_companies_read ON delivery_companies
-  FOR SELECT USING (current_app_user_id() IS NOT NULL);
+  FOR SELECT TO authenticated USING (current_app_user_id() IS NOT NULL);
 
 -- تعديل قائمة الشركات: الإدارة العليا فقط
 DROP POLICY IF EXISTS delivery_companies_write ON delivery_companies;
 CREATE POLICY delivery_companies_write ON delivery_companies
-  FOR ALL
+  FOR ALL TO authenticated
   USING (current_app_role() IN ('admin', 'company_manager'))
   WITH CHECK (current_app_role() IN ('admin', 'company_manager'));
 
 -- قراءة الطلبات: مدير الفرع يرى فرعه فقط، والإدارة العليا ترى الكل
 DROP POLICY IF EXISTS bdr_select ON branch_delivery_requests;
 CREATE POLICY bdr_select ON branch_delivery_requests
-  FOR SELECT USING (
+  FOR SELECT TO authenticated USING (
     current_app_role() IN ('admin', 'company_manager')
     OR EXISTS (
       SELECT 1 FROM users u
@@ -95,7 +98,7 @@ CREATE POLICY bdr_select ON branch_delivery_requests
 -- الإضافة: مدير الفرع (أو نائبه) على فرعه هو فقط — لا يستطيع التسجيل باسم فرع آخر
 DROP POLICY IF EXISTS bdr_insert ON branch_delivery_requests;
 CREATE POLICY bdr_insert ON branch_delivery_requests
-  FOR INSERT WITH CHECK (
+  FOR INSERT TO authenticated WITH CHECK (
     current_app_role() IN ('admin', 'company_manager')
     OR EXISTS (
       SELECT 1 FROM users u
@@ -108,7 +111,7 @@ CREATE POLICY bdr_insert ON branch_delivery_requests
 -- التعديل/الحذف: صاحب السجل على فرعه، أو الإدارة العليا
 DROP POLICY IF EXISTS bdr_update ON branch_delivery_requests;
 CREATE POLICY bdr_update ON branch_delivery_requests
-  FOR UPDATE
+  FOR UPDATE TO authenticated
   USING (
     current_app_role() IN ('admin', 'company_manager')
     OR created_by = current_app_user_id()
@@ -120,7 +123,7 @@ CREATE POLICY bdr_update ON branch_delivery_requests
 
 DROP POLICY IF EXISTS bdr_delete ON branch_delivery_requests;
 CREATE POLICY bdr_delete ON branch_delivery_requests
-  FOR DELETE USING (
+  FOR DELETE TO authenticated USING (
     current_app_role() IN ('admin', 'company_manager')
     OR created_by = current_app_user_id()
   );
