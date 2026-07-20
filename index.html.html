@@ -5207,7 +5207,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v135-2026-07-20-delivery-only';
+const APP_VERSION = 'v136-2026-07-20-delivery-apps';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -12533,7 +12533,7 @@ function gatedModuleForPage(page) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// سيكشن «طلبات شركات التوصيل» — مقصور على مدير الفرع
+// سيكشن «طلبات تطبيقات التوصيل» — مقصور على مدير الفرع
 // ─────────────────────────────────────────────────────────
 // admin مُدرَج لأنه الدور التقني الذي يجب أن يصل لكل شيء لأغراض الدعم
 // (نفس منطق can() الذي يمرّر admin دائمًا). أي دور آخر لا يرى السيكشن
@@ -12546,7 +12546,7 @@ function canUseBranchDelivery() {
 
 // ─────────────────────────────────────────────────────────
 // وضع «القسم الوحيد»: مدير الفرع لا يرى في النظام إلا طلبات
-// شركات التوصيل — لا لوحة تحكم ولا اجتماعات ولا أي قسم آخر.
+// تطبيقات التوصيل — لا لوحة تحكم ولا اجتماعات ولا أي قسم آخر.
 // admin مستثنى عمدًا: هو الدور التقني الذي يحتاج رؤية كل شيء.
 // القفل مطبَّق على خمسة مداخل: الصفحة الافتراضية، الراوتر،
 // القائمة الجانبية، شيت «المزيد»، والتنقل السفلي على الجوال.
@@ -12629,7 +12629,7 @@ const MENU_GROUPS = [
   // سيكشن خاص بمدير الفرع فقط — onlyRoles يُفلتَر في renderShellOnce وفي شيت
   // «المزيد» على الموبايل، ويُحرَس مرة أخرى داخل صفحة العرض نفسها.
   { key: '__branch_delivery', label: 'طلبات التوصيل', icon: 'package', defaultOpen: false, onlyRoles: BRANCH_DELIVERY_ROLES, items: [
-    { key: 'branch_delivery', label: 'طلبات شركات التوصيل', icon: 'package', onlyRoles: BRANCH_DELIVERY_ROLES },
+    { key: 'branch_delivery', label: 'طلبات تطبيقات التوصيل', icon: 'package', onlyRoles: BRANCH_DELIVERY_ROLES },
   ]},
   { key: '__comm', label: 'التواصل', icon: 'message-circle', defaultOpen: false, items: [
     { key: 'conversations', label: 'تواصل داخلي', icon: 'message-circle' },
@@ -12645,7 +12645,7 @@ const MENU_GROUPS = [
 ];
 // للتوافق مع الكود القديم التي بيستخدم MENU_ITEMS
 const MENU_ITEMS = MENU_GROUPS.flatMap(g => g.items);
-const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', acct_pay_partners: 'شركاء المدفوعات', acct_pay_partner: 'تفاصيل الشريك', acct_pay_statements: 'كشوف الشركاء', acct_pay_statement: 'تفاصيل الكشف', acct_pay_clearing: 'المقاصة والتسويات', acct_pay_clearing_batch: 'تفاصيل دفعة المقاصة', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', ops_issues: 'المشكلات التشغيلية', ops_issue_detail: 'تفاصيل المشكلة', ops_settings: 'إعدادات التشغيل', ai_assistant: 'المساعد الذكي', ai_settings: 'إعدادات المساعد الذكي', menu: 'المنيو والوصفات', menu_categories: 'فئات المنيو', menu_items: 'أصناف المنيو', menu_item: 'تفاصيل الصنف', menu_settings: 'إعدادات المنيو', crm: 'العملاء والولاء', crm_customers: 'قاعدة العملاء', crm_customer: 'ملف العميل', crm_complaints: 'الشكاوى', crm_complaint: 'تفاصيل الشكوى', pos: 'نقاط البيع', pos_terminals: 'الأجهزة', pos_sessions: 'جلسات الكاشير', pos_session: 'تفاصيل الجلسة', pos_cashier: 'شاشة الكاشير', pos_transaction: 'تفاصيل المعاملة', haccp: 'سلامة الغذاء', haccp_equipment: 'المعدات', haccp_temperature: 'سجلات الحرارة', haccp_batches: 'الدفعات الغذائية', haccp_certs: 'الشهادات الصحية', haccp_incidents: 'حوادث السلامة', haccp_incident: 'تفاصيل الحادث', haccp_settings: 'إعدادات HACCP', procurement: 'المشتريات', proc_requisitions: 'طلبات الشراء', proc_requisition: 'تفاصيل طلب الشراء', proc_orders: 'أوامر الشراء', proc_order: 'تفاصيل أمر الشراء', proc_receipts: 'إيصالات الاستلام', proc_receipt: 'تفاصيل الاستلام', performance: 'إدارة الأداء', perf_kpis: 'تعريفات مؤشرات الأداء', perf_scorecards: 'سكوركاردات الأداء', perf_scorecard: 'تفاصيل السكوركارد', perf_reviews: 'التقييمات الدورية', perf_review: 'تفاصيل التقييم', perf_goals: 'الأهداف الفردية', delivery: 'التوصيل', dlv_zones: 'مناطق التوصيل', dlv_riders: 'السائقين', dlv_orders: 'طلبات التوصيل', dlv_order: 'تفاصيل طلب التوصيل', dlv_settings: 'إعدادات التوصيل', documents: 'إدارة المستندات', doc_list: 'كل المستندات', doc_detail: 'تفاصيل المستند', doc_categories: 'تصنيفات المستندات', doc_expiring: 'المستندات المنتهية', call_center: 'مركز الاتصال', cc_agents: 'موظفي مركز الاتصال', cc_calls: 'سجل المكالمات', cc_call: 'تفاصيل مكالمة', cc_scripts: 'مكتبة السكريبتات', cc_followups: 'المتابعات المطلوبة', bi: 'الذكاء التحليلي', bi_reports: 'كتالوج التقارير', bi_report: 'تشغيل تقرير', integrations: 'التكاملات', int_marketplace: 'سوق المزوّدين', int_connections: 'الاتصالات', int_connection: 'تفاصيل الاتصال', int_events: 'سجل الأحداث', franchise: 'الامتياز التجاري', fr_partners: 'شركاء الفرنشايز', fr_partner: 'تفاصيل شريك', fr_agreements: 'العقود', fr_agreement: 'تفاصيل عقد', fr_reports: 'تقارير المبيعات', fr_royalties: 'فواتير الروياليتي', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه', branch_delivery: 'طلبات شركات التوصيل', branch_delivery_new: 'توثيق طلب توصيل', branch_delivery_detail: 'تفاصيل طلب التوصيل' };
+const PAGE_TITLES = { hr: 'الموارد البشرية', hr_employees: 'الموظفون', hr_employee: 'ملف الموظف', hr_organization: 'الأقسام والمناصب', hr_attendance: 'الحضور والانصراف', hr_leaves: 'الإجازات', hr_payroll: 'الرواتب', accounting: 'الحسابات والمالية', acct_chart: 'دليل الحسابات', acct_cost_centers: 'مراكز التكلفة', acct_periods: 'السنوات والفترات المالية', acct_journal: 'القيود اليومية', acct_journal_entry: 'تفاصيل القيد', acct_vendors: 'الموردون', acct_bills: 'فواتير الموردين', acct_bill: 'تفاصيل الفاتورة', acct_payments: 'المدفوعات', acct_customers: 'العملاء', acct_invoices: 'فواتير المبيعات', acct_invoice: 'تفاصيل فاتورة المبيعات', acct_receipts: 'المقبوضات', acct_bank_accounts: 'الحسابات البنكية', acct_petty_cash: 'العهد النقدية', acct_expense_claims: 'مصروفات الموظفين', acct_expense_claim: 'تفاصيل طلب المصروفات', acct_fixed_assets: 'الأصول الثابتة', acct_fixed_asset: 'تفاصيل الأصل', acct_inventory: 'المخزون', acct_vat_returns: 'إقرارات ضريبة القيمة المضافة', acct_reports: 'التقارير المالية', acct_budgets: 'الموازنات', acct_pay_partners: 'شركاء المدفوعات', acct_pay_partner: 'تفاصيل الشريك', acct_pay_statements: 'كشوف الشركاء', acct_pay_statement: 'تفاصيل الكشف', acct_pay_clearing: 'المقاصة والتسويات', acct_pay_clearing_batch: 'تفاصيل دفعة المقاصة', operations: 'تشغيل المطاعم', ops_shift_templates: 'قوالب الورديات', ops_shifts: 'الورديات', ops_shift_detail: 'تفاصيل الوردية', ops_checklists: 'قوائم الفتح والإغلاق', ops_prep_plans: 'خطط التحضير', ops_prep_plan_detail: 'تفاصيل خطة التحضير', ops_orders: 'طلبات المطعم', ops_order_detail: 'تفاصيل الطلب', ops_branch_inventory: 'مخزون الفروع', ops_stock_transfers: 'نقل المخزون بين الفروع', ops_waste: 'سجل الهدر', ops_issues: 'المشكلات التشغيلية', ops_issue_detail: 'تفاصيل المشكلة', ops_settings: 'إعدادات التشغيل', ai_assistant: 'المساعد الذكي', ai_settings: 'إعدادات المساعد الذكي', menu: 'المنيو والوصفات', menu_categories: 'فئات المنيو', menu_items: 'أصناف المنيو', menu_item: 'تفاصيل الصنف', menu_settings: 'إعدادات المنيو', crm: 'العملاء والولاء', crm_customers: 'قاعدة العملاء', crm_customer: 'ملف العميل', crm_complaints: 'الشكاوى', crm_complaint: 'تفاصيل الشكوى', pos: 'نقاط البيع', pos_terminals: 'الأجهزة', pos_sessions: 'جلسات الكاشير', pos_session: 'تفاصيل الجلسة', pos_cashier: 'شاشة الكاشير', pos_transaction: 'تفاصيل المعاملة', haccp: 'سلامة الغذاء', haccp_equipment: 'المعدات', haccp_temperature: 'سجلات الحرارة', haccp_batches: 'الدفعات الغذائية', haccp_certs: 'الشهادات الصحية', haccp_incidents: 'حوادث السلامة', haccp_incident: 'تفاصيل الحادث', haccp_settings: 'إعدادات HACCP', procurement: 'المشتريات', proc_requisitions: 'طلبات الشراء', proc_requisition: 'تفاصيل طلب الشراء', proc_orders: 'أوامر الشراء', proc_order: 'تفاصيل أمر الشراء', proc_receipts: 'إيصالات الاستلام', proc_receipt: 'تفاصيل الاستلام', performance: 'إدارة الأداء', perf_kpis: 'تعريفات مؤشرات الأداء', perf_scorecards: 'سكوركاردات الأداء', perf_scorecard: 'تفاصيل السكوركارد', perf_reviews: 'التقييمات الدورية', perf_review: 'تفاصيل التقييم', perf_goals: 'الأهداف الفردية', delivery: 'التوصيل', dlv_zones: 'مناطق التوصيل', dlv_riders: 'السائقين', dlv_orders: 'طلبات التوصيل', dlv_order: 'تفاصيل طلب التوصيل', dlv_settings: 'إعدادات التوصيل', documents: 'إدارة المستندات', doc_list: 'كل المستندات', doc_detail: 'تفاصيل المستند', doc_categories: 'تصنيفات المستندات', doc_expiring: 'المستندات المنتهية', call_center: 'مركز الاتصال', cc_agents: 'موظفي مركز الاتصال', cc_calls: 'سجل المكالمات', cc_call: 'تفاصيل مكالمة', cc_scripts: 'مكتبة السكريبتات', cc_followups: 'المتابعات المطلوبة', bi: 'الذكاء التحليلي', bi_reports: 'كتالوج التقارير', bi_report: 'تشغيل تقرير', integrations: 'التكاملات', int_marketplace: 'سوق المزوّدين', int_connections: 'الاتصالات', int_connection: 'تفاصيل الاتصال', int_events: 'سجل الأحداث', franchise: 'الامتياز التجاري', fr_partners: 'شركاء الفرنشايز', fr_partner: 'تفاصيل شريك', fr_agreements: 'العقود', fr_agreement: 'تفاصيل عقد', fr_reports: 'تقارير المبيعات', fr_royalties: 'فواتير الروياليتي', myday: 'أعمالي اليوم', analytics: 'تحليلات الأداء', invite: 'دعوة موظفين', vision: 'رؤية الشركة', dashboard: 'لوحة التحكم', meetings: 'الاجتماعات', tasks: 'مخرجات الاجتماعات', department_tasks: 'مهام وتكليفات', decisions: 'القرارات', conversations: 'تواصل داخلي', emergency: 'تواصل طارئ', maintenance: 'الصيانة', maintenance_new: 'طلب صيانة جديد', maintenance_detail: 'تفاصيل طلب الصيانة', maintenance_suppliers: 'موردو الصيانة', quality: 'الجودة', quality_new: 'زيارة جودة جديدة', quality_detail: 'تقرير زيارة الجودة', quality_reports: 'تقارير الجودة', maintenance_reports: 'تقارير الصيانة', maintenance_equipment: 'المعدات', maintenance_preventive: 'الصيانة الوقائية', notifications: 'الإشعارات', search: 'نتائج البحث', reports: 'التقارير', users: 'المستخدمون', install_app: 'تحميل التطبيق', settings: 'الإعدادات', meeting_detail: 'تفاصيل الاجتماع', my_profile: 'ملفي الشخصي', meeting_requests: 'طلبات الاجتماعات', cafe: 'ركن الكافيه', branch_delivery: 'طلبات تطبيقات التوصيل', branch_delivery_new: 'توثيق طلب توصيل', branch_delivery_detail: 'تفاصيل طلب التوصيل' };
 
 // ============ الاجتماعات ============
 // ============ حالة صفحة الاجتماعات (محلية) ============
@@ -39885,7 +39885,7 @@ function compressImage(file, maxDim, quality) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   سيكشن «طلبات شركات التوصيل» — مقصور على مدير الفرع
+   سيكشن «طلبات تطبيقات التوصيل» — مقصور على مدير الفرع
    ─────────────────────────────────────────────────────────
    مدير الفرع يوثّق أي طلب وارد من شركة توصيل: يختار الشركة،
    ويصوّر الفاتورة (إلزامي) وصورتين للطلب. الصور تُضغط في المتصفح
@@ -39902,7 +39902,7 @@ function branchDeliveryGuard(body) {
         <span data-lucide="lock" style="width:26px;height:26px;color:#DC2626;"></span>
       </div>
       <h3 style="font-size:16px;color:#0F172A;margin-bottom:6px;">هذا القسم مخصص لمديري الفروع</h3>
-      <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:18px;">لا تملك صلاحية الوصول لطلبات شركات التوصيل.</p>
+      <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:18px;">لا تملك صلاحية الوصول لطلبات تطبيقات التوصيل.</p>
       <button class="btn btn-primary btn-sm" onclick="location.hash='#dashboard'">العودة للوحة التحكم</button>
     </div>`;
   return false;
@@ -39965,7 +39965,7 @@ async function pageBranchDelivery(body, urlQuery) {
 
     <div class="panel">
       <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-        <h3 class="panel-title"><span data-lucide="package" style="width:18px;height:18px;vertical-align:-3px;"></span> طلبات شركات التوصيل</h3>
+        <h3 class="panel-title"><span data-lucide="package" style="width:18px;height:18px;vertical-align:-3px;"></span> طلبات تطبيقات التوصيل</h3>
         <button class="btn" id="bdNewBtn" style="background:var(--primary);color:#fff;">
           <span data-lucide="camera" style="width:14px;height:14px;"></span> توثيق طلب جديد
         </button>
@@ -39975,7 +39975,7 @@ async function pageBranchDelivery(body, urlQuery) {
         <div style="overflow-x:auto;">
         <table class="adv-table">
           <thead><tr>
-            <th>التاريخ</th><th>شركة التوصيل</th>${isOversight ? '<th>الفرع</th>' : ''}
+            <th>التاريخ</th><th>تطبيق التوصيل</th>${isOversight ? '<th>الفرع</th>' : ''}
             <th>رقم الطلب</th><th>القيمة</th><th>الصور</th><th>سجّله</th>
           </tr></thead>
           <tbody>
@@ -39997,7 +39997,7 @@ async function pageBranchDelivery(body, urlQuery) {
         <div style="text-align:center;padding:40px 20px;">
           <div style="font-size:34px;margin-bottom:10px;">📦</div>
           <h3 style="font-size:15px;margin-bottom:6px;">لا توجد طلبات موثّقة بعد</h3>
-          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:18px;">ابدأ بتوثيق أول طلب من شركة توصيل.</p>
+          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:18px;">ابدأ بتوثيق أول طلب من تطبيق توصيل.</p>
           <button class="btn btn-sm" id="bdNewBtnEmpty" style="background:var(--primary);color:#fff;">
             <span data-lucide="camera" style="width:13px;height:13px;"></span> توثيق طلب جديد
           </button>
@@ -40021,7 +40021,7 @@ async function pageBranchDeliveryNew(body) {
   if (cErr) {
     body.innerHTML = isMissingTableError(cErr)
       ? branchDeliverySetupNotice()
-      : `<p class="empty-state">تعذر تحميل شركات التوصيل: ${esc(cErr.message)}</p>`;
+      : `<p class="empty-state">تعذر تحميل تطبيقات التوصيل: ${esc(cErr.message)}</p>`;
     return;
   }
 
@@ -40055,14 +40055,14 @@ async function pageBranchDeliveryNew(body) {
       <div class="error-msg" id="bdError"></div>
       <form id="bdForm">
         <div class="field">
-          <label>شركة التوصيل <span style="color:var(--danger);">*</span></label>
+          <label>تطبيق التوصيل <span style="color:var(--danger);">*</span></label>
           <select id="bdCompany" class="form-select" required>
-            <option value="">— اختر الشركة —</option>
+            <option value="">— اختر التطبيق —</option>
             ${(companies || []).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}
           </select>
         </div>
         <div class="field">
-          <label>رقم الطلب لدى الشركة <span style="font-size:11px;color:var(--text-muted);font-weight:400;">(اختياري)</span></label>
+          <label>رقم الطلب لدى التطبيق <span style="font-size:11px;color:var(--text-muted);font-weight:400;">(اختياري)</span></label>
           <input type="text" id="bdOrderRef" placeholder="مثال: HS-482913">
         </div>
         <div class="field">
@@ -40126,7 +40126,7 @@ async function pageBranchDeliveryNew(body) {
     errEl.textContent = '';
 
     const companyId = document.getElementById('bdCompany').value;
-    if (!companyId) { errEl.textContent = 'اختر شركة التوصيل'; return; }
+    if (!companyId) { errEl.textContent = 'اختر تطبيق التوصيل'; return; }
     if (!picked.invoice) { errEl.textContent = 'صورة الفاتورة مطلوبة'; return; }
     if (!picked.photo1) { errEl.textContent = 'صورة الطلب الأولى مطلوبة'; return; }
 
@@ -40205,7 +40205,7 @@ async function pageBranchDeliveryDetail(body, id) {
       <div class="panel-body">
       <table class="adv-table">
         <tbody>
-          <tr><th style="width:170px;">شركة التوصيل</th><td>${esc(r.delivery_companies?.name || r.company_name || '-')}</td></tr>
+          <tr><th style="width:170px;">تطبيق التوصيل</th><td>${esc(r.delivery_companies?.name || r.company_name || '-')}</td></tr>
           <tr><th>الفرع</th><td>${esc(r.branches?.name || '-')}</td></tr>
           <tr><th>رقم الطلب</th><td>${esc(r.order_ref || '-')}</td></tr>
           <tr><th>قيمة الفاتورة</th><td>${r.amount != null ? Number(r.amount).toFixed(2) + ' ر.س' : '-'}</td></tr>
@@ -42687,7 +42687,7 @@ function openMobileMoreSheet() {
             { key:'my_profile', hash:'#my_profile', icon:'user', label:'ملفي الشخصي' },
             { key:'settings', hash:'#settings', icon:'settings', label:'الإعدادات' },
             // مقصور على مدير الفرع — يُفلتَر أسفله بنفس حارس القائمة الجانبية
-            { key:'branch_delivery', hash:'#branch_delivery', icon:'package', label:'طلبات شركات التوصيل', onlyRoles: BRANCH_DELIVERY_ROLES }
+            { key:'branch_delivery', hash:'#branch_delivery', icon:'package', label:'طلبات تطبيقات التوصيل', onlyRoles: BRANCH_DELIVERY_ROLES }
           ];
           // فقط التي مش موجود في الرئيسية، ومسموح بها لدور المستخدم
           // مدير الفرع: قسمه فقط لا غير

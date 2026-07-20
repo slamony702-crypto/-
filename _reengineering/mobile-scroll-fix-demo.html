@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>إثبات إصلاح تمرير الموبايل</title>
+<style>
+  /* ═══ محاكاة بنية شؤون الغذاء الحقيقية ═══ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #F5F7F6; }
+
+  /* نفس قاعدة الإنتاج المسببة للمشكلة */
+  .app-layout { display: flex; height: 100vh; overflow: hidden; }
+  .main-content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .page-body { padding: 24px; flex: 1; overflow-y: auto; }
+
+  /* عناصر ثابتة (appbar + nav) كما في الموبايل */
+  .m-appbar { position: fixed; top: 0; left: 0; right: 0; height: 60px; z-index: 60;
+    background: #124; color: #fff; display: flex; align-items: center; justify-content: center; }
+  .m-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 70px; z-index: 60;
+    background: #fff; border-top: 1px solid #ddd; display: flex; align-items: center; justify-content: center; }
+
+  .card { background: #fff; border-radius: 14px; padding: 28px; margin-bottom: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06); font-size: 18px; text-align: center; }
+
+  @media (max-width: 768px) {
+    .app-layout { flex-direction: column; }
+    body.mobile-app-ready .page-body {
+      padding: calc(env(safe-area-inset-top,0px) + 86px) 14px calc(env(safe-area-inset-bottom,0px) + 96px) !important;
+    }
+    /* ═══ الإصلاح — نفس ما أُضيف في index.html.html ═══ */
+    body.fixed .app-layout { height: auto !important; min-height: 100vh; overflow: visible !important; }
+    body.fixed .main-content, body.fixed .page-body { overflow: visible !important; }
+  }
+</style>
+</head>
+<body class="mobile-app-ready fixed">
+  <div class="m-appbar">شؤون الغذاء — شريط علوي ثابت</div>
+  <div class="app-layout">
+    <div class="main-content">
+      <div class="page-body">
+        <div class="card">أعمال اليوم</div>
+        <div class="card">الاجتماعات</div>
+        <div class="card">مخرجات الاجتماعات</div>
+        <div class="card">مهام وتكليفات</div>
+        <div class="card">القرارات</div>
+        <div class="card">الصيانة</div>
+        <div class="card">التواصل</div>
+        <div class="card">الجودة</div>
+        <div class="card">الطوارئ</div>
+        <div class="card">التقارير</div>
+        <div class="card">⬇️ لو وصلت هنا بالتمرير = الإصلاح شغّال ✅</div>
+      </div>
+    </div>
+  </div>
+  <div class="m-nav">شريط سفلي ثابت (المزيد · المهام · الاجتماعات · الرئيسية)</div>
+
+  <script>
+    // زر تبديل لإثبات الفرق: بدون class="fixed" = المشكلة (لا تمرير)، معها = الحل
+    document.body.addEventListener('dblclick', () => {
+      document.body.classList.toggle('fixed');
+      alert(document.body.classList.contains('fixed')
+        ? '✅ الإصلاح مُفعّل — جرّب التمرير لأسفل الآن'
+        : '❌ الإصلاح مُعطّل (محاكاة الإنتاج الحالي) — التمرير لا يعمل');
+    });
+  </script>
+</body>
+</html>
