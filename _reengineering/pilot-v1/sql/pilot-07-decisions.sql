@@ -19,6 +19,14 @@ CREATE OR REPLACE FUNCTION core_current_dept()
 RETURNS BIGINT LANGUAGE sql STABLE SET search_path = public AS $$
   SELECT department_id FROM users WHERE id = current_app_user_id(); $$;
 
+-- SECURITY DEFINER: يتجاوز RLS على الجداول الفرعية لكسر التكرار المتبادل
+-- بين سياسة decisions وسياسات decision_viewers/decision_sub_responsibles.
+CREATE OR REPLACE FUNCTION decision_user_linked(p_dec BIGINT, p_user BIGINT)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (SELECT 1 FROM decision_viewers v WHERE v.decision_id = p_dec AND v.user_id = p_user)
+      OR EXISTS (SELECT 1 FROM decision_sub_responsibles s WHERE s.decision_id = p_dec AND s.user_id = p_user);
+$$;
+
 -- ─── حارس حالة + حماية المعتمد/الملغى ──────────────────────────────────
 CREATE OR REPLACE FUNCTION dec_guard_transition()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY INVOKER SET search_path = public AS $$
@@ -57,8 +65,7 @@ DROP POLICY IF EXISTS decisions_auth_delete ON decisions;
 CREATE POLICY dec_sel ON decisions FOR SELECT TO authenticated USING (
   core_is_company_admin() OR created_by = current_app_user_id() OR responsible_user_id = current_app_user_id()
   OR (department_id IS NOT NULL AND department_id = core_current_dept())
-  OR EXISTS (SELECT 1 FROM decision_viewers v WHERE v.decision_id = decisions.id AND v.user_id = current_app_user_id())
-  OR EXISTS (SELECT 1 FROM decision_sub_responsibles s WHERE s.decision_id = decisions.id AND s.user_id = current_app_user_id())
+  OR decision_user_linked(decisions.id, current_app_user_id())
 );
 CREATE POLICY dec_ins ON decisions FOR INSERT TO authenticated WITH CHECK (
   created_by = current_app_user_id()

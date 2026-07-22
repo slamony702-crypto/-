@@ -24,6 +24,13 @@ CREATE OR REPLACE FUNCTION core_current_dept()
 RETURNS BIGINT LANGUAGE sql STABLE SET search_path = public AS $$
   SELECT department_id FROM users WHERE id = current_app_user_id(); $$;
 
+-- SECURITY DEFINER: يتجاوز RLS على emergency_recipients لكسر التكرار المتبادل
+-- بين سياسة emergency_alerts وسياسة emergency_recipients.
+CREATE OR REPLACE FUNCTION emergency_is_recipient(p_alert BIGINT, p_user BIGINT)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (SELECT 1 FROM emergency_recipients r WHERE r.alert_id = p_alert AND r.user_id = p_user);
+$$;
+
 -- ─── منع الحذف نهائيًا (حالات الطوارئ لا تُحذف) ────────────────────────
 CREATE OR REPLACE FUNCTION em_block_delete()
 RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$

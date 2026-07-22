@@ -25,6 +25,13 @@ RETURNS BIGINT LANGUAGE sql STABLE SET search_path = public AS $$
   SELECT department_id FROM users WHERE id = current_app_user_id();
 $$;
 
+-- SECURITY DEFINER: يتجاوز RLS على meeting_attendees لكسر التكرار المتبادل
+-- بين سياسة meetings وسياسة meeting_attendees (كلٌّ يشير للآخر).
+CREATE OR REPLACE FUNCTION meeting_is_attendee(p_meeting BIGINT, p_user BIGINT)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (SELECT 1 FROM meeting_attendees a WHERE a.meeting_id = p_meeting AND a.user_id = p_user);
+$$;
+
 -- ─── حارس انتقالات + حماية نهائية ──────────────────────────────────────
 CREATE OR REPLACE FUNCTION meetings_guard_transition()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY INVOKER SET search_path = public AS $$
@@ -72,7 +79,7 @@ CREATE POLICY meetings_sel ON meetings FOR SELECT TO authenticated USING (
   core_is_company_admin()
   OR organizer_id = current_app_user_id()
   OR (department_id IS NOT NULL AND department_id = core_current_dept())
-  OR EXISTS (SELECT 1 FROM meeting_attendees a WHERE a.meeting_id = meetings.id AND a.user_id = current_app_user_id())
+  OR meeting_is_attendee(meetings.id, current_app_user_id())
 );
 CREATE POLICY meetings_ins ON meetings FOR INSERT TO authenticated WITH CHECK (
   organizer_id = current_app_user_id()   -- لا يُنشئ باسم منظِّم آخر
@@ -105,7 +112,7 @@ BEGIN
         EXISTS (SELECT 1 FROM meetings m WHERE m.id = %1$I.%2$I
           AND (core_is_company_admin() OR m.organizer_id = current_app_user_id()
                OR (m.department_id IS NOT NULL AND m.department_id = core_current_dept())
-               OR EXISTS (SELECT 1 FROM meeting_attendees a WHERE a.meeting_id = m.id AND a.user_id = current_app_user_id())))
+               OR meeting_is_attendee(m.id, current_app_user_id())))
       )$f$, child, fk);
     EXECUTE format($f$
       CREATE POLICY %1$s_wr ON %1$I FOR ALL TO authenticated
