@@ -13213,7 +13213,7 @@ function renderMeetingsTableBody() {
     const emptyActions = hasFilters ? [{
       label: 'إزالة كل الفلاتر', icon: 'x', onClick: () => {
         MeetingsState.search = ''; MeetingsState.statusFilter = ''; MeetingsState.typeFilter = '';
-        MeetingsState.page = 1; renderMeetingsTable();
+        MeetingsState.page = 1; renderMeetingsTableBody();
       }
     }] : [{
       label: 'جدولة اجتماع جديد', icon: 'plus', primary: true, onClick: () => document.getElementById('toggleCreateBtn')?.click()
@@ -14600,7 +14600,7 @@ function renderTasksTableBody() {
     const tasksActions = hasTaskFilters ? [{
       label: 'إزالة كل الفلاتر', icon: 'x', onClick: () => {
         TasksState.search = ''; TasksState.statusFilter = ''; TasksState.priorityFilter = '';
-        TasksState.page = 1; renderTasksTable();
+        TasksState.page = 1; renderTasksTableBody();
       }
     }] : [];
     wrap.innerHTML = premiumEmptyState({
@@ -16195,6 +16195,9 @@ function renderDecisionsTable(body, canManage) {
 }
 
 window.convertDecisionToTask = async function(decisionId) {
+  // حارس صلاحية داخلي (دفاع طبقي — الفرض النهائي عبر RLS على الخادم):
+  // الدالة عامة على window وكانت قابلة للاستدعاء من الكونسول بلا فحص.
+  if (!can('decisions', 'manage')) { toast('لا تملك صلاحية تحويل القرارات إلى مهام', 'error'); return; }
   const d = DecisionsState.all.find(x => x.id === decisionId);
   if (!d) return;
   try {
@@ -16589,6 +16592,8 @@ window.closeDecisionDrawer = function() {
 };
 
 window.deleteDecision = async function(id) {
+  // حارس صلاحية داخلي (دفاع طبقي — الفرض النهائي عبر RLS على الخادم):
+  if (!can('decisions', 'manage')) { toast('لا تملك صلاحية حذف القرارات', 'error'); return; }
   // نجيب القرار كامل لكي نقدر نرجّعه
   const { data: dec } = await sb.from('decisions').select('*').eq('id', id).maybeSingle();
   if (!dec) return;
@@ -20252,32 +20257,18 @@ window.openUserDetailModal = function(userId, editMode) {
           <div class="drawer-row"><span class="k">الحالة</span><span>${userStatusBadge(u)}</span></div>
           ${window.__usersPageData.isAdmin ? `
           <div class="drawer-row"><span class="k">كلمة المرور</span><span style="display:flex;align-items:center;gap:8px;">
-            <span id="userPwMask_${u.id}" class="mono-num">••••••••</span>
-            <span id="userPwReal_${u.id}" class="mono-num" style="display:none;">${esc(u.password_plain || 'غير متوفرة (تم تغييرها يدويًا)')}</span>
-            <button type="button" title="إظهار/إخفاء" onclick="toggleUserPasswordView(${u.id})" style="background:none;border:none;cursor:pointer;color:var(--text-muted);"><span data-lucide="eye" id="userPwEyeIcon_${u.id}" style="width:14px;height:14px;"></span></button>
-            ${u.password_plain ? `<button type="button" title="نسخ" onclick="copyUserPassword('${esc(u.password_plain).replace(/'/g,"")}')" style="background:none;border:none;cursor:pointer;color:var(--text-muted);"><span data-lucide="copy" style="width:14px;height:14px;"></span></button>` : ''}
+            <span class="mono-num" style="color:var(--text-muted);">محفوظة بأمان — لا تُعرض</span>
+            <button type="button" title="تغيير كلمة المرور" onclick="openChangePasswordModal(${u.id})" style="background:none;border:1px solid var(--border);border-radius:8px;padding:3px 10px;cursor:pointer;color:var(--sidebar-primary-dark);font-size:12px;font-weight:700;"><span data-lucide="key" style="width:13px;height:13px;vertical-align:-2px;"></span> تغيير</button>
           </span></div>
-          ${u.auth_id ? `<p style="font-size:11px;color:#7A4E0E;background:rgba(214,164,55,0.12);border-radius:8px;padding:6px 10px;margin:4px 0 0;">⚠️ هذا المستخدم دخل من قبل وله كلمة سر حقيقية منفصلة قد لا تطابق القيمة أعلاه — استخدم لوحة Supabase لإعادة تعيينها فعليًا.</p>` : ''}` : ''}
+          <p style="font-size:11px;color:#475569;background:rgba(100,116,139,0.08);border-radius:8px;padding:6px 10px;margin:4px 0 0;">🔒 كلمات المرور لم تعد تُعرض أو تُنسخ من الواجهة. لإعطاء المستخدم كلمة مرور جديدة استخدم «تغيير»، أو أعد التعيين فعليًا من لوحة Supabase (Authentication → Users).</p>` : ''}
         </div>
       </div>
     </div>
   `);
   if (window.lucide) lucide.createIcons();
 };
-window.toggleUserPasswordView = function(userId) {
-  const mask = document.getElementById('userPwMask_' + userId);
-  const real = document.getElementById('userPwReal_' + userId);
-  const icon = document.getElementById('userPwEyeIcon_' + userId);
-  if (!mask || !real) return;
-  const showing = real.style.display !== 'none';
-  mask.style.display = showing ? '' : 'none';
-  real.style.display = showing ? 'none' : '';
-  if (icon) icon.setAttribute('data-lucide', showing ? 'eye' : 'eye-off');
-  if (window.lucide) lucide.createIcons();
-};
-window.copyUserPassword = function(pw) {
-  navigator.clipboard?.writeText(pw).then(() => toast('تم نسخ كلمة المرور', 'success')).catch(() => toast('تعذر النسخ', 'error'));
-};
+// (أُزيلت toggleUserPasswordView و copyUserPassword — لم تعد كلمة المرور
+//  تُعرَض أو تُنسَخ من الواجهة ضمن تصليب موديول المستخدمين — Pilot v1)
 
 
 // ============ الإعدادات ============
