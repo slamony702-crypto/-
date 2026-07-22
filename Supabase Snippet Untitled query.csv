@@ -1,0 +1,114 @@
+section_order,object_type,schema_name,object_name,sub_object,status,definition,details
+0,TABLE,public,branches,null,EXISTS,null,null
+0,TABLE,public,departments,null,EXISTS,null,null
+0,TABLE,public,permissions,null,TABLE_NOT_FOUND,null,null
+0,TABLE,public,role_permissions,null,EXISTS,null,null
+0,TABLE,public,roles,null,TABLE_NOT_FOUND,null,null
+0,TABLE,public,signup_requests,null,EXISTS,null,null
+0,TABLE,public,user_activity_log,null,EXISTS,null,null
+0,TABLE,public,user_permission_overrides,null,EXISTS,null,null
+0,TABLE,public,users,null,EXISTS,null,null
+1,COLUMN,public,branches,1. id,NOT NULL,bigint,default=nextval('branches_id_seq'::regclass); identity=none; generated=none
+1,COLUMN,public,branches,2. name,NOT NULL,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,branches,3. address,NULLABLE,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,branches,4. manager_id,NULLABLE,bigint,default=NULL; identity=none; generated=none
+1,COLUMN,public,branches,5. is_active,NULLABLE,boolean,default=true; identity=none; generated=none
+1,COLUMN,public,branches,6. created_at,NULLABLE,timestamp with time zone,default=now(); identity=none; generated=none
+1,COLUMN,public,departments,1. id,NOT NULL,bigint,default=NULL; identity=a; generated=none
+1,COLUMN,public,departments,2. name,NOT NULL,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,departments,3. created_at,NULLABLE,timestamp with time zone,default=now(); identity=none; generated=none
+1,COLUMN,public,role_permissions,1. id,NOT NULL,bigint,default=NULL; identity=a; generated=none
+1,COLUMN,public,role_permissions,2. role,NOT NULL,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,role_permissions,3. section_key,NOT NULL,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,role_permissions,4. can_view,NOT NULL,boolean,default=false; identity=none; generated=none
+1,COLUMN,public,role_permissions,5. can_manage,NOT NULL,boolean,default=false; identity=none; generated=none
+1,COLUMN,public,role_permissions,6. scope,NOT NULL,text,default='company_wide'::text; identity=none; generated=none
+1,COLUMN,public,signup_requests,1. id,NOT NULL,bigint,default=nextval('signup_requests_id_seq'::regclass); identity=none; generated=none
+1,COLUMN,public,signup_requests,10. reviewed_by,NULLABLE,bigint,default=NULL; identity=none; generated=none
+1,COLUMN,public,signup_requests,11. reviewed_at,NULLABLE,timestamp with time zone,default=NULL; identity=none; generated=none
+1,COLUMN,public,signup_requests,12. rejection_reason,NULLABLE,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,signup_requests,2. full_name,NOT NULL,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,signup_requests,3. mobile_number,NOT NULL,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,signup_requests,4. email,NOT NULL,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,signup_requests,5. job_title,NOT NULL,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,signup_requests,6. region,NOT NULL,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,signup_requests,7. notes,NULLABLE,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,signup_requests,8. status,NULLABLE,text,default='pending'::text; identity=none; generated=none
+1,COLUMN,public,signup_requests,9. created_at,NULLABLE,timestamp with time zone,default=now(); identity=none; generated=none
+1,COLUMN,public,user_activity_log,1. id,NOT NULL,bigint,default=NULL; identity=a; generated=none
+1,COLUMN,public,user_activity_log,2. user_id,NULLABLE,bigint,default=NULL; identity=none; generated=none
+1,COLUMN,public,user_activity_log,3. action_text,NOT NULL,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,user_activity_log,4. details,NULLABLE,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,user_activity_log,5. created_by,NULLABLE,bigint,default=NULL; identity=none; generated=none
+1,COLUMN,public,user_activity_log,6. created_at,NULLABLE,timestamp with time zone,default=now(); identity=none; generated=none
+1,COLUMN,public,user_permission_overrides,1. id,NOT NULL,bigint,default=NULL; identity=a; generated=none
+1,COLUMN,public,user_permission_overrides,2. user_id,NOT NULL,bigint,default=NULL; identity=none; generated=none
+1,COLUMN,public,user_permission_overrides,3. section_key,NOT NULL,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,user_permission_overrides,4. can_view,NULLABLE,boolean,default=NULL; identity=none; generated=none
+1,COLUMN,public,user_permission_overrides,5. can_manage,NULLABLE,boolean,default=NULL; identity=none; generated=none
+1,COLUMN,public,users,1. id,NOT NULL,bigint,default=NULL; identity=a; generated=none
+1,COLUMN,public,users,10. last_active_at,NULLABLE,timestamp with time zone,default=NULL; identity=none; generated=none
+1,COLUMN,public,users,11. mobile_number,NULLABLE,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,users,12. nationality,NULLABLE,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,users,13. email,NULLABLE,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,users,14. direct_manager_id,NULLABLE,bigint,default=NULL; identity=none; generated=none
+1,COLUMN,public,users,15. joining_date,NULLABLE,date,default=NULL; identity=none; generated=none
+1,COLUMN,public,users,16. last_login_at,NULLABLE,timestamp with time zone,default=NULL; identity=none; generated=none
+1,COLUMN,public,users,17. status,NOT NULL,text,default='active'::text; identity=none; generated=none
+1,COLUMN,public,users,18. auth_id,NULLABLE,uuid,default=NULL; identity=none; generated=none
+1,COLUMN,public,users,19. avatar_url,NULLABLE,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,users,2. full_name,NOT NULL,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,users,20. branch_id,NULLABLE,bigint,default=NULL; identity=none; generated=none
+1,COLUMN,public,users,3. username,NOT NULL,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,users,4. password_plain,NOT NULL,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,users,5. role,NOT NULL,text,default=NULL; identity=none; generated=none
+1,COLUMN,public,users,6. department_id,NULLABLE,bigint,default=NULL; identity=none; generated=none
+1,COLUMN,public,users,7. is_active,NULLABLE,boolean,default=true; identity=none; generated=none
+1,COLUMN,public,users,8. created_at,NULLABLE,timestamp with time zone,default=now(); identity=none; generated=none
+1,COLUMN,public,users,9. position_title,NULLABLE,text,default=NULL; identity=none; generated=none
+2,CONSTRAINT,public,branches,branches_manager_id_fkey,FOREIGN KEY,FOREIGN KEY (manager_id) REFERENCES users(id) ON DELETE SET NULL,references=users
+2,CONSTRAINT,public,branches,branches_pkey,PRIMARY KEY,PRIMARY KEY (id),null
+2,CONSTRAINT,public,departments,departments_name_key,UNIQUE,UNIQUE (name),null
+2,CONSTRAINT,public,departments,departments_pkey,PRIMARY KEY,PRIMARY KEY (id),null
+2,CONSTRAINT,public,role_permissions,role_permissions_pkey,PRIMARY KEY,PRIMARY KEY (id),null
+2,CONSTRAINT,public,role_permissions,role_permissions_role_section_key_key,UNIQUE,"UNIQUE (role, section_key)",null
+2,CONSTRAINT,public,role_permissions,role_permissions_scope_check,CHECK,"CHECK (scope = ANY (ARRAY['company_wide'::text, 'own_department'::text]))",null
+2,CONSTRAINT,public,signup_requests,signup_requests_pkey,PRIMARY KEY,PRIMARY KEY (id),null
+2,CONSTRAINT,public,signup_requests,signup_requests_reviewed_by_fkey,FOREIGN KEY,FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,references=users
+2,CONSTRAINT,public,user_activity_log,user_activity_log_created_by_fkey,FOREIGN KEY,FOREIGN KEY (created_by) REFERENCES users(id),references=users
+2,CONSTRAINT,public,user_activity_log,user_activity_log_pkey,PRIMARY KEY,PRIMARY KEY (id),null
+2,CONSTRAINT,public,user_activity_log,user_activity_log_user_id_fkey,FOREIGN KEY,FOREIGN KEY (user_id) REFERENCES users(id),references=users
+2,CONSTRAINT,public,user_permission_overrides,user_permission_overrides_pkey,PRIMARY KEY,PRIMARY KEY (id),null
+2,CONSTRAINT,public,user_permission_overrides,user_permission_overrides_user_id_fkey,FOREIGN KEY,FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,references=users
+2,CONSTRAINT,public,user_permission_overrides,user_permission_overrides_user_id_section_key_key,UNIQUE,"UNIQUE (user_id, section_key)",null
+2,CONSTRAINT,public,users,users_auth_id_unique,UNIQUE,UNIQUE (auth_id),null
+2,CONSTRAINT,public,users,users_branch_id_fkey,FOREIGN KEY,FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE SET NULL,references=branches
+2,CONSTRAINT,public,users,users_department_id_fkey,FOREIGN KEY,FOREIGN KEY (department_id) REFERENCES departments(id),references=departments
+2,CONSTRAINT,public,users,users_direct_manager_id_fkey,FOREIGN KEY,FOREIGN KEY (direct_manager_id) REFERENCES users(id),references=users
+2,CONSTRAINT,public,users,users_email_unique,UNIQUE,UNIQUE (email),null
+2,CONSTRAINT,public,users,users_pkey,PRIMARY KEY,PRIMARY KEY (id),null
+2,CONSTRAINT,public,users,users_role_check,CHECK,"CHECK (role = ANY (ARRAY['admin'::text, 'department_manager'::text, 'meeting_organizer'::text, 'employee'::text]))",null
+2,CONSTRAINT,public,users,users_status_check,CHECK,"CHECK (status = ANY (ARRAY['active'::text, 'inactive'::text, 'suspended'::text]))",null
+2,CONSTRAINT,public,users,users_username_key,UNIQUE,UNIQUE (username),null
+3,INDEX,public,branches,branches_pkey,EXISTS,CREATE UNIQUE INDEX branches_pkey ON public.branches USING btree (id),null
+3,INDEX,public,departments,departments_name_key,EXISTS,CREATE UNIQUE INDEX departments_name_key ON public.departments USING btree (name),null
+3,INDEX,public,departments,departments_pkey,EXISTS,CREATE UNIQUE INDEX departments_pkey ON public.departments USING btree (id),null
+3,INDEX,public,role_permissions,role_permissions_pkey,EXISTS,CREATE UNIQUE INDEX role_permissions_pkey ON public.role_permissions USING btree (id),null
+3,INDEX,public,role_permissions,role_permissions_role_section_key_key,EXISTS,"CREATE UNIQUE INDEX role_permissions_role_section_key_key ON public.role_permissions USING btree (role, section_key)",null
+3,INDEX,public,signup_requests,idx_signup_requests_status,EXISTS,CREATE INDEX idx_signup_requests_status ON public.signup_requests USING btree (status),null
+3,INDEX,public,signup_requests,signup_requests_pkey,EXISTS,CREATE UNIQUE INDEX signup_requests_pkey ON public.signup_requests USING btree (id),null
+3,INDEX,public,user_activity_log,user_activity_log_pkey,EXISTS,CREATE UNIQUE INDEX user_activity_log_pkey ON public.user_activity_log USING btree (id),null
+3,INDEX,public,user_permission_overrides,user_permission_overrides_pkey,EXISTS,CREATE UNIQUE INDEX user_permission_overrides_pkey ON public.user_permission_overrides USING btree (id),null
+3,INDEX,public,user_permission_overrides,user_permission_overrides_user_id_section_key_key,EXISTS,"CREATE UNIQUE INDEX user_permission_overrides_user_id_section_key_key ON public.user_permission_overrides USING btree (user_id, section_key)",null
+3,INDEX,public,users,users_auth_id_unique,EXISTS,CREATE UNIQUE INDEX users_auth_id_unique ON public.users USING btree (auth_id),null
+3,INDEX,public,users,users_branch_id_idx,EXISTS,CREATE INDEX users_branch_id_idx ON public.users USING btree (branch_id) WHERE (branch_id IS NOT NULL),null
+3,INDEX,public,users,users_email_unique,EXISTS,CREATE UNIQUE INDEX users_email_unique ON public.users USING btree (email),null
+3,INDEX,public,users,users_pkey,EXISTS,CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id),null
+3,INDEX,public,users,users_username_key,EXISTS,CREATE UNIQUE INDEX users_username_key ON public.users USING btree (username),null
+4,SEQUENCE,public,branches_id_seq,branches.id,OWNED,public.branches_id_seq,owner_column=public.branches.id
+4,SEQUENCE,public,departments_id_seq,departments.id,OWNED,public.departments_id_seq,owner_column=public.departments.id
+4,SEQUENCE,public,role_permissions_id_seq,role_permissions.id,OWNED,public.role_permissions_id_seq,owner_column=public.role_permissions.id
+4,SEQUENCE,public,signup_requests_id_seq,signup_requests.id,OWNED,public.signup_requests_id_seq,owner_column=public.signup_requests.id
+4,SEQUENCE,public,user_activity_log_id_seq,user_activity_log.id,OWNED,public.user_activity_log_id_seq,owner_column=public.user_activity_log.id
+4,SEQUENCE,public,user_permission_overrides_id_seq,user_permission_overrides.id,OWNED,public.user_permission_overrides_id_seq,owner_column=public.user_permission_overrides.id
+4,SEQUENCE,public,users_id_seq,users.id,OWNED,public.users_id_seq,owner_column=public.users.id
