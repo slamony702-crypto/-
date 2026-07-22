@@ -74,10 +74,11 @@ CREATE POLICY dec_del ON decisions FOR DELETE TO authenticated USING (
   core_is_company_admin() AND status <> 'executed'
 );
 
--- ── الجداول الفرعية للقرار: ترث الرؤية ──
+-- ── الجداول الفرعية التي تملك user_id: ترث الرؤية + صف المستخدم نفسه ──
+-- (decision_activity_log مستثنى — عموده created_by لا user_id، يُعالَج تحت)
 DO $$
 DECLARE child TEXT;
-  children TEXT[] := ARRAY['decision_sub_responsibles','decision_viewers','decision_activity_log','decision_acknowledgments'];
+  children TEXT[] := ARRAY['decision_sub_responsibles','decision_viewers','decision_acknowledgments'];
 BEGIN
   FOREACH child IN ARRAY children LOOP
     EXECUTE format('DROP POLICY IF EXISTS %I ON %I', child || '_auth_select', child);
@@ -107,6 +108,30 @@ BEGIN
       $f$, child);
   END LOOP;
 END $$;
+
+-- ── decision_activity_log: يرث من القرار الأم (عموده created_by لا user_id) ──
+DROP POLICY IF EXISTS decision_activity_log_auth_select ON decision_activity_log;
+DROP POLICY IF EXISTS decision_activity_log_auth_insert ON decision_activity_log;
+DROP POLICY IF EXISTS decision_activity_log_auth_update ON decision_activity_log;
+DROP POLICY IF EXISTS decision_activity_log_auth_delete ON decision_activity_log;
+DROP POLICY IF EXISTS decision_activity_log_sel ON decision_activity_log;
+DROP POLICY IF EXISTS decision_activity_log_wr ON decision_activity_log;
+CREATE POLICY decision_activity_log_sel ON decision_activity_log FOR SELECT TO authenticated USING (
+  EXISTS (SELECT 1 FROM decisions d WHERE d.id = decision_activity_log.decision_id
+    AND (core_is_company_admin() OR d.created_by = current_app_user_id()
+         OR d.responsible_user_id = current_app_user_id()
+         OR (d.department_id IS NOT NULL AND d.department_id = core_current_dept())))
+  OR created_by = current_app_user_id()
+);
+CREATE POLICY decision_activity_log_wr ON decision_activity_log FOR ALL TO authenticated
+  USING (EXISTS (SELECT 1 FROM decisions d WHERE d.id = decision_activity_log.decision_id
+         AND (core_is_company_admin() OR d.created_by = current_app_user_id()
+              OR (current_app_role()='department_manager' AND d.department_id = core_current_dept())))
+         OR created_by = current_app_user_id())
+  WITH CHECK (EXISTS (SELECT 1 FROM decisions d WHERE d.id = decision_activity_log.decision_id
+         AND (core_is_company_admin() OR d.created_by = current_app_user_id()
+              OR (current_app_role()='department_manager' AND d.department_id = core_current_dept())))
+         OR created_by = current_app_user_id());
 
 SELECT 'decisions' AS object,
   (SELECT count(*)::text FROM pg_policies WHERE tablename='decisions') AS policies;
