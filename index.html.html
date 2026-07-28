@@ -12474,7 +12474,8 @@ async function finishLoginAndEnterApp(user) {
     id: user.id, username: user.username, full_name: user.full_name,
     role: user.role, department_id: user.department_id,
     department_name: user.departments ? user.departments.name : null,
-    avatar_url: user.avatar_url || null
+    avatar_url: user.avatar_url || null,
+    branch_id: user.branch_id ?? null
   };
   localStorage.setItem('food_affairs_user', JSON.stringify(CURRENT_USER));
   localStorage.removeItem('fa_pending_signup');
@@ -40168,6 +40169,8 @@ async function pageBranchDeliveryNew(body) {
       location.hash = '#branch_delivery_detail/' + created.id;
     } catch (err) {
       errEl.textContent = err.message || 'تعذر حفظ التوثيق';
+      toast(err.message || 'تعذر حفظ التوثيق', 'error');
+      errEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       btn.disabled = false;
       btn.innerHTML = '<span data-lucide="save" style="width:15px;height:15px;"></span> حفظ التوثيق';
       if (window.lucide) lucide.createIcons();
