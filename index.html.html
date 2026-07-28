@@ -5207,7 +5207,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v143-2026-07-28-bm-header-minimal';
+const APP_VERSION = 'v144-2026-07-28-fix-signup-insert-catch';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -12340,7 +12340,7 @@ function renderSetNewPasswordPage() {
       const { error } = await sb.auth.updateUser({ password: pw });
       if (error) throw error;
       if (authUserId) {
-        await sb.from('users').update({ password_plain: pw }).eq('auth_id', authUserId).catch(() => {});
+        try { await sb.from('users').update({ password_plain: pw }).eq('auth_id', authUserId); } catch (e) {}
       }
       handlingPasswordRecovery = false;
       await sb.auth.signOut();
@@ -19998,11 +19998,14 @@ function renderUsersTabContent() {
             job_title: req.job_title, region: req.region, notes: req.notes || null
           }).eq('id', origReq.id);
           if (newUser) {
-            await sb.from('notifications').insert({
-              user_id: newUser.id, title: 'تم قبول طلب انضمامك 🎉',
-              body: 'تم تفعيل حسابك على نظام شؤون الغذاء — يرجى مراجعة بيانات الدخول التي وصلتك',
-              link: '#dashboard'
-            }).catch(() => {});
+            // الإشعار غير حرج — نتجاهل أي خطأ فيه بدل ما نُفشل إنشاء الحساب
+            try {
+              await sb.from('notifications').insert({
+                user_id: newUser.id, title: 'تم قبول طلب انضمامك 🎉',
+                body: 'تم تفعيل حسابك على نظام شؤون الغذاء — يرجى مراجعة بيانات الدخول التي وصلتك',
+                link: '#dashboard'
+              });
+            } catch (e) {}
           }
           showApprovalConfirmModal(req, username, password, !!chosenPassword);
         } catch (err) {
