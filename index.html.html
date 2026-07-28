@@ -5207,7 +5207,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v145-2026-07-28-catch-audit';
+const APP_VERSION = 'v146-2026-07-28-signup-rejected-status';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -12275,7 +12275,25 @@ function renderPendingApprovalScreen() {
     btn.disabled = true;
     btn.innerHTML = '<span class="login-spinner"></span><span>جارٍ التحقق...</span>';
     const ok = await tryPendingSignupLogin();
-    if (!ok && document.getElementById('pndCheckBtn')) {
+    if (ok) return;
+    // كشف الرفض عبر دالة الحالة (SECURITY DEFINER) — تعمل حتى قبل الدخول
+    let rejected = false;
+    try {
+      const p = getPendingSignup();
+      if (p && p.email) {
+        const { data } = await sb.rpc('check_signup_status', { p_email: p.email });
+        rejected = (data === 'rejected');
+      }
+    } catch (e) {}
+    if (rejected) {
+      try { localStorage.removeItem('fa_pending_signup'); } catch (e) {}
+      const card = document.querySelector('.pnd-msg-card');
+      if (card) card.innerHTML = '<div class="pnd-msg-icon" style="background:rgba(220,53,69,0.12);color:var(--danger);"><span data-lucide="x-circle" style="width:22px;height:22px;"></span></div><div class="pnd-msg-title">نأسف — لم يُقبل طلب انضمامك</div><div class="pnd-msg-body">تعذّر قبول طلبك حاليًا. للاستفسار أو إعادة التقديم، تواصل مع مسؤول النظام.</div>';
+      if (btn) btn.outerHTML = '<button type="button" class="login-submit-btn" style="margin-top:16px;" onclick="try{localStorage.removeItem(\'fa_pending_signup\')}catch(e){}; renderLogin();"><span data-lucide="log-in"></span><span>العودة لتسجيل الدخول</span></button>';
+      if (window.lucide) lucide.createIcons();
+      return;
+    }
+    if (document.getElementById('pndCheckBtn')) {
       toast('طلبك ما زال قيد المراجعة — سيتم تفعيله خلال يوم عمل كحد أقصى', 'warning');
       btn.disabled = false;
       btn.innerHTML = '<span data-lucide="refresh-cw"></span><span>تحقق من حالة الطلب الآن</span>';
