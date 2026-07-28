@@ -5207,7 +5207,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v148-2026-07-28-signup-inapp-welcome';
+const APP_VERSION = 'v149-2026-07-28-signup-login-anytime';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -11974,6 +11974,20 @@ function renderLogin() {
       const user = await authLogin(username, password);
       await finishLoginAndEnterApp(user);
     } catch (err) {
+      // لو مفيش حساب نشط: ربما طلب انضمام قيد المراجعة/مرفوض — وجّهه لشاشته المناسبة
+      // (المنضم يدخل بإيميله وكلمة مروره في أي وقت ويلاقي حالته)
+      try {
+        const { data: srows } = await sb.rpc('verify_signup_login', { p_email: username, p_password: password });
+        const srow = srows && srows[0];
+        if (srow && srow.status === 'pending') {
+          try { localStorage.setItem('fa_pending_signup', JSON.stringify({ full_name: srow.full_name, email: username, password })); } catch (e) {}
+          renderPendingApprovalScreen();
+          return;
+        }
+        if (srow && srow.status === 'rejected') {
+          err = new Error('نأسف — لم يُقبل طلب انضمامك. للاستفسار تواصل مع مسؤول النظام.');
+        }
+      } catch (e) {}
       errText.textContent = err.message || 'حدث خطأ أثناء تسجيل الدخول';
       errBox.classList.add('show');
       submitBtn.disabled = false;

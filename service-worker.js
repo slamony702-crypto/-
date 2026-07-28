@@ -10,7 +10,7 @@
 // قبل إعادة التحميل — فلا يعلق أحد على نسخة قديمة.
 // ملاحظة نشر: غيّر SW_VERSION مع كل نشر (نفس قيمة APP_VERSION).
 // ═══════════════════════════════════════════════════════════
-const SW_VERSION = 'v148-2026-07-28-signup-inapp-welcome';
+const SW_VERSION = 'v149-2026-07-28-signup-login-anytime';
 const CACHE_NAME = 'sg-shell-' + SW_VERSION;
 
 // لا تلمس أبدًا: قاعدة البيانات، دوال الخادم، فحص إصدار التطبيق، APIs خارجية حية
