@@ -5207,7 +5207,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v144-2026-07-28-fix-signup-insert-catch';
+const APP_VERSION = 'v145-2026-07-28-catch-audit';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -8009,7 +8009,7 @@ const POS = {
       // احسب الإجمالي المتوقع (النقد الافتتاحي + كل الدفعات النقدية في الجلسة)
       const { data: session } = await POS.sessions.get(id);
       if (!session) return { error: { message: 'الجلسة غير موجودة' } };
-      const { data: cashTotal } = await sb.rpc('pos_session_cash_total', { p_session_id: id }).single().catch(() => ({ data: null }));
+      const { data: cashTotal } = await sb.rpc('pos_session_cash_total', { p_session_id: id }).single().then(r => r, () => ({ data: null }));
       // fallback client-side: نجمع من pos_payment_splits عبر pos_transactions
       let expected = Number(session.opening_float);
       if (cashTotal && typeof cashTotal.total === 'number') {
@@ -8962,7 +8962,7 @@ const DOC = {
       ]);
       if (doc) {
         // سجّل واقعة عرض
-        sb.rpc('doc_log_access', { p_document_id: id, p_action: 'view', p_notes: null }).catch(() => {});
+        sb.rpc('doc_log_access', { p_document_id: id, p_action: 'view', p_notes: null }).then(() => {}, () => {});
       }
       return { doc, log: log || [], error };
     },
@@ -8973,18 +8973,18 @@ const DOC = {
     },
     async update(id, payload) {
       const { data, error } = await sb.from('doc_documents').update(payload).eq('id', id).select().single();
-      if (!error) await sb.rpc('doc_log_access', { p_document_id: id, p_action: 'update', p_notes: null }).catch(() => {});
+      if (!error) await sb.rpc('doc_log_access', { p_document_id: id, p_action: 'update', p_notes: null }).then(() => {}, () => {});
       return { data, error };
     },
     async archive(id, note) {
       const { error } = await sb.from('doc_documents').update({
         status: 'archived', archived_at: new Date().toISOString(), archived_by: CURRENT_USER.id
       }).eq('id', id);
-      if (!error) await sb.rpc('doc_log_access', { p_document_id: id, p_action: 'archive', p_notes: note || null }).catch(() => {});
+      if (!error) await sb.rpc('doc_log_access', { p_document_id: id, p_action: 'archive', p_notes: note || null }).then(() => {}, () => {});
       return { error };
     },
     async logDownload(id) {
-      await sb.rpc('doc_log_access', { p_document_id: id, p_action: 'download', p_notes: null }).catch(() => {});
+      await sb.rpc('doc_log_access', { p_document_id: id, p_action: 'download', p_notes: null }).then(() => {}, () => {});
     },
     async expiringSoon(days) {
       const target = new Date(Date.now() + (days || 30) * 86400000).toISOString().slice(0, 10);
@@ -9147,11 +9147,11 @@ const CC = {
       return { data: data || [], error };
     },
     async incrementUsage(id) {
-      await sb.rpc('cc_scripts_bump', { p_id: id }).catch(() => {
-        sb.from('cc_scripts').select('usage_count').eq('id', id).single().then(({ data }) => {
-          if (data) sb.from('cc_scripts').update({ usage_count: (data.usage_count || 0) + 1 }).eq('id', id);
-        });
-      });
+      const { error } = await sb.rpc('cc_scripts_bump', { p_id: id });
+      if (error) {
+        const { data } = await sb.from('cc_scripts').select('usage_count').eq('id', id).single();
+        if (data) await sb.from('cc_scripts').update({ usage_count: (data.usage_count || 0) + 1 }).eq('id', id);
+      }
     },
     async create(payload) {
       const { data, error } = await sb.from('cc_scripts').insert({ ...payload, created_by: CURRENT_USER.id }).select().single();
@@ -17625,7 +17625,7 @@ async function copyItemLink(hashOrPath, label = 'الرابط') {
       // ننتظر ربع ثانية لكي يشوف الـ toast الأول
       setTimeout(async () => {
         if (await customConfirm('تريد مشاركة الرابط مباشرة؟')) {
-          navigator.share({ title: label, url: url }).catch(() => {});
+          navigator.share({ title: label, url: url }).then(() => {}, () => {});
         }
       }, 200);
     }
@@ -17837,7 +17837,7 @@ async function checkCustomChatsForArchive() {
             user_id: ownerId, title: 'هل تود أرشفة هذه المحادثة؟',
             body: `المحادثة "${c.title||'مخصصة'}" لم تشهد نشاطًا منذ ${CUSTOM_CHAT_INACTIVITY_DAYS} أيام. افتحها للاحتفاظ بها أو أرشفتها.`,
             link: '#custom_chat/' + c.id
-          }).catch(()=>{});
+          }).then(()=>{}, ()=>{});
         }
         await sb.from('conversations').update({ archive_reminder_sent_at: new Date().toISOString() }).eq('id', c.id);
       } else if (!secondSent && (now - firstSent) >= secondReminderMs) {
@@ -17846,7 +17846,7 @@ async function checkCustomChatsForArchive() {
             user_id: ownerId, title: 'تذكير أخير — أرشفة المحادثة',
             body: `المحادثة "${c.title||'مخصصة'}" لم تُستخدم بعد، وستُؤرشف تلقائيًا إن لم تتخذ إجراءً.`,
             link: '#custom_chat/' + c.id
-          }).catch(()=>{});
+          }).then(()=>{}, ()=>{});
         }
         await sb.from('conversations').update({ second_archive_reminder_sent_at: new Date().toISOString() }).eq('id', c.id);
       } else if (secondSent && (now - secondSent) >= autoArchiveMs) {
@@ -17856,7 +17856,7 @@ async function checkCustomChatsForArchive() {
             user_id: ownerId, title: 'تمت أرشفة المحادثة',
             body: `تمت أرشفة "${c.title||'مخصصة'}" تلقائيًا لعدم وجود نشاط.`,
             link: '#custom_chat/' + c.id
-          }).catch(()=>{});
+          }).then(()=>{}, ()=>{});
         }
       }
     }
@@ -18747,7 +18747,7 @@ function openAddMemberModal(convId, existingIds, allUsers) {
     await sb.from('notifications').insert(rows.map(r => ({
       user_id: r.user_id, title: 'تمت إضافتك إلى شات مخصص',
       body: convData?.title || 'شات مخصص', link: '#custom_chat/' + convId
-    }))).catch(()=>{});
+    }))).then(()=>{}, ()=>{});
     close();
     toast(`تمت إضافة ${selected.size} عضو`, 'success');
     renderApp();
@@ -19827,7 +19827,7 @@ function renderUsersTabContent() {
               user_id: newUser.id, title: 'تم قبول طلب انضمامك 🎉',
               body: 'تفعّل حسابك على نظام شؤون الغذاء — تواصل مع مسؤول النظام لاستلام بيانات الدخول',
               link: '#dashboard'
-            }).catch(() => {});
+            }).then(() => {}, () => {});
           }
         }
         toast('تم إضافة المستخدم بنجاح', 'success');
@@ -37118,7 +37118,7 @@ async function pageDashboard(body) {
       // اطلب فحص نسخة الـSW الآن ثم كل ساعة (بجانب فحص الـ45 ثانية داخل التطبيق)
       try { reg.update(); } catch(e) {}
       setInterval(() => { try { reg.update(); } catch(e) {} }, 60 * 60 * 1000);
-    }).catch(() => {});
+    }).then(() => {}, () => {});
 
     // إشعار متصفح/PWA — لو المستخدم قافل التطبيق ونزل تحديث
     function tryPushNotification(title, body) {
@@ -37132,7 +37132,7 @@ async function pageDashboard(body) {
               body, icon: '/icon-192-v2.png', badge: '/icon-192-v2.png',
               tag: 'app-update', renotify: true, requireInteraction: false
             });
-          }).catch(()=>{});
+          }).then(()=>{}, ()=>{});
         } else {
           new Notification(title, { body });
         }
@@ -41867,7 +41867,7 @@ async function sendCafeOrder(items) {
         user_id: u.id, title: 'طلب جديد من ركن الكافيه',
         body: `${orderNumber} من ${CURRENT_USER.full_name} — ${entries.length} صنف`,
         link: '#cafe?tab=orders'
-      }))).catch(()=>{});
+      }))).then(()=>{}, ()=>{});
     }
 
     CafeCartState.items = {}; CafeCartState.notes = '';
@@ -42290,7 +42290,7 @@ async function updateCafeOrderStatus(orderId, newStatus) {
       user_id: o.requested_by, title: 'تحديث حالة طلب الكافيه',
       body: `${o.order_number || '#'+o.id} — ${notifBodyMap[newStatus]}`,
       link: '#cafe?tab=my_orders'
-    }).catch(()=>{});
+    }).then(()=>{}, ()=>{});
   }
   toast('تم تحديث حالة الطلب', 'success');
   renderApp();
