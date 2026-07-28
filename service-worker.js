@@ -10,7 +10,7 @@
 // قبل إعادة التحميل — فلا يعلق أحد على نسخة قديمة.
 // ملاحظة نشر: غيّر SW_VERSION مع كل نشر (نفس قيمة APP_VERSION).
 // ═══════════════════════════════════════════════════════════
-const SW_VERSION = 'v138-2026-07-28-branch-manager-lock';
+const SW_VERSION = 'v139-2026-07-28-bm-notifications-on';
 const CACHE_NAME = 'sg-shell-' + SW_VERSION;
 
 // لا تلمس أبدًا: قاعدة البيانات، دوال الخادم، فحص إصدار التطبيق، APIs خارجية حية
