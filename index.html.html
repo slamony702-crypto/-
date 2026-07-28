@@ -19574,6 +19574,7 @@ async function pageUsers(body) {
     : usersQuery.eq('id', CURRENT_USER.id);
   const { data: users } = await usersQuery;
   const { data: departments } = await sb.from('departments').select('*').order('name');
+  const { data: branches } = await sb.from('branches').select('id, name').eq('is_active', true).order('name');
   let pendingSignups = [];
   let rejectedSignups = [];
   if (isAdmin) {
@@ -19583,7 +19584,7 @@ async function pageUsers(body) {
     rejectedSignups = rej || [];
   }
 
-  window.__usersPageData = { users: users||[], departments: departments||[], isAdmin, pendingSignups, rejectedSignups };
+  window.__usersPageData = { users: users||[], departments: departments||[], branches: branches||[], isAdmin, pendingSignups, rejectedSignups };
 
   function avatarInitials(name) { return (name||'').trim().split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join(''); }
   function deptColorIndex(deptId) {
@@ -19880,7 +19881,8 @@ function renderUsersTabContent() {
     });
 
   } else if (UsersPageState.activeTab === 'signup_requests') {
-    const { pendingSignups, rejectedSignups, departments, users } = window.__usersPageData;
+    const { pendingSignups, rejectedSignups, departments, branches, users } = window.__usersPageData;
+    const srRoleOpts = [['employee','موظف'],['branch_manager','مدير فرع'],['deputy_manager','نائب مدير'],['department_manager','مدير قسم']];
     const jobTitles = [...new Set((users||[]).map(u => (u.position_title||'').trim()).filter(Boolean))].sort();
     const smallInput = (id, val, type) => `<input type="${type||'text'}" class="meeting-input" data-sr-field="${id}" value="${esc(val||'')}" style="min-width:110px;font-size:12px;padding:6px 8px;">`;
     const renderRow = r => `
@@ -19895,6 +19897,17 @@ function renderUsersTabContent() {
                     <select class="meeting-select" data-sr-dept="${r.id}" style="min-width:150px;">
                       <option value="">كما أرسلها (بدون قسم محدد)</option>
                       ${(departments||[]).map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('')}
+                    </select>
+                  </td>
+                  <td>
+                    <select class="meeting-select" data-sr-role="${r.id}" style="min-width:130px;">
+                      ${srRoleOpts.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')}
+                    </select>
+                  </td>
+                  <td>
+                    <select class="meeting-select" data-sr-branch="${r.id}" style="min-width:130px;">
+                      <option value="">— بدون فرع —</option>
+                      ${(branches||[]).map(b=>`<option value="${b.id}">${esc(b.name)}</option>`).join('')}
                     </select>
                   </td>
                   <td style="white-space:nowrap;">
@@ -19913,7 +19926,7 @@ function renderUsersTabContent() {
           <div style="overflow-x:auto;">
           <table class="adv-table" id="srTable">
             <thead><tr>
-              <th>الاسم</th><th>الجوال</th><th>الإيميل</th><th>المسمى الوظيفي</th><th>المنطقة/الفرع</th><th>ملاحظات</th><th>القسم المناسب</th><th>الإجراء</th>
+              <th>الاسم</th><th>الجوال</th><th>الإيميل</th><th>المسمى الوظيفي</th><th>المنطقة/الفرع</th><th>ملاحظات</th><th>القسم المناسب</th><th>الدور في المنصة</th><th>الفرع</th><th>الإجراء</th>
             </tr></thead>
             <tbody>${pendingSignups.map(renderRow).join('')}</tbody>
           </table>
@@ -19999,6 +20012,10 @@ function renderUsersTabContent() {
         try {
           const deptSelect = host.querySelector(`[data-sr-dept="${origReq.id}"]`);
           const departmentId = deptSelect && deptSelect.value ? Number(deptSelect.value) : null;
+          const roleSelect = host.querySelector(`[data-sr-role="${origReq.id}"]`);
+          const selectedRole = (roleSelect && roleSelect.value) || 'employee';
+          const branchSelect = host.querySelector(`[data-sr-branch="${origReq.id}"]`);
+          const branchId = branchSelect && branchSelect.value ? Number(branchSelect.value) : null;
           // تحقق مسبق: هل الإيميل مستخدم من قبل؟
           if (req.email) {
             const { data: existing } = await sb.from('users').select('id, full_name, username').eq('email', req.email).maybeSingle();
