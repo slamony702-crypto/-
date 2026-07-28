@@ -5207,7 +5207,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v140-2026-07-28-network-first';
+const APP_VERSION = 'v141-2026-07-28-mobile-bm-lock';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -42452,6 +42452,31 @@ function ensureMobileShell() {
       if (typeof openQuickAddTaskModal === 'function') openQuickAddTaskModal(null, null, null);
       else location.hash = '#tasks';
     });
+    // ─── وضع «التوصيل فقط» لمدير الفرع (شريط الموبايل): تعطيل الخدمات + زر خروج ───
+    if (isDeliveryOnlyUser()) {
+      const svcMsg = () => toast('الخدمة غير متاحة لهذا الحساب', 'error');
+      const actions = document.querySelector('.m-appbar-actions');
+      if (actions) actions.addEventListener('click', (e) => {
+        if (e.target.closest('#mBtnNotif, #mBtnLogout')) return; // الإشعارات والخروج مسموحان
+        if (e.target.closest('#mBtnMessages, #mBtnNewTask')) { e.preventDefault(); e.stopImmediatePropagation(); svcMsg(); }
+      }, true);
+      const searchWrap = document.getElementById('mSearchBarWrap');
+      if (searchWrap) searchWrap.addEventListener('click', (e) => { e.preventDefault(); e.stopImmediatePropagation(); svcMsg(); }, true);
+      const mSi = document.getElementById('mSearchInput');
+      if (mSi) { mSi.readOnly = true; mSi.placeholder = 'الخدمة غير متاحة لهذا الحساب'; }
+      if (actions && !document.getElementById('mBtnLogout')) {
+        const lb = document.createElement('button');
+        lb.id = 'mBtnLogout';
+        lb.className = 'm-appbar-btn';
+        lb.title = 'تسجيل الخروج';
+        lb.setAttribute('aria-label', 'تسجيل الخروج');
+        lb.style.color = '#E5484D';
+        lb.innerHTML = '<span data-lucide="log-out" style="width:18px;height:18px;"></span>';
+        lb.addEventListener('click', () => logout());
+        actions.appendChild(lb);
+        if (window.lucide) lucide.createIcons();
+      }
+    }
     // Search bar interactions
     const sInput = document.getElementById('mSearchInput');
     const sMic = document.getElementById('mBtnVoice');
