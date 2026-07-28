@@ -39839,16 +39839,29 @@ function getVideoDuration(file) {
 }
 
 // رفع صورة data URI إلى Storage وإرجاع الرابط العام (أو null للـ fallback)
+// تحويل data URI إلى Blob يدويًا (بدون fetch — أوثق على الجوال وتحت سياسات CSP)
+function dataUriToBlob(dataUri) {
+  const comma = dataUri.indexOf(',');
+  const meta = dataUri.slice(0, comma);
+  const mime = (meta.match(/data:([^;]+)/) || [null, 'image/jpeg'])[1];
+  const bin = atob(dataUri.slice(comma + 1));
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
 async function uploadDataUri(dataUri, pathPrefix) {
   try {
-    const res = await fetch(dataUri);
-    const blob = await res.blob();
+    const blob = dataUriToBlob(dataUri);
     const path = `${pathPrefix}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.jpg`;
-    const { error } = await sb.storage.from('maintenance').upload(path, blob, { contentType: blob.type || 'image/jpeg' });
-    if (error) return null;
+    // مهلة 30 ثانية حتى لا يعلّق الرفع للأبد لو تعذّر الاتصال بالتخزين
+    const uploadP = sb.storage.from('maintenance').upload(path, blob, { contentType: blob.type || 'image/jpeg' });
+    const timeoutP = new Promise((_, rej) => setTimeout(() => rej(new Error('انتهت مهلة رفع الصورة (اتصال بطيء أو التخزين لا يستجيب)')), 30000));
+    const { error } = await Promise.race([uploadP, timeoutP]);
+    if (error) { window.__lastUploadError = error.message; return null; }
     const { data } = sb.storage.from('maintenance').getPublicUrl(path);
     return data?.publicUrl || null;
-  } catch (e) { return null; }
+  } catch (e) { window.__lastUploadError = e.message || String(e); return null; }
 }
 
 // رفع ملف إلى Supabase Storage (bucket: maintenance) وإرجاع الرابط العام
@@ -40146,7 +40159,7 @@ async function pageBranchDeliveryNew(body) {
         picked.photo2 ? uploadDataUri(picked.photo2, prefix) : Promise.resolve(null)
       ]);
       // صورة الفاتورة إلزامية في قاعدة البيانات — لو فشل رفعها نوقف بدل حفظ سجل ناقص
-      if (!invoiceUrl || !p1Url) throw new Error('فشل رفع الصور — تحقق من الاتصال وحاول مرة أخرى');
+      if (!invoiceUrl || !p1Url) throw new Error('فشل رفع الصور: ' + (window.__lastUploadError || 'تحقق من الاتصال وحاول مرة أخرى'));
 
       const companyName = (companies || []).find(c => String(c.id) === String(companyId))?.name || null;
       const amountRaw = document.getElementById('bdAmount').value;
