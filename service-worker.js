@@ -10,7 +10,7 @@
 // قبل إعادة التحميل — فلا يعلق أحد على نسخة قديمة.
 // ملاحظة نشر: غيّر SW_VERSION مع كل نشر (نفس قيمة APP_VERSION).
 // ═══════════════════════════════════════════════════════════
-const SW_VERSION = 'v139-2026-07-28-bm-notifications-on';
+const SW_VERSION = 'v140-2026-07-28-network-first';
 const CACHE_NAME = 'sg-shell-' + SW_VERSION;
 
 // لا تلمس أبدًا: قاعدة البيانات، دوال الخادم، فحص إصدار التطبيق، APIs خارجية حية
@@ -65,17 +65,20 @@ self.addEventListener('fetch', (e) => {
       return res;
     }).catch(() => null);
 
-    if (cached) {
-      // Stale-While-Revalidate: أظهر المخزّن فورًا والشبكة تحدّث في الخلفية
-      return cached;
-    }
-    const fresh = await networkPromise;
-    if (fresh) return fresh;
-    // أوفلاين ومفيش كاش لهذا الطلب: للملاحة جرّب الصفحة الرئيسية المخزّنة
+    // الصفحة الرئيسية (navigation): Network-first — أحدث نسخة دائمًا عند وجود إنترنت،
+    // والكاش احتياطي للأوفلاين فقط. يمنع بقاء المستخدم على نسخة قديمة عالقة.
     if (isNav) {
+      const fresh = await networkPromise;
+      if (fresh) return fresh;
+      if (cached) return cached;
       const fallback = await cache.match('/', { ignoreSearch: true });
       if (fallback) return fallback;
+      return new Response('', { status: 504, statusText: 'offline' });
     }
+    // باقي الأصول (CDN/ملفات ثابتة): Stale-While-Revalidate للسرعة
+    if (cached) return cached;
+    const fresh = await networkPromise;
+    if (fresh) return fresh;
     return new Response('', { status: 504, statusText: 'offline' });
   })());
 });
