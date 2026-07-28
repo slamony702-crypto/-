@@ -5207,7 +5207,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v147-2026-07-28-signup-welcome-msg';
+const APP_VERSION = 'v148-2026-07-28-signup-inapp-welcome';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -12211,13 +12211,21 @@ function renderPendingApprovalScreen() {
   const pending = getPendingSignup() || {};
   const firstName = (pending.full_name || '').trim().split(/\s+/)[0] || 'بك';
   root.innerHTML = `
-    <div class="login-page">
-      <div class="login-glow"></div>
-      <div class="login-box" style="max-width:430px;">
-        <div class="login-logo-wrap">
-          <img src="logo-wordmark-v2.png" alt="شؤون الغذاء" onerror="this.src=LOGO_DATA_URI">
-          <span class="login-logo-tagline">لتطوير وإدارة المطاعم</span>
+    <div style="min-height:100vh;background:linear-gradient(165deg,#EAF6F0 0%,#F4F7F3 100%);display:flex;flex-direction:column;">
+      <header style="background:linear-gradient(135deg,#0F3D2E,#1A5C4B);color:#fff;padding:13px 18px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 6px 18px rgba(15,61,46,0.28);position:sticky;top:0;z-index:5;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <img src="logo-icon-v4.png" width="34" height="34" alt="" style="border-radius:9px;background:#fff;padding:3px;" onerror="this.style.display='none'">
+          <div style="font-weight:800;font-size:16px;">شؤون الغذاء</div>
         </div>
+        <div style="display:flex;align-items:center;gap:9px;">
+          <div style="text-align:left;line-height:1.4;">
+            <div style="font-size:13px;font-weight:700;">${esc(firstName)}</div>
+            <span style="font-size:10px;font-weight:700;background:#F0B429;color:#3d2c00;padding:1.5px 8px;border-radius:8px;">قيد التفعيل</span>
+          </div>
+          <div style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.22);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;">${esc(firstName[0] || '؟')}</div>
+        </div>
+      </header>
+      <div style="flex:1;padding:22px 16px 30px;max-width:470px;margin:0 auto;width:100%;box-sizing:border-box;">
         <div style="text-align:center;">
           <div class="pnd-clock" id="pndClock">--:--</div>
           <div class="pnd-dates"><span id="pndDateHijri"></span><span class="pnd-dates-sep">•</span><span id="pndDateGreg"></span></div>
