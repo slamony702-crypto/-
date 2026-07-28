@@ -12485,7 +12485,7 @@ async function finishLoginAndEnterApp(user) {
   subscribeToUserNotifications();
   // اطلب إذن الإشعارات بعد ثانيتين من الدخول (تجربة أنعم)
   setTimeout(() => { if ('Notification' in window && Notification.permission === 'default') requestNotificationPermission(); }, 2000);
-  location.hash = '#dashboard';
+  location.hash = isDeliveryOnlyUser() ? '#branch_delivery' : '#myday';
   renderApp();
 }
 
@@ -12504,7 +12504,7 @@ async function logout() {
 // وصفحة تعريفية فقط (pageComingSoonModule) — كل شاشاتها الداخلية محمية.
 // حسابات المراجعة في MODULE_PREVIEW_USERS فقط هي اللي تشوف الشاشات الحقيقية.
 // لإطلاق مديول للجميع: امسح مفتاحه من PREVIEW_MODULES — تعديل سطر واحد فقط.
-const PREVIEW_MODULES = ['hr', 'accounting', 'operations', 'ai_agents', 'menu', 'crm', 'pos', 'haccp', 'procurement', 'performance', 'delivery', 'documents', 'call_center', 'bi', 'integrations', 'franchise'];
+const PREVIEW_MODULES = ['dashboard', 'hr', 'accounting', 'operations', 'ai_agents', 'menu', 'crm', 'pos', 'haccp', 'procurement', 'performance', 'delivery', 'documents', 'call_center', 'bi', 'integrations', 'franchise'];
 const MODULE_PREVIEW_USERS = ['test_admin'];
 function canAccessModule(moduleKey) {
   if (!PREVIEW_MODULES.includes(moduleKey)) return true;
@@ -12513,6 +12513,7 @@ function canAccessModule(moduleKey) {
 // يرجّع مفتاح المديول المقفول الذي تنتمي له الصفحة، أو null لو الصفحة عامة
 function gatedModuleForPage(page) {
   const p = page || '';
+  if (p === 'dashboard') return 'dashboard';
   if (p === 'hr' || p.startsWith('hr_')) return 'hr';
   if (p === 'accounting' || p.startsWith('acct_')) return 'accounting';
   if (p === 'operations' || p.startsWith('ops_')) return 'operations';
@@ -12566,7 +12567,7 @@ function passesRoleGate(item) {
 const MENU_GROUPS = [
   { key: '__main', label: 'الأساسيات', icon: 'home', defaultOpen: true, items: [
     { key: 'myday', label: 'أعمالي اليوم', icon: 'sun' },
-    { key: 'dashboard', label: 'لوحة التحكم', icon: 'layout-dashboard' },
+    { key: 'dashboard', label: 'لوحة التحكم', icon: 'layout-dashboard', badge: 'قريبًا' },
     { key: 'vision', label: 'رؤية الشركة', icon: 'compass' },
   ]},
   { key: '__exec', label: 'التنفيذ والمتابعة', icon: 'clipboard-check', defaultOpen: true, items: [
@@ -16587,7 +16588,7 @@ window.deleteDecision = async function(id) {
 
 function currentRoute() {
   // مدير الفرع يهبط على قسمه مباشرة بدل لوحة التحكم
-  const fallbackPage = isDeliveryOnlyUser() ? 'branch_delivery' : 'dashboard';
+  const fallbackPage = isDeliveryOnlyUser() ? 'branch_delivery' : 'myday';
   const hash = location.hash.replace('#', '') || fallbackPage;
   const [pathPart, queryPart] = hash.split('?');
   const [page, param] = pathPart.split('/');
@@ -17237,7 +17238,9 @@ async function route() {
     // حارس المعاينة: صفحات المديولات المقفولة خلف "قريبًا" تعرض الصفحة
     // التعريفية فقط لغير حسابات المراجعة — راجع canAccessModule أعلى الملف
     const gatedModule = gatedModuleForPage(page);
-    if (gatedModule && !canAccessModule(gatedModule)) await pageComingSoonModule(body, gatedModule);
+    // رئيسية الموبايل تُرندَر عبر dashboard؛ نسمح بها دائمًا حتى لو المديول مقفول على الديسكتوب
+    const dashboardMobileHome = (page === 'dashboard' && isMobileView());
+    if (gatedModule && !canAccessModule(gatedModule) && !dashboardMobileHome) await pageComingSoonModule(body, gatedModule);
     else if (page === 'dashboard') await pageDashboard(body);
     else if (page === 'myday') await pageMyDay(body);
     else if (page === 'vision') await pageVision(body, param);
@@ -42790,7 +42793,8 @@ function openMobileCustomizeSheet() {
     vision: ['رؤية الشركة','compass'], analytics: ['تحليلات الأداء','trending-up'],
     invite: ['دعوة موظفين','user-plus'],
     users: ['المستخدمون','users'], my_profile: ['ملفي الشخصي','user'],
-    settings: ['الإعدادات','settings']
+    settings: ['الإعدادات','settings'],
+    branch_delivery: ['طلبات تطبيقات التوصيل','package']
   };
   const visible = window._mHomeSectionKeys || all;
   const sheet = document.createElement('div');
@@ -43203,8 +43207,12 @@ async function renderMobileHome(body) {
     { key:'my_profile',href:'#my_profile',tint:'t-mint',        icon:'user',
       title:'ملفي الشخصي',  sub:'بياناتي وأدائي', badge:null },
     { key:'settings',  href:'#settings',  tint:'t-aqua',        icon:'settings',
-      title:'الإعدادات',    sub:'تفضيلات النظام', badge:null }
+      title:'الإعدادات',    sub:'تفضيلات النظام', badge:null },
+    { key:'branch_delivery', href:'#branch_delivery', tint:'t-mint', icon:'package',
+      title:'طلبات تطبيقات التوصيل', sub:'توثيق ومتابعة طلبات التطبيقات', badge:null, onlyRoles: BRANCH_DELIVERY_ROLES }
   ];
+  // فلترة البلاطات حسب دور المستخدم (أقسام مقصورة على أدوار معيّنة مثل طلبات التوصيل)
+  const allowedTiles = defaultTiles.filter(t => !t.onlyRoles || (CURRENT_USER && t.onlyRoles.includes(CURRENT_USER.role)));
   // ترتيب + الرؤية المحفوظة (كلاهما في localStorage)
   const savedOrder = (() => { try { return JSON.parse(localStorage.getItem('mHomeTilesOrder') || '[]'); } catch { return []; } })();
   const savedVisible = (() => {
@@ -43228,14 +43236,14 @@ async function renderMobileHome(body) {
     // افتراضي: الأقسام الأساسية على الرئيسية، والباقي (شغلي اليوم/الرؤية/التحليلات/الدعوة/المستخدمون...) في More
     return ['meetings','department_tasks','tasks','decisions','maintenance','quality','conversations','operations','hr','accounting','emergency','cafe','reports'];
   })();
-  const byKey = Object.fromEntries(defaultTiles.map(t => [t.key, t]));
+  const byKey = Object.fromEntries(allowedTiles.map(t => [t.key, t]));
   const visibleTiles = [
     ...savedOrder.map(k => byKey[k]).filter(Boolean),
-    ...defaultTiles.filter(t => !savedOrder.includes(t.key))
+    ...allowedTiles.filter(t => !savedOrder.includes(t.key))
   ].filter(t => savedVisible.includes(t.key));
   // نحفظ قائمة كل الأقسام والمرئية لصنع More sheet ذكي بدون تكرار
   window._mHomeSectionKeys = savedVisible; // للاستخدام في openMobileMoreSheet
-  window._mAllSectionKeys = defaultTiles.map(t => t.key);
+  window._mAllSectionKeys = allowedTiles.map(t => t.key);
 
   const tilesHtml = `
     <div class="m-tiles-header">
