@@ -5207,7 +5207,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v146-2026-07-28-signup-rejected-status';
+const APP_VERSION = 'v147-2026-07-28-signup-welcome-msg';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -12224,8 +12224,8 @@ function renderPendingApprovalScreen() {
           <div class="pnd-prayers hidden" id="pndPrayers"></div>
           <div class="pnd-msg-card">
             <div class="pnd-msg-icon"><span data-lucide="hourglass" style="width:22px;height:22px;"></span></div>
-            <div class="pnd-msg-title">أهلًا بك ${esc(firstName)} 🌿 طلبك بين أيدٍ أمينة</div>
-            <div class="pnd-msg-body">يقوم قسم الموارد البشرية بمراجعة طلب انضمامك الآن، وسيتم تفعيل حسابك خلال <b>يوم عمل كحد أقصى</b>. لحظة القبول سيفتح النظام أمامك تلقائيًا — لا تحتاج لفعل أي شيء.</div>
+            <div class="pnd-msg-title">أهلًا بك ${esc(firstName)} 🌿 تم تسجيلك في منصة شؤون الغذاء</div>
+            <div class="pnd-msg-body">سعداء بانضمامك إلى المنصة! <b>سيتم منح صلاحياتك وتفعيل حسابك بالكامل بعد مراجعة قسم الموارد البشرية</b> (خلال يوم عمل كحد أقصى). لحظة الاعتماد سيفتح لك النظام تلقائيًا — لا تحتاج لفعل أي شيء.</div>
           </div>
           <button type="button" class="login-submit-btn" id="pndCheckBtn" style="margin-top:16px;">
             <span data-lucide="refresh-cw"></span><span>تحقق من حالة الطلب الآن</span>
