@@ -5207,7 +5207,7 @@ button, a, input, select, textarea, .panel, .kpi-card, .stat-card-premium, .cat-
 // ═══════════════════════════════════════════════════════════
 // 🔖 إصدار التطبيق — يُبدَّل مع كل نشر (نفس رقم SW_VERSION)
 // ═══════════════════════════════════════════════════════════
-const APP_VERSION = 'v142-2026-07-28-bm-tools-menu';
+const APP_VERSION = 'v143-2026-07-28-bm-header-minimal';
 
 // (أ) عند التحميل: toast لو المستخدم رجع بعد تحديث ناجح
 (function checkAppVersionOnLoad() {
@@ -17197,21 +17197,18 @@ async function renderShellOnce() {
   wireGlobalVoiceButton(runGlobalSearch);
   document.getElementById('globalVoiceHelpBtn')?.addEventListener('click', openVoiceHelpModal);
 
-  // ─── وضع «التوصيل فقط» لمدير الفرع: تعطيل خدمات الهيدر + زر خروج واضح ───
+  // ─── وضع «التوصيل فقط» لمدير الفرع: هيدر مبسّط (⋮ تحميل التطبيق + خروج فقط) ───
   if (isDeliveryOnlyUser()) {
-    const svcMsg = () => toast('الخدمة غير متاحة لهذا الحساب', 'error');
-    // اعتراض في طور الالتقاط على الحاوية → يمنع مستمعي الأزرار الأصليين
-    const card = document.querySelector('.user-topbar-card');
-    if (card) card.addEventListener('click', (e) => {
-      if (e.target.closest('#msgsIconBtn, #quickAddTaskBtn')) {
-        e.preventDefault(); e.stopImmediatePropagation(); svcMsg();
-      }
-    }, true);
+    // إخفاء أزرار الخدمات من الهيدر (رسائل/إشعارات/مهمة)
+    ['msgsIconBtn','notifBellBtn','quickAddTaskBtn'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { const w = el.closest('div'); (w || el).style.display = 'none'; }
+    });
+    // إخفاء شريط البحث والصوت
     const searchWrap = document.querySelector('.topbar-search');
-    if (searchWrap) searchWrap.addEventListener('click', (e) => { e.preventDefault(); e.stopImmediatePropagation(); svcMsg(); }, true);
-    const gsi = document.getElementById('globalSearchInput');
-    if (gsi) { gsi.readOnly = true; gsi.placeholder = 'الخدمة غير متاحة لهذا الحساب'; }
-    // زر تسجيل خروج واضح لمدير الفرع (القائمة العادية مخفية عليه)
+    if (searchWrap) searchWrap.style.display = 'none';
+    // زر تسجيل خروج واضح لمدير الفرع
+    const card = document.querySelector('.user-topbar-card');
     if (card && !document.getElementById('deliveryLogoutBtn')) {
       const lb = document.createElement('button');
       lb.id = 'deliveryLogoutBtn';
