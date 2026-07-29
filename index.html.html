@@ -12292,14 +12292,18 @@ function renderPendingApprovalScreen() {
   document.getElementById('installAppBanner')?.classList.add('hidden');
   document.getElementById('iabIosModal')?.classList.add('hidden');
   document.getElementById('pndInstallBtn')?.addEventListener('click', async () => {
-    const dp = window.__deferredInstallPrompt;
+    const btn = document.getElementById('pndInstallBtn');
+    let dp = window.__deferredInstallPrompt;
+    // كروم أحيانًا يطلق نافذة التثبيت بعد ثوانٍ من فتح الصفحة — ننتظر لحظة قصيرة لعلها تجهز
+    // (الانتظار داخل نافذة تفعيل المستخدم ~5 ثوان، فلا يُفقَد الـgesture)
+    if (!dp && btn) { const _o = btn.innerHTML; btn.innerHTML = '<span class="login-spinner" style="width:16px;height:16px;"></span><span>جاري التجهيز...</span>'; for (let i = 0; i < 8 && !dp; i++) { await new Promise(r => setTimeout(r, 250)); dp = window.__deferredInstallPrompt; } btn.innerHTML = _o; if (window.lucide) lucide.createIcons(); }
     if (dp) { try { dp.prompt(); await dp.userChoice; window.__deferredInstallPrompt = null; } catch (e) {} return; }
     const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
     const hint = document.getElementById('pndInstallHint');
     if (hint) {
       hint.innerHTML = isIOS
         ? '📲 لتثبيت التطبيق على آيفون: اضغط زر <b>المشاركة</b> بالأسفل في متصفح Safari، ثم اختر <b>«إضافة إلى الشاشة الرئيسية»</b>.'
-        : '📲 لتثبيت التطبيق: افتح <b>قائمة المتصفح (⋮)</b> ثم اختر <b>«تثبيت التطبيق»</b> أو <b>«إضافة إلى الشاشة الرئيسية»</b>.';
+        : '📲 لو ما ظهرت نافذة التثبيت: افتح <b>قائمة المتصفح (⋮)</b> واختر <b>«تثبيت التطبيق»</b> — أو انتظر ثوانٍ على الصفحة وأعد الضغط.';
       hint.style.display = 'block';
     }
   });
