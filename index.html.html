@@ -5234,49 +5234,26 @@ const APP_VERSION = 'v151-2026-07-28-pending-install-btn';
 // - لو مختلف عن APP_VERSION → نعرض بانر واضح "تحديث جديد متاح"
 // - هذا بديل مضمون بديلاً عن أحداث SW التي قد لا تصل بشكل موثوق
 (function liveUpdatePoll() {
-  // ═══ تحديث تلقائي صامت — بلا رسائل ولا بانر ═══
-  // عند نزول نسخة جديدة: نمسح الكاش ونعيد التحميل في أول لحظة آمنة (المستخدم
-  // لا يكتب في حقل ولا توجد نافذة مفتوحة)، مع حارس sessionStorage ضد أي حلقة إعادة.
-  const RELOAD_KEY = 'fa_autoupdate_to';
-  let pendingVer = null;
-  let updating = false;
-  const isSafe = () => {
-    const a = document.activeElement;
-    const typing = a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable);
-    const modal = document.querySelector('.modal-overlay, .m-more-overlay');
-    return !typing && !modal && document.visibilityState === 'visible';
-  };
-  const applyUpdate = async () => {
-    if (updating || !pendingVer) return;
-    updating = true;
-    try { sessionStorage.setItem(RELOAD_KEY, pendingVer); } catch (e) {}
-    try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map(k => caches.delete(k))); } } catch (e) {}
-    location.reload();
-  };
-  const tryApply = () => { if (pendingVer && isSafe()) applyUpdate(); };
+  // ═══ تحديث صامت بلا إعادة تحميل مفاجئة ═══
+  // عند نزول نسخة جديدة نمسح كاش الـSW فقط، فتأتي النسخة الأحدث تلقائيًا في أول
+  // فتحة/تنقّل عبر Network-first — بلا بانر وبلا reload يقاطع المستخدم.
+  // (إعادة التحميل الاستباقية كانت تسبب عدم استقرار على الموبايل، خصوصًا صفحة التواصل.)
+  let cacheClearedForNew = false;
   const checkForUpdate = async () => {
-    if (updating) return;
+    if (cacheClearedForNew) return;
     try {
       const res = await fetchWithTimeout('service-worker.js?_=' + Date.now(), { cache: 'no-store' }, 8000);
       if (!res.ok) return;
       const m = (await res.text()).match(/SW_VERSION\s*=\s*['"]([^'"]+)['"]/);
-      const remoteVer = m && m[1];
-      if (remoteVer && remoteVer !== APP_VERSION) {
-        let tried = null; try { tried = sessionStorage.getItem(RELOAD_KEY); } catch (e) {}
-        if (tried === remoteVer) return; // جرّبنا التحديث لهذه النسخة ولم ينجح — لا نُعيد للأبد
-        pendingVer = remoteVer;
-        tryApply();
-      } else if (remoteVer === APP_VERSION) {
-        try { sessionStorage.removeItem(RELOAD_KEY); } catch (e) {}
+      if (m && m[1] && m[1] !== APP_VERSION) {
+        cacheClearedForNew = true;
+        try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map(k => caches.delete(k))); } } catch (e) {}
+        // لا نعيد التحميل — التحديث ينزل صامتًا في أول تنقّل أو فتح للتطبيق
       }
     } catch (e) { /* شبكة انقطعت — نتجاهل */ }
   };
-  setTimeout(checkForUpdate, 20 * 1000);
-  setInterval(checkForUpdate, 60 * 1000);
-  setInterval(tryApply, 6 * 1000); // طبّق التحديث المؤجّل أول ما يصبح آمنًا
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') setTimeout(checkForUpdate, 800);
-  });
+  setTimeout(checkForUpdate, 30 * 1000);
+  setInterval(checkForUpdate, 120 * 1000);
 })();
 
 // ============ إعداد الاتصال بـ Supabase ============
