@@ -12287,15 +12287,16 @@ function renderPendingApprovalScreen() {
     localStorage.removeItem('fa_pending_signup');
     renderLogin();
   });
+  // نخفي أي واجهة تثبيت عائمة من التطبيق حتى لا تتداخل مع شاشة الترحيب
+  document.getElementById('installAppBanner')?.classList.add('hidden');
+  document.getElementById('iabIosModal')?.classList.add('hidden');
   document.getElementById('pndInstallBtn')?.addEventListener('click', async () => {
     const dp = window.__deferredInstallPrompt;
     if (dp) { try { dp.prompt(); await dp.userChoice; window.__deferredInstallPrompt = null; } catch (e) {} return; }
-    const nativeBtn = document.getElementById('iabInstallBtn');
-    if (nativeBtn) { nativeBtn.click(); return; }
     const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
     toast(isIOS
-      ? 'على آيفون: اضغط زر المشاركة بالأسفل ثم اختر «إضافة إلى الشاشة الرئيسية»'
-      : 'اضغط قائمة المتصفح (⋮) ثم اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية»', 'warning');
+      ? 'لتثبيت التطبيق على آيفون: اضغط زر المشاركة بالأسفل ثم اختر «إضافة إلى الشاشة الرئيسية»'
+      : 'لتثبيت التطبيق: اضغط قائمة المتصفح (⋮) بالأعلى ثم اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية»', 'warning');
   });
 }
 
