@@ -5234,67 +5234,48 @@ const APP_VERSION = 'v149-2026-07-28-signup-login-anytime';
 // - لو مختلف عن APP_VERSION → نعرض بانر واضح "تحديث جديد متاح"
 // - هذا بديل مضمون بديلاً عن أحداث SW التي قد لا تصل بشكل موثوق
 (function liveUpdatePoll() {
-  let liveBannerShown = false;
-  const showLiveBanner = (newVer) => {
-    if (liveBannerShown || document.getElementById('appLiveUpdateBanner')) return;
-    liveBannerShown = true;
-    const bar = document.createElement('div');
-    bar.id = 'appLiveUpdateBanner';
-    bar.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top,0px) + 12px);left:12px;right:12px;z-index:99999;padding:14px 18px;border-radius:16px;background:linear-gradient(135deg,#059669 0%,#10B981 40%,#8B5CF6 100%);color:#fff;font-family:Tajawal,"Noto Sans Arabic",sans-serif;font-size:14px;font-weight:700;box-shadow:0 14px 34px rgba(16,185,129,0.35),0 6px 16px rgba(139,92,246,0.30);display:flex;align-items:center;gap:10px;';
-    bar.innerHTML = `
-      <span style="font-size:20px;line-height:1;">🔄</span>
-      <span style="flex:1;line-height:1.4;">تحديث جديد متاح — اضغط للتحديث الآن</span>
-      <button id="appLiveUpdateBtn" style="background:#fff;color:#059669;border:none;padding:8px 16px;border-radius:10px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;">تحديث</button>
-      <button id="appLiveUpdateDismiss" aria-label="إغلاق" style="background:none;border:none;color:#fff;font-size:18px;line-height:1;cursor:pointer;padding:4px 6px;opacity:.85;">✕</button>
-    `;
-    document.body.appendChild(bar);
-    document.getElementById('appLiveUpdateBtn').onclick = async () => {
-      // امسح كاش الـSW أولًا حتى تأتي النسخة الجديدة من الشبكة فورًا
-      try {
-        if ('caches' in window) {
-          const ks = await caches.keys();
-          await Promise.all(ks.map(k => caches.delete(k)));
-        }
-      } catch(e) {}
-      location.reload();
-    };
-    document.getElementById('appLiveUpdateDismiss').onclick = () => bar.remove();
-    // اهتزاز خفيف على الأجهزة الداعمة
-    try { navigator.vibrate && navigator.vibrate([25, 60, 25]); } catch(e) {}
-    // إشعار متصفح لو مسموح
-    try {
-      if ('Notification' in window && Notification.permission === 'granted' && navigator.serviceWorker?.ready) {
-        navigator.serviceWorker.ready.then(reg => reg.showNotification('تحديث جديد جاهز', {
-          body: 'اضغط لتحميل آخر تحسينات نظام شؤون الغذاء', icon: '/icon-192-v2.png', badge: '/icon-192-v2.png',
-          tag: 'app-update', renotify: true
-        })).catch(()=>{});
-      }
-    } catch(e) {}
+  // ═══ تحديث تلقائي صامت — بلا رسائل ولا بانر ═══
+  // عند نزول نسخة جديدة: نمسح الكاش ونعيد التحميل في أول لحظة آمنة (المستخدم
+  // لا يكتب في حقل ولا توجد نافذة مفتوحة)، مع حارس sessionStorage ضد أي حلقة إعادة.
+  const RELOAD_KEY = 'fa_autoupdate_to';
+  let pendingVer = null;
+  let updating = false;
+  const isSafe = () => {
+    const a = document.activeElement;
+    const typing = a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable);
+    const modal = document.querySelector('.modal-overlay, .m-more-overlay');
+    return !typing && !modal && document.visibilityState === 'visible';
   };
-
+  const applyUpdate = async () => {
+    if (updating || !pendingVer) return;
+    updating = true;
+    try { sessionStorage.setItem(RELOAD_KEY, pendingVer); } catch (e) {}
+    try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map(k => caches.delete(k))); } } catch (e) {}
+    location.reload();
+  };
+  const tryApply = () => { if (pendingVer && isSafe()) applyUpdate(); };
   const checkForUpdate = async () => {
-    if (liveBannerShown) return;
+    if (updating) return;
     try {
-      // مهلة 8 ثوان — لو الشبكة بطيئة نتخطى هذه الدورة
       const res = await fetchWithTimeout('service-worker.js?_=' + Date.now(), { cache: 'no-store' }, 8000);
       if (!res.ok) return;
-      const text = await res.text();
-      const m = text.match(/SW_VERSION\s*=\s*['"]([^'"]+)['"]/);
-      if (!m) return;
-      const remoteVer = m[1];
+      const m = (await res.text()).match(/SW_VERSION\s*=\s*['"]([^'"]+)['"]/);
+      const remoteVer = m && m[1];
       if (remoteVer && remoteVer !== APP_VERSION) {
-        showLiveBanner(remoteVer);
+        let tried = null; try { tried = sessionStorage.getItem(RELOAD_KEY); } catch (e) {}
+        if (tried === remoteVer) return; // جرّبنا التحديث لهذه النسخة ولم ينجح — لا نُعيد للأبد
+        pendingVer = remoteVer;
+        tryApply();
+      } else if (remoteVer === APP_VERSION) {
+        try { sessionStorage.removeItem(RELOAD_KEY); } catch (e) {}
       }
-    } catch(e) { /* شبكة انقطعت — نتجاهل */ }
+    } catch (e) { /* شبكة انقطعت — نتجاهل */ }
   };
-
-  // أول فحص بعد 20 ثانية من التحميل
   setTimeout(checkForUpdate, 20 * 1000);
-  // ثم كل 45 ثانية
-  setInterval(checkForUpdate, 45 * 1000);
-  // وعند رجوع المستخدم للتبويب
+  setInterval(checkForUpdate, 60 * 1000);
+  setInterval(tryApply, 6 * 1000); // طبّق التحديث المؤجّل أول ما يصبح آمنًا
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') setTimeout(checkForUpdate, 500);
+    if (document.visibilityState === 'visible') setTimeout(checkForUpdate, 800);
   });
 })();
 
