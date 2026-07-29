@@ -1,6 +1,7 @@
 {
   "name": "شؤون الغذاء - متابعة الاجتماعات والمهام",
   "short_name": "شؤون الغذاء",
+  "id": "/index.html.html",
   "start_url": "./index.html.html",
   "scope": "./",
   "display": "standalone",
