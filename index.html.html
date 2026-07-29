@@ -12213,6 +12213,7 @@ function renderPendingApprovalScreen() {
           <button type="button" id="pndInstallBtn" style="margin-top:10px;width:100%;padding:12px;border-radius:12px;background:#fff;color:#0F3D2E;border:1.5px solid #0F3D2E;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
             <span data-lucide="download" style="width:16px;height:16px;"></span><span>تحميل التطبيق</span>
           </button>
+          <div id="pndInstallHint" style="display:none;margin-top:10px;padding:12px 14px;border-radius:12px;background:#E8F5EF;border:1px solid #B8D9C9;color:#0F3D2E;font-size:12.5px;line-height:1.7;text-align:center;"></div>
           <p class="login-signup-cta" style="margin-top:14px;"><a href="javascript:void(0)" id="pndSwitchLink">الدخول بحساب آخر</a></p>
         </div>
       </div>
@@ -12294,9 +12295,13 @@ function renderPendingApprovalScreen() {
     const dp = window.__deferredInstallPrompt;
     if (dp) { try { dp.prompt(); await dp.userChoice; window.__deferredInstallPrompt = null; } catch (e) {} return; }
     const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    toast(isIOS
-      ? 'لتثبيت التطبيق على آيفون: اضغط زر المشاركة بالأسفل ثم اختر «إضافة إلى الشاشة الرئيسية»'
-      : 'لتثبيت التطبيق: اضغط قائمة المتصفح (⋮) بالأعلى ثم اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية»', 'warning');
+    const hint = document.getElementById('pndInstallHint');
+    if (hint) {
+      hint.innerHTML = isIOS
+        ? '📲 لتثبيت التطبيق على آيفون: اضغط زر <b>المشاركة</b> بالأسفل في متصفح Safari، ثم اختر <b>«إضافة إلى الشاشة الرئيسية»</b>.'
+        : '📲 لتثبيت التطبيق: افتح <b>قائمة المتصفح (⋮)</b> ثم اختر <b>«تثبيت التطبيق»</b> أو <b>«إضافة إلى الشاشة الرئيسية»</b>.';
+      hint.style.display = 'block';
+    }
   });
 }
 
