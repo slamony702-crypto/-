@@ -10,7 +10,7 @@
 // قبل إعادة التحميل — فلا يعلق أحد على نسخة قديمة.
 // ملاحظة نشر: غيّر SW_VERSION مع كل نشر (نفس قيمة APP_VERSION).
 // ═══════════════════════════════════════════════════════════
-const SW_VERSION = 'v150-2026-07-28-approve-role-branch';
+const SW_VERSION = 'v151-2026-07-28-pending-install-btn';
 const CACHE_NAME = 'sg-shell-' + SW_VERSION;
 
 // لا تلمس أبدًا: قاعدة البيانات، دوال الخادم، فحص إصدار التطبيق، APIs خارجية حية

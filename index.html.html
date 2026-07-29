@@ -12252,6 +12252,9 @@ function renderPendingApprovalScreen() {
           <button type="button" class="login-submit-btn" id="pndCheckBtn" style="margin-top:16px;">
             <span data-lucide="refresh-cw"></span><span>تحقق من حالة الطلب الآن</span>
           </button>
+          <button type="button" id="pndInstallBtn" style="margin-top:10px;width:100%;padding:12px;border-radius:12px;background:#fff;color:#0F3D2E;border:1.5px solid #0F3D2E;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+            <span data-lucide="download" style="width:16px;height:16px;"></span><span>تحميل التطبيق</span>
+          </button>
           <p class="login-signup-cta" style="margin-top:14px;"><a href="javascript:void(0)" id="pndSwitchLink">الدخول بحساب آخر</a></p>
         </div>
       </div>
@@ -12325,6 +12328,11 @@ function renderPendingApprovalScreen() {
   document.getElementById('pndSwitchLink').addEventListener('click', () => {
     localStorage.removeItem('fa_pending_signup');
     renderLogin();
+  });
+  document.getElementById('pndInstallBtn')?.addEventListener('click', () => {
+    const nativeBtn = document.getElementById('iabInstallBtn');
+    if (nativeBtn) nativeBtn.click();
+    else toast('افتح قائمة المتصفح واختر "إضافة إلى الشاشة الرئيسية"', 'success');
   });
 }
 
